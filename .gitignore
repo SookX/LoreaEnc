@@ -1,0 +1,39 @@
+# Datasets and audio data
+dataset/datasets/
+dataset/dev-clean/
+dataset/test-clean/
+dataset/test-other/
+dataset/train-clean-100/
+dataset/train-clean-360/
+dataset/train-other-500/
+dataset/figures/
+*.tar.gz
+*.flac
+*.wav
+*.mp3
+
+# Model checkpoints and outputs
+outputs/
+*.pt
+*.bin
+*.ckpt
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Zip files
+*.zip
