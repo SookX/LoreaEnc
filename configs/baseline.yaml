@@ -1,0 +1,33 @@
+model:
+  name: squeezeformer_xs
+  checkpoint: null
+
+data:
+  sample_rate: 16000
+  n_mels: 80
+  max_duration: 20.0
+  min_duration: 0.5
+  manifest: data/manifests/train_960.txt
+  dev: data/manifests/dev_clean.txt
+  test: data/manifests/test_clean.txt
+
+label_fractions:
+  - name: 1h
+    hours: 1
+    seed: 42
+  - name: 100h
+    hours: 100
+    seed: 42
+  - name: 960h
+    hours: 960
+    seed: 42
+
+logging:
+  log_every: 100
+  eval_every: 1000
+  save_every: 5000
+  wandb: true
+  run_name: baseline_scratch
+
+output:
+  base_dir: outputs/baseline

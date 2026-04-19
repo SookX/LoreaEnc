@@ -1,0 +1,4 @@
+SqueezeFormer performance (150 epochs) - WER
+SqueezeFormer + Patches (150 epochs) - WER
+SqueezeFormer + Patches + SSL (InfoNCE) (200 000 timesteps, 150 epochs) - WER
+SqueezeFormer + Patches + SSL (InfoNCE + Cosine) (200 000 timesteps, 150 epochs) - WER
