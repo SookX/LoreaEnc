@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile pretrain_wav2vec2.py)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ]
+  }
+}
