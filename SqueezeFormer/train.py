@@ -247,6 +247,7 @@ def main():
         project_dir=output_dir,
         log_with="wandb" if args.wandb else None,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION,
+        mixed_precision="bf16",   # H200: 989 TFLOPs BF16 vs 67 TFLOPs FP32
     )
     if args.wandb:
         accelerator.init_trackers(run_name)
@@ -294,6 +295,7 @@ def main():
         num_workers=args.workers,
         collate_fn=collate_fn,
         pin_memory=True,
+        persistent_workers=args.workers > 0,  # keep workers alive between epochs
     )
 
     # ── Model ─────────────────────────────────────────────────────────────
@@ -327,6 +329,18 @@ def main():
     )
 
     ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)
+
+    # ── SyncBatchNorm: required for correct BN stats across GPUs ──────────
+    if accelerator.num_processes > 1:
+        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+
+    # ── torch.compile: fused kernels, significant H200 speedup ───────────
+    # Requires gcc/triton — Linux/HPC only, skipped on Windows
+    if sys.platform != "win32":
+        model = torch.compile(model)
+        accelerator.print("torch.compile: enabled")
+    else:
+        accelerator.print("torch.compile: skipped (Windows)")
 
     # ── Hand everything to Accelerate ─────────────────────────────────────
     model, optimizer, train_loader = accelerator.prepare(model, optimizer, train_loader)
