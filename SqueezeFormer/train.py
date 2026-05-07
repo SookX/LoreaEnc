@@ -1,13 +1,19 @@
 """
-SqueezeFormer XS — CTC training on LibriSpeech, plain PyTorch DDP.
-Matches the paper (arXiv:2206.00888): BPE-128, 10ms mel hop, Noam LR,
-effective batch 1024, 5-mask SpecAugment, weight-decay 5e-4.
+SqueezeFormer XS — CTC training on LibriSpeech.
 
 Single GPU:
     python SqueezeFormer/train.py
 
-Multi-GPU:
-    torchrun --nproc_per_node=2 SqueezeFormer/train.py
+Multi-GPU (2 GPUs):
+    accelerate launch --num_processes 2 SqueezeFormer/train.py
+
+With label-fraction override (used by SLURM):
+    accelerate launch --num_processes 2 SqueezeFormer/train.py \
+        --hours 1 --seed 42 --output-dir outputs/baseline/1h --run-name baseline_1h
+
+Resume:
+    accelerate launch --num_processes 2 SqueezeFormer/train.py \
+        --resume outputs/baseline/1h/checkpoint_ep010
 """
 
 import os
@@ -16,66 +22,52 @@ import math
 import random
 import shutil
 import argparse
-import contextlib
 import collections
 
 import torch
 import torch.nn as nn
-import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DataLoader, Subset, Sampler
-from torch.optim.lr_scheduler import LambdaLR
+import torchaudio
+from torch.utils.data import DataLoader, Subset
+from accelerate import Accelerator
+from transformers import Wav2Vec2CTCTokenizer
 from tqdm import tqdm
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from dataset.dataset import LibriSpeechDataset, ConformerSpecAugment
+from dataset.dataset import LibriSpeechDataset
 from SqueezeFormer import Squeezeformer, get_config
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CONSTANTS  (paper: arXiv:2206.00888, XS variant)
+# DEFAULTS — overridden by CLI flags when launched from SLURM
 # ─────────────────────────────────────────────────────────────────────────────
 
-TRAIN_SPLITS      = ["train-clean-100", "train-clean-360", "train-other-500"]
-DEV_CLEAN_SPLIT   = "dev-clean"
-DEV_OTHER_SPLIT   = "dev-other"
-VARIANT           = "xs"
+EXPERIMENT_NAME  = "SqueezeFormer_ASR_150ep"
+WORKING_DIR      = "./work_dir"
+DATA_ROOT        = "./dataset"
 
-LEARNING_RATE     = 2e-3        # paper peak LR for XS
-WEIGHT_DECAY      = 5e-4        # paper
-ADAM_BETA1        = 0.9
-ADAM_BETA2        = 0.98
-ADAM_EPSILON      = 1e-8
+TRAIN_SPLITS          = ["train-clean-100", "train-clean-360", "train-other-500"]
+DEV_SPLIT             = "dev-other"
+NUM_WORKERS           = 4           # set to 0 on Windows if RAM is tight
 
-NUM_EPOCHS        = 150
-WARMUP_EPOCHS     = 20          # paper
-PEAK_EPOCHS       = 160         # paper (LR held constant after warmup)
+VARIANT               = "sm"
 
-GRAD_ACCUM        = 2           # effective batch = 256/GPU × 2 GPU × 2 = 1024
-SAVE_EVERY        = 1
-NUM_KEEP_CHECKPOINTS = 5
+LEARNING_RATE         = None
+WEIGHT_DECAY          = 5e-4
+ADAM_BETA1            = 0.9
+ADAM_BETA2            = 0.98
+ADAM_EPSILON          = 1e-9
 
-MAX_MEL_FRAMES    = 2000        # 20s at 10ms hop → 4× subsample → 500 out frames
-MEL_HOP           = 160         # 10ms at 16kHz — must match precompute_mels.py
+PER_GPU_BATCH_SIZE    = 32
+GRADIENT_ACCUMULATION = 1
+NUM_EPOCHS            = 150
+NUM_WARMUP_EPOCHS     = 20
+NUM_PEAK_EPOCHS       = 160
+NOAM_DECAY_RATE       = 1.0
 
-BPE_MODEL         = "dataset/bpe128.model"
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# BPE TOKENIZER WRAPPER
-# ─────────────────────────────────────────────────────────────────────────────
-
-class BPETokenizer:
-    def __init__(self, model_path):
-        import sentencepiece as spm
-        self.sp = spm.SentencePieceProcessor(model_file=model_path)
-        self.vocab_size   = self.sp.get_piece_size()   # 128
-        self.pad_token_id = self.sp.pad_id()           # 0  ← CTC blank
-
-    def encode(self, text):
-        return self.sp.encode(text)          # List[int], no special tokens
-
-    def decode(self, ids):
-        return self.sp.decode(ids)           # str
+SAVE_EVERY            = 10
+EVAL_EVERY            = 1
+NUM_KEEP_CHECKPOINTS  = 5
+LOG_WANDB             = False
+SEED                  = 42
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -84,110 +76,159 @@ class BPETokenizer:
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--hours",      type=float, default=None)
-    p.add_argument("--seed",       type=int,   default=42)
-    p.add_argument("--output-dir", type=str,   default="outputs/baseline/960h")
-    p.add_argument("--run-name",   type=str,   default="baseline_960h")
-    p.add_argument("--resume",     type=str,   default=None)
-    p.add_argument("--data-root",  type=str,   default="dataset/datasets/librispeech/LibriSpeech")
-    p.add_argument("--bpe-model",  type=str,   default=BPE_MODEL)
+    p.add_argument("--hours",      type=float, default=None,
+                   help="Subsample training set to N hours (reproducible via --seed).")
+    p.add_argument("--seed",       type=int,   default=SEED,
+                   help="Random seed for data subsampling and training.")
+    p.add_argument("--output-dir", type=str,   default=None,
+                   help="Override default experiment output directory.")
+    p.add_argument("--run-name",   type=str,   default=None,
+                   help="Override experiment name (used in W&B and checkpoint paths).")
+    p.add_argument("--resume",     type=str,   default=None,
+                   help="Path to checkpoint directory to resume from.")
+    p.add_argument("--data-root",  type=str,   default=DATA_ROOT,
+                   help="Root directory of LibriSpeech.")
     p.add_argument("--epochs",     type=int,   default=NUM_EPOCHS)
-    p.add_argument("--batch-size", type=int,   default=256)
-    p.add_argument("--workers",    type=int,   default=8)
+    p.add_argument("--batch-size", type=int,   default=PER_GPU_BATCH_SIZE)
+    p.add_argument("--eval-batch-size", type=int, default=None,
+                   help="Evaluation batch size. Defaults to --batch-size.")
+    p.add_argument("--workers",    type=int,   default=NUM_WORKERS)
+    p.add_argument("--eval-split", type=str,   default=DEV_SPLIT,
+                   help="LibriSpeech split for validation WER.")
+    p.add_argument("--eval-every", type=int,   default=EVAL_EVERY,
+                   help="Run full validation every N epochs.")
+    p.add_argument("--variant",    type=str,   default=VARIANT,
+                   choices=["xs", "s", "sm", "m", "ml", "l"])
+    p.add_argument("--lr",         type=float, default=LEARNING_RATE,
+                   help="Peak learning rate. Defaults to the paper value for the selected variant.")
+    p.add_argument("--tokenizer-path", type=str, default=None,
+                   help="SentencePiece model path. The paper uses a 128-token SentencePiece vocab.")
+    p.add_argument("--no-compile", action="store_true",
+                   help="Disable torch.compile even on Linux.")
+    p.add_argument("--wandb",      action="store_true", default=LOG_WANDB)
     return p.parse_args()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DDP
+# DATA
 # ─────────────────────────────────────────────────────────────────────────────
 
-def setup_ddp():
-    if "RANK" in os.environ:
-        dist.init_process_group(backend="nccl")
-        local_rank = int(os.environ["LOCAL_RANK"])
-        rank       = dist.get_rank()
-        world_size = dist.get_world_size()
-    else:
-        local_rank, rank, world_size = 0, 0, 1
-    torch.cuda.set_device(local_rank)
-    return local_rank, rank, world_size
+def subsample_by_hours(dataset: LibriSpeechDataset, hours: float, seed: int) -> Subset:
+    """
+    Shuffle the dataset with `seed`, then greedily take utterances until
+    `hours` of audio is accumulated. Uses torchaudio.info() — reads file
+    headers only, no audio loaded into memory.
+    """
+    rng = random.Random(seed)
+    indices = list(range(len(dataset)))
+    rng.shuffle(indices)
 
+    target_seconds = hours * 3600.0
+    accumulated    = 0.0
+    selected       = []
 
-def barrier(world_size):
-    if world_size > 1:
-        dist.barrier()
+    for idx in indices:
+        path, _ = dataset.librispeech_data[idx]
+        try:
+            info = torchaudio.info(path)
+            dur  = info.num_frames / info.sample_rate
+        except Exception:
+            continue
+        selected.append(idx)
+        accumulated += dur
+        if accumulated >= target_seconds:
+            break
 
+    return Subset(dataset, selected)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# BUCKETED SAMPLER
-# ─────────────────────────────────────────────────────────────────────────────
-
-class DistributedBucketBatchSampler(Sampler):
-    def __init__(self, lengths, batch_size, num_replicas, rank,
-                 bucket_size_multiplier=100, shuffle=True, seed=0):
-        self.lengths      = lengths
-        self.batch_size   = batch_size
-        self.num_replicas = num_replicas
-        self.rank         = rank
-        self.bucket_sz    = batch_size * bucket_size_multiplier
-        self.shuffle      = shuffle
-        self.seed         = seed
-        self.epoch        = 0
-
-    def set_epoch(self, epoch):
-        self.epoch = epoch
-
-    def __iter__(self):
-        g = torch.Generator()
-        g.manual_seed(self.seed + self.epoch)
-
-        sorted_idx = torch.argsort(torch.tensor(self.lengths, dtype=torch.float32))
-        buckets    = list(sorted_idx.split(self.bucket_sz))
-
-        if self.shuffle:
-            buckets = [b[torch.randperm(len(b), generator=g)] for b in buckets]
-            order   = torch.randperm(len(buckets), generator=g).tolist()
-            buckets = [buckets[i] for i in order]
-
-        all_idx = torch.cat(buckets)
-        n       = len(all_idx)
-        effective    = self.batch_size * self.num_replicas
-        total_global = math.ceil(n / effective)
-        target_size  = total_global * effective
-        if target_size > n:
-            all_idx = torch.cat([all_idx, all_idx[: target_size - n]])
-
-        all_batches = all_idx.view(-1, self.batch_size)
-        my_batches  = all_batches[self.rank :: self.num_replicas]
-        for batch in my_batches:
-            yield batch.tolist()
-
-    def __len__(self):
-        return math.ceil(len(self.lengths) / (self.batch_size * self.num_replicas))
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# COLLATE
-# ─────────────────────────────────────────────────────────────────────────────
 
 def collate_fn(batch):
-    vals        = [item["input_values"][:MAX_MEL_FRAMES] for item in batch]
-    label_list  = [item["labels"]                        for item in batch]
+    mel_list   = [item["input_values"] for item in batch]
+    label_list = [item["labels"]       for item in batch]
+    lengths    = torch.tensor([m.size(0) for m in mel_list], dtype=torch.long)
 
-    lengths       = torch.tensor([v.size(0) for v in vals], dtype=torch.long)
-    padded        = nn.utils.rnn.pad_sequence(vals, batch_first=True)
+    mel_padded    = nn.utils.rnn.pad_sequence(mel_list, batch_first=True)
     label_lengths = torch.tensor([len(l) for l in label_list], dtype=torch.long)
     labels_flat   = torch.cat([
         l if isinstance(l, torch.Tensor) else torch.tensor(l) for l in label_list
     ])
-    return padded, lengths, labels_flat, label_lengths
+    return mel_padded, lengths, labels_flat, label_lengths
+
+
+def eval_collate_fn(batch):
+    mel_padded, lengths, labels_flat, label_lengths = collate_fn(batch)
+    transcripts = [item["raw_transcript"] for item in batch]
+    return mel_padded, lengths, labels_flat, label_lengths, transcripts
+
+
+class SentencePieceCTCTokenizer:
+    """Tiny CTC wrapper around a SentencePiece model."""
+
+    def __init__(self, model_path: str):
+        import sentencepiece as spm
+
+        self.processor = spm.SentencePieceProcessor(model_file=model_path)
+        self.piece_size = self.processor.get_piece_size()
+        self.pad_token_id = 0
+        self.vocab_size = self.piece_size
+
+    def encode(self, text: str):
+        return self.processor.encode(text.lower(), out_type=int)
+
+    def decode(self, token_ids):
+        pieces = [int(t) for t in token_ids if 0 <= int(t) < self.piece_size]
+        return self.processor.decode(pieces)
+
+
+def build_tokenizer(tokenizer_path: str = None):
+    if tokenizer_path is None:
+        return Wav2Vec2CTCTokenizer.from_pretrained("facebook/wav2vec2-base")
+    return SentencePieceCTCTokenizer(tokenizer_path)
+
+
+def paper_peak_lr(variant: str) -> float:
+    if variant in {"xs", "s", "sm"}:
+        return 2e-3
+    if variant in {"m", "ml"}:
+        return 1.5e-3
+    return 1e-3
+
+
+def paper_specaugment_time_masks(variant: str) -> int:
+    if variant == "m":
+        return 7
+    if variant in {"ml", "l"}:
+        return 10
+    return 5
+
+
+def build_extended_noam_scheduler(
+    optimizer,
+    steps_per_epoch: int,
+    warmup_epochs: int,
+    peak_epochs: int,
+    decay_rate: float,
+):
+    warmup_steps = max(1, warmup_epochs * steps_per_epoch)
+    peak_steps = max(0, peak_epochs * steps_per_epoch)
+
+    def lr_lambda(step: int) -> float:
+        step = max(1, step)
+        if step < warmup_steps:
+            return step / warmup_steps
+        if step < warmup_steps + peak_steps:
+            return 1.0
+        decay_step = step - peak_steps
+        return (warmup_steps / max(decay_step, 1)) ** decay_rate
+
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MODEL
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_model(config, num_classes):
+def build_model(config, num_classes: int) -> Squeezeformer:
     return Squeezeformer(
         num_classes=num_classes,
         input_dim=config.input_dim,
@@ -209,29 +250,11 @@ def build_model(config, num_classes):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LR SCHEDULE  (paper: warmup → constant peak → Noam decay)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def build_noam_scheduler(optimizer, warmup_epochs, peak_epochs):
-    def lr_lambda(epoch):
-        if epoch < warmup_epochs:
-            return (epoch + 1) / warmup_epochs          # linear warmup
-        elif epoch < warmup_epochs + peak_epochs:
-            return 1.0                                   # constant peak
-        else:
-            # Noam decay: 1/sqrt(decay_step)
-            decay = epoch - warmup_epochs - peak_epochs + 1
-            return ((warmup_epochs + peak_epochs) /
-                    (warmup_epochs + peak_epochs + decay)) ** 0.5
-    return LambdaLR(optimizer, lr_lambda=lr_lambda)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # DECODING / METRICS
 # ─────────────────────────────────────────────────────────────────────────────
 
-def greedy_decode(log_probs, lengths, blank_id):
-    preds   = log_probs.argmax(dim=-1)
+def greedy_decode(log_probs: torch.Tensor, lengths: torch.Tensor, blank_id: int):
+    preds = log_probs.argmax(dim=-1)
     decoded = []
     for b in range(preds.size(0)):
         seq, prev = [], None
@@ -245,105 +268,81 @@ def greedy_decode(log_probs, lengths, blank_id):
 
 def _edit_distance(a, b):
     m, n = len(a), len(b)
-    dp   = list(range(n + 1))
+    dp = list(range(n + 1))
     for i in range(1, m + 1):
         prev, dp[0] = dp[0], i
         for j in range(1, n + 1):
-            temp  = dp[j]
+            temp = dp[j]
             dp[j] = prev if a[i-1] == b[j-1] else 1 + min(prev, dp[j], dp[j-1])
-            prev  = temp
+            prev = temp
     return dp[n]
 
 
-def word_error_rate(hyp, ref):
-    return _edit_distance(hyp.lower().split(), ref.lower().split()) / max(len(ref.split()), 1)
+def token_error_rate(hyps, refs):
+    total_err, total_ref = 0, 0
+    for h, r in zip(hyps, refs):
+        total_err += _edit_distance(h, r)
+        total_ref += max(len(r), 1)
+    return total_err / max(total_ref, 1)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DEV EVALUATION (rank-0 only)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def evaluate_dev(model_raw, dev_dataset, tokenizer, blank_id, device, batch_size=256):
-    model_raw.eval()
-    loader = DataLoader(dev_dataset, batch_size=batch_size, shuffle=False,
-                        num_workers=4, collate_fn=collate_fn, pin_memory=True)
-    total_wer, n = 0.0, 0
-    examples      = []
-
-    with torch.no_grad():
-        for data, lengths, labels_flat, label_lengths in loader:
-            mel     = data.to(device).float()
-            lengths = lengths.to(device)
-            with torch.autocast("cuda", dtype=torch.bfloat16):
-                log_probs, out_lengths = model_raw(mel, lengths)
-            hyps = greedy_decode(log_probs.float(), out_lengths, blank_id)
-            cum  = 0
-            for i, ll in enumerate(label_lengths.tolist()):
-                ref_toks = labels_flat[cum: cum + ll].tolist()
-                ref_text = tokenizer.decode(ref_toks)
-                hyp_text = tokenizer.decode(hyps[i])
-                total_wer += word_error_rate(hyp_text, ref_text)
-                n         += 1
-                if len(examples) < 3:
-                    examples.append((ref_text, hyp_text))
-                cum += ll
-
-    model_raw.train()
-    return total_wer / max(n, 1), examples
+def word_error_rate(hyp_text: str, ref_text: str) -> float:
+    hyp_words = hyp_text.lower().split()
+    ref_words = ref_text.lower().split()
+    return _edit_distance(hyp_words, ref_words) / max(len(ref_words), 1)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CHECKPOINT
-# ─────────────────────────────────────────────────────────────────────────────
-
-def save_checkpoint(output_dir, epoch, model, optimizer, scheduler):
-    ckpt_dir = os.path.join(output_dir, f"checkpoint_ep{epoch:03d}")
-    os.makedirs(ckpt_dir, exist_ok=True)
-    torch.save({
-        "epoch":     epoch,
-        "model":     model.module.state_dict() if hasattr(model, "module") else model.state_dict(),
-        "optimizer": optimizer.state_dict(),
-        "scheduler": scheduler.state_dict(),
-    }, os.path.join(ckpt_dir, "state.pt"))
-    all_ckpts = sorted(
-        [c for c in os.listdir(output_dir) if c.startswith("checkpoint_ep")],
-        key=lambda x: int(x.split("_ep")[-1]),
-    )
-    for old in all_ckpts[:-NUM_KEEP_CHECKPOINTS]:
-        shutil.rmtree(os.path.join(output_dir, old))
-    return ckpt_dir
+def normalize_transcript(text: str) -> str:
+    return " ".join(text.lower().strip().split())
 
 
-def load_checkpoint(ckpt_dir, model, optimizer, scheduler):
-    state = torch.load(os.path.join(ckpt_dir, "state.pt"),
-                       map_location="cpu", weights_only=True)
-    raw = model.module if hasattr(model, "module") else model
-    raw.load_state_dict(state["model"])
-    optimizer.load_state_dict(state["optimizer"])
-    scheduler.load_state_dict(state["scheduler"])
-    return state["epoch"]
+@torch.no_grad()
+def evaluate_dev_other(model, dev_loader, tokenizer, blank_id, accelerator, ctc_loss=None):
+    """Full greedy CTC evaluation on the configured dev split."""
+    unwrapped = accelerator.unwrap_model(model)
+    unwrapped.eval()
 
+    total_word_errors = 0
+    total_ref_words = 0
+    total_loss = 0.0
+    total_batches = 0
+    example = None
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SUBSAMPLE BY HOURS
-# ─────────────────────────────────────────────────────────────────────────────
+    for mel, lengths, labels, label_lengths, transcripts in tqdm(
+        dev_loader,
+        desc="  dev-other",
+        unit="batch",
+        dynamic_ncols=True,
+        leave=False,
+        disable=not accelerator.is_local_main_process,
+    ):
+        mel = mel.to(accelerator.device)
+        lengths = lengths.to(accelerator.device)
+        labels = labels.to(accelerator.device)
+        label_lengths = label_lengths.to(accelerator.device)
 
-def subsample_by_hours(dataset, hours, seed):
-    import soundfile as _sf
-    rng     = random.Random(seed)
-    indices = list(range(len(dataset)))
-    rng.shuffle(indices)
-    target, total, selected = hours * 3600.0, 0.0, []
-    for idx in indices:
-        path, _ = dataset.librispeech_data[idx]
-        try:
-            total += _sf.info(path).duration
-        except Exception:
-            continue
-        selected.append(idx)
-        if total >= target:
-            break
-    return Subset(dataset, selected)
+        log_probs, out_lengths = unwrapped(mel, lengths)
+        if ctc_loss is not None:
+            loss = ctc_loss(log_probs.permute(1, 0, 2), labels, out_lengths, label_lengths)
+            total_loss += loss.item()
+            total_batches += 1
+
+        hyp_tokens = greedy_decode(log_probs, out_lengths, blank_id)
+        hyps = [normalize_transcript(tokenizer.decode(tokens)) for tokens in hyp_tokens]
+        refs = [normalize_transcript(text) for text in transcripts]
+
+        for hyp, ref in zip(hyps, refs):
+            hyp_words = hyp.split()
+            ref_words = ref.split()
+            total_word_errors += _edit_distance(hyp_words, ref_words)
+            total_ref_words += max(len(ref_words), 1)
+            if example is None:
+                example = (hyp, ref)
+
+    wer = total_word_errors / max(total_ref_words, 1)
+    avg_loss = total_loss / max(total_batches, 1) if ctc_loss is not None else None
+    unwrapped.train()
+    return {"wer": wer, "loss": avg_loss, "example": example}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -352,214 +351,289 @@ def subsample_by_hours(dataset, hours, seed):
 
 def main():
     args = parse_args()
-    local_rank, rank, world_size = setup_ddp()
-    device = torch.device(f"cuda:{local_rank}")
 
-    torch.manual_seed(args.seed + rank)
-    random.seed(args.seed + rank)
-    os.makedirs(args.output_dir, exist_ok=True)
+    # Resolve experiment name and output dir from CLI or defaults
+    run_name       = args.run_name   or f"{EXPERIMENT_NAME}_{args.variant}_{args.eval_split}"
+    output_dir     = args.output_dir or os.path.join(WORKING_DIR, run_name)
+    seed           = args.seed
+    hours          = args.hours      # None → use full dataset
+    os.makedirs(output_dir, exist_ok=True)
 
-    if rank == 0:
-        print(f"Run : {args.run_name}  world={world_size}  "
-              f"max_frames={MAX_MEL_FRAMES}  grad_accum={GRAD_ACCUM}  "
-              f"eff_batch={args.batch_size * world_size * GRAD_ACCUM}")
+    # ── Accelerator ───────────────────────────────────────────────────────
+    accelerator = Accelerator(
+        project_dir=output_dir,
+        log_with="wandb" if args.wandb else None,
+        gradient_accumulation_steps=GRADIENT_ACCUMULATION,
+        mixed_precision="bf16",   # H200: 989 TFLOPs BF16 vs 67 TFLOPs FP32
+    )
+    if args.wandb:
+        accelerator.init_trackers(run_name)
+
+    torch.manual_seed(seed)
+    random.seed(seed)
 
     # ── Tokenizer ─────────────────────────────────────────────────────────
-    tokenizer   = BPETokenizer(args.bpe_model)
-    num_classes = tokenizer.vocab_size   # 128
-    blank_id    = tokenizer.pad_token_id  # 0
-    if rank == 0:
-        print(f"BPE vocab={num_classes}  blank={blank_id}")
+    tokenizer   = build_tokenizer(args.tokenizer_path)
+    blank_id    = tokenizer.pad_token_id
+    num_classes = tokenizer.vocab_size
+    accelerator.print(f"Vocab size: {num_classes} | CTC blank: {blank_id}")
+    if args.tokenizer_path is None:
+        accelerator.print(
+            "Tokenizer: facebook/wav2vec2-base fallback. For paper-faithful training, "
+            "pass --tokenizer-path to a 128-token SentencePiece model."
+        )
 
     # ── Datasets ──────────────────────────────────────────────────────────
-    if rank == 0:
-        print("Scanning audio lengths…")
     full_train = LibriSpeechDataset(
         path_to_data_root=args.data_root,
         include_splits=TRAIN_SPLITS,
         tokenizer=tokenizer,
-        hop_length=MEL_HOP,
-        scan_lengths=True,
+        train_split=True,
+        apply_spec_augment=True,
+        mode="mel",
+        spec_augment_num_time_masks=paper_specaugment_time_masks(args.variant),
     )
 
-    if args.hours is not None and args.hours < 960:
-        train_dataset = subsample_by_hours(full_train, args.hours, args.seed)
-        lengths = [full_train.lengths[i] for i in train_dataset.indices]
+    if hours is not None:
+        accelerator.print(f"Subsampling to {hours}h (seed={seed}) …")
+        train_dataset = subsample_by_hours(full_train, hours, seed)
+        accelerator.print(f"  → {len(train_dataset)} utterances selected")
     else:
         train_dataset = full_train
-        lengths = full_train.lengths
+        accelerator.print(f"Using full dataset: {len(train_dataset)} utterances")
 
-    lengths = [min(l, MAX_MEL_FRAMES) for l in lengths]
-
-    if rank == 0:
-        print(f"Train : {len(train_dataset):,} utterances")
-
-    dev_clean = LibriSpeechDataset(
+    dev_dataset = LibriSpeechDataset(
         path_to_data_root=args.data_root,
-        include_splits=[DEV_CLEAN_SPLIT],
+        include_splits=[args.eval_split],
         tokenizer=tokenizer,
-        hop_length=MEL_HOP,
-        scan_lengths=False,
-    )
-    dev_other = LibriSpeechDataset(
-        path_to_data_root=args.data_root,
-        include_splits=[DEV_OTHER_SPLIT],
-        tokenizer=tokenizer,
-        hop_length=MEL_HOP,
-        scan_lengths=False,
+        train_split=False,
+        apply_spec_augment=False,
+        mode="mel",
     )
 
-    # ── Bucketed DataLoader ────────────────────────────────────────────────
-    bucket_sampler = DistributedBucketBatchSampler(
-        lengths               = lengths,
-        batch_size            = args.batch_size,
-        num_replicas          = world_size,
-        rank                  = rank,
-        bucket_size_multiplier= 100,
-        shuffle               = True,
-        seed                  = args.seed,
-    )
     train_loader = DataLoader(
         train_dataset,
-        batch_sampler      = bucket_sampler,
-        num_workers        = args.workers,
-        collate_fn         = collate_fn,
-        pin_memory         = True,
-        persistent_workers = True,
-        prefetch_factor    = 4,
+        batch_size=args.batch_size // GRADIENT_ACCUMULATION,
+        shuffle=True,
+        num_workers=args.workers,
+        collate_fn=collate_fn,
+        pin_memory=True,
+        persistent_workers=args.workers > 0,  # keep workers alive between epochs
     )
+
+    dev_loader = DataLoader(
+        dev_dataset,
+        batch_size=args.eval_batch_size or args.batch_size,
+        shuffle=False,
+        num_workers=args.workers,
+        collate_fn=eval_collate_fn,
+        pin_memory=True,
+        persistent_workers=args.workers > 0,
+    )
+    accelerator.print(f"Validation: {args.eval_split} | {len(dev_dataset)} utterances")
 
     # ── Model ─────────────────────────────────────────────────────────────
-    model_cfg = get_config(VARIANT)
-    model     = build_model(model_cfg, num_classes).to(device)
-    n_params  = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    model_config = get_config(args.variant)
+    model        = build_model(model_config, num_classes)
+    n_params     = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    accelerator.print(
+        f"SqueezeFormer-{args.variant.upper()} | {n_params/1e6:.1f}M params | "
+        f"{accelerator.num_processes} GPU(s) | run: {run_name}"
+    )
 
-    if world_size > 1:
-        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-        model = DDP(model, device_ids=[local_rank], output_device=local_rank)
-
-    if rank == 0:
-        print(f"SqueezeFormer-{VARIANT.upper()} | {n_params/1e6:.1f}M params | {world_size} GPU(s)")
-
-    spec_augment = ConformerSpecAugment().to(device)
-
-    # ── Optimiser + LR schedule ───────────────────────────────────────────
+    # ── Optimiser ─────────────────────────────────────────────────────────
+    peak_lr = args.lr if args.lr is not None else paper_peak_lr(args.variant)
     optimizer = torch.optim.AdamW(
-        model.parameters(), lr=LEARNING_RATE,
-        betas=(ADAM_BETA1, ADAM_BETA2), eps=ADAM_EPSILON,
+        model.parameters(),
+        lr=peak_lr,
+        betas=(ADAM_BETA1, ADAM_BETA2),
+        eps=ADAM_EPSILON,
         weight_decay=WEIGHT_DECAY,
     )
-    scheduler = build_noam_scheduler(optimizer, WARMUP_EPOCHS, PEAK_EPOCHS)
-    ctc_loss  = nn.CTCLoss(blank=blank_id, zero_infinity=True)
 
-    batches_per_epoch   = len(bucket_sampler)
-    opt_steps_per_epoch = math.ceil(batches_per_epoch / GRAD_ACCUM)
-    if rank == 0:
-        print(f"batches/epoch={batches_per_epoch}  "
-              f"opt_steps/epoch={opt_steps_per_epoch}  "
-              f"warmup={WARMUP_EPOCHS}ep  peak={PEAK_EPOCHS}ep")
+    num_epochs       = args.epochs
+    steps_per_epoch  = math.ceil(len(train_loader) / GRADIENT_ACCUMULATION)
+    total_steps      = num_epochs * steps_per_epoch
+    scheduler = build_extended_noam_scheduler(
+        optimizer=optimizer,
+        steps_per_epoch=steps_per_epoch,
+        warmup_epochs=NUM_WARMUP_EPOCHS,
+        peak_epochs=NUM_PEAK_EPOCHS,
+        decay_rate=NOAM_DECAY_RATE,
+    )
+    accelerator.print(
+        f"LR: extended Noam | peak={peak_lr:g} | warmup={NUM_WARMUP_EPOCHS} ep | "
+        f"hold={NUM_PEAK_EPOCHS} ep | decay={NOAM_DECAY_RATE:g} | train={num_epochs} ep"
+    )
+
+    ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)
+
+    # ── SyncBatchNorm: required for correct BN stats across GPUs ──────────
+    if accelerator.num_processes > 1:
+        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+
+    # ── torch.compile: fused kernels, significant H200 speedup ───────────
+    # Requires gcc/triton — Linux/HPC only, skipped on Windows
+    if sys.platform != "win32" and not args.no_compile:
+        model = torch.compile(model)
+        accelerator.print("torch.compile: enabled")
+    else:
+        accelerator.print("torch.compile: skipped")
+
+    # ── Hand everything to Accelerate ─────────────────────────────────────
+    model, optimizer, train_loader = accelerator.prepare(model, optimizer, train_loader)
+    accelerator.register_for_checkpointing(scheduler)
 
     # ── Resume ────────────────────────────────────────────────────────────
     start_epoch = 1
     if args.resume is not None:
-        barrier(world_size)
-        start_epoch = load_checkpoint(args.resume, model, optimizer, scheduler) + 1
-        if rank == 0:
-            print(f"Resumed → epoch {start_epoch}")
+        with accelerator.main_process_first():
+            accelerator.load_state(args.resume)
+        start_epoch = int(args.resume.rstrip("/").split("_ep")[-1]) + 1
+        accelerator.print(f"Resumed from {args.resume} → starting epoch {start_epoch}")
+
+    best_wer = float("inf")
 
     # ── Training loop ─────────────────────────────────────────────────────
+    epoch_bar = tqdm(
+        range(start_epoch, num_epochs + 1),
+        desc=f"{run_name} | {n_params/1e6:.1f}M | {accelerator.num_processes} GPU(s)",
+        unit="ep",
+        dynamic_ncols=True,
+        position=0,
+        disable=not accelerator.is_local_main_process,
+    )
+
     loss_window = collections.deque(maxlen=50)
 
-    for epoch in range(start_epoch, args.epochs + 1):
-        bucket_sampler.set_epoch(epoch)
+    for epoch in epoch_bar:
         model.train()
         epoch_loss = 0.0
-        opt_steps  = 0
+        epoch_ter  = 0.0
+        n_batches  = 0
 
-        if rank == 0:
-            bar = tqdm(train_loader, desc=f"Epoch {epoch:03d}", unit="batch",
-                       dynamic_ncols=True)
-        else:
-            bar = train_loader
+        batch_bar = tqdm(
+            train_loader,
+            desc=f"  Epoch {epoch:03d}",
+            unit="batch",
+            dynamic_ncols=True,
+            position=1,
+            leave=False,
+            disable=not accelerator.is_local_main_process,
+        )
 
-        optimizer.zero_grad(set_to_none=True)
+        for batch in batch_bar:
+            mel, lengths, labels, label_lengths = batch
 
-        for batch_idx, batch in enumerate(bar):
-            data, lengths_b, labels_flat, label_lengths = batch
-
-            mel           = data.to(device, non_blocking=True).float()
-            lengths_b     = lengths_b.to(device, non_blocking=True)
-            labels_flat   = labels_flat.to(device, non_blocking=True)
-            label_lengths = label_lengths.to(device, non_blocking=True)
-
-            is_last_accum = (
-                (batch_idx + 1) % GRAD_ACCUM == 0 or
-                batch_idx == batches_per_epoch - 1
-            )
-
-            # Skip allreduce on intermediate accum steps
-            sync_ctx = (contextlib.nullcontext()
-                        if (not hasattr(model, "no_sync") or is_last_accum)
-                        else model.no_sync())
-
-            with sync_ctx:
-                with torch.no_grad():
-                    mel = spec_augment(mel.transpose(1, 2)).transpose(1, 2)
-
-                with torch.autocast("cuda", dtype=torch.bfloat16):
-                    log_probs, out_lengths = model(mel, lengths_b)
-                    log_probs_t = log_probs.transpose(0, 1).float()
-                    loss = ctc_loss(log_probs_t, labels_flat,
-                                    out_lengths, label_lengths)
-
-                (loss / GRAD_ACCUM).backward()
-
-            if is_last_accum:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            with accelerator.accumulate(model):
+                log_probs, output_lengths = model(mel, lengths)
+                loss = ctc_loss(log_probs.permute(1, 0, 2), labels, output_lengths, label_lengths)
+                accelerator.backward(loss)
+                if accelerator.sync_gradients:
+                    accelerator.clip_grad_norm_(model.parameters(), max_norm=10.0)
                 optimizer.step()
-                optimizer.zero_grad(set_to_none=True)
-                opt_steps += 1
+                scheduler.step()
+                optimizer.zero_grad()
 
-                if rank == 0:
-                    lv = loss.item()
-                    loss_window.append(lv)
-                    epoch_loss += lv
-                    bar.set_postfix(
-                        loss   = f"{lv:.3f}",
-                        smooth = f"{sum(loss_window)/len(loss_window):.3f}",
-                        lr     = f"{scheduler.get_last_lr()[0]:.2e}",
-                    )
+            loss_val = accelerator.gather(loss.detach().unsqueeze(0)).mean().item()
+            loss_window.append(loss_val)
+            epoch_loss += loss_val
+            n_batches  += 1
 
-        # ── Step LR once per epoch (Noam schedule) ────────────────────────
-        scheduler.step()
+            if accelerator.is_main_process:
+                with torch.no_grad():
+                    hyps = greedy_decode(log_probs.detach(), output_lengths, blank_id)
+                offset, refs = 0, []
+                for ll in label_lengths.tolist():
+                    refs.append(labels[offset:offset + ll].tolist())
+                    offset += ll
+                ter = token_error_rate(hyps, refs)
+                epoch_ter += ter
 
-        # ── Epoch summary (rank-0) ─────────────────────────────────────────
-        if rank == 0:
-            avg_loss  = epoch_loss / max(opt_steps, 1)
-            model_raw = model.module if hasattr(model, "module") else model
+                smoothed = sum(loss_window) / len(loss_window)
+                batch_bar.set_postfix_str(
+                    f"loss {loss_val:.3f}  smooth {smoothed:.3f}  TER {ter:.2%}"
+                    f"  lr {scheduler.get_last_lr()[0]:.1e}",
+                    refresh=False,
+                )
 
-            wer_clean, ex_clean = evaluate_dev(
-                model_raw, dev_clean, tokenizer, blank_id, device)
-            wer_other, _        = evaluate_dev(
-                model_raw, dev_other, tokenizer, blank_id, device)
+        # ── End-of-epoch ──────────────────────────────────────────────────
+        avg_loss = epoch_loss / max(n_batches, 1)
+        avg_ter  = epoch_ter  / max(n_batches, 1)
 
-            print(f"\n[ep{epoch:03d}] loss={avg_loss:.4f}  "
-                  f"dev-clean={wer_clean*100:.2f}%  dev-other={wer_other*100:.2f}%  "
-                  f"lr={scheduler.get_last_lr()[0]:.2e}")
-            for ref_txt, hyp_txt in ex_clean:
-                print(f"  REF: {ref_txt}")
-                print(f"  HYP: {hyp_txt}")
-            print()
+        eval_metrics = None
+        should_eval = (args.eval_every > 0) and (epoch % args.eval_every == 0 or epoch == num_epochs)
+        if should_eval:
+            accelerator.wait_for_everyone()
+        if accelerator.is_main_process and should_eval:
+            eval_metrics = evaluate_dev_other(
+                model=model,
+                dev_loader=dev_loader,
+                tokenizer=tokenizer,
+                blank_id=blank_id,
+                accelerator=accelerator,
+                ctc_loss=ctc_loss,
+            )
+            wer = eval_metrics["wer"]
+            dev_loss = eval_metrics["loss"]
+            hyp, ref = eval_metrics["example"] or ("", "")
+            improved = wer < best_wer
+            best_wer = min(best_wer, wer)
+            tqdm.write(
+                f"\n  [epoch {epoch:03d}] {args.eval_split}"
+                f"\n    dev loss : {dev_loss:.4f}"
+                f"\n    WER      : {wer:.2%}  best {best_wer:.2%}"
+                f"\n    REF      : {ref}"
+                f"\n    HYP      : {hyp}\n"
+            )
+            epoch_bar.set_postfix_str(
+                f"loss {avg_loss:.4f}  avg-TER {avg_ter:.2%}  {args.eval_split} WER {wer:.2%}"
+                f"  lr {scheduler.get_last_lr()[0]:.1e}",
+                refresh=True,
+            )
+            if args.wandb:
+                accelerator.log(
+                    {
+                        "train/loss": avg_loss,
+                        "train/TER": avg_ter,
+                        f"{args.eval_split}/loss": dev_loss,
+                        f"{args.eval_split}/WER": wer,
+                        f"{args.eval_split}/best_WER": best_wer,
+                    },
+                    step=epoch,
+                )
 
-            if epoch % SAVE_EVERY == 0:
-                ckpt = save_checkpoint(
-                    args.output_dir, epoch, model, optimizer, scheduler)
-                print(f"  [ckpt] → {ckpt}")
+            if improved:
+                ckpt_dir = os.path.join(output_dir, "checkpoint_best")
+                accelerator.save_state(output_dir=ckpt_dir)
+                tqdm.write(f"  [ckpt] best {args.eval_split} WER saved → {ckpt_dir}")
+        elif accelerator.is_main_process:
+            epoch_bar.set_postfix_str(
+                f"loss {avg_loss:.4f}  avg-TER {avg_ter:.2%}"
+                f"  lr {scheduler.get_last_lr()[0]:.1e}",
+                refresh=True,
+            )
+        if should_eval:
+            accelerator.wait_for_everyone()
 
-        barrier(world_size)
+        # ── Checkpoint ────────────────────────────────────────────────────
+        if epoch % SAVE_EVERY == 0:
+            accelerator.wait_for_everyone()
+            if accelerator.is_main_process:
+                ckpt_dir = os.path.join(output_dir, f"checkpoint_ep{epoch:03d}")
+                accelerator.save_state(output_dir=ckpt_dir)
+                tqdm.write(f"  [ckpt] saved → {ckpt_dir}")
 
-    if world_size > 1:
-        dist.destroy_process_group()
+                all_ckpts = sorted(
+                    [c for c in os.listdir(output_dir) if c.startswith("checkpoint_ep")],
+                    key=lambda x: int(x.split("_ep")[-1]),
+                )
+                for old in all_ckpts[:-NUM_KEEP_CHECKPOINTS]:
+                    shutil.rmtree(os.path.join(output_dir, old))
+
+            accelerator.wait_for_everyone()
+
+    accelerator.end_training()
 
 
 if __name__ == "__main__":

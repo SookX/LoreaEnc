@@ -52,7 +52,7 @@ class Squeezeformer(nn.Module):
         attention_dropout_p: float = 0.1,
         conv_dropout_p: float = 0.1,
         conv_kernel_size: int = 31,
-        half_step_residual: bool = True,
+        half_step_residual: bool = False,
         adaptive_scale: bool = True,
     ) -> None:
         super().__init__()
@@ -73,10 +73,10 @@ class Squeezeformer(nn.Module):
             half_step_residual=half_step_residual,
             adaptive_scale=adaptive_scale,
         )
-        self.fc = nn.Linear(encoder_dim, num_classes, bias=False)
+        self.fc = nn.Linear(encoder_dim, num_classes, bias=True)
 
     def count_parameters(self) -> int:
-        return self.encoder.count_parameters()
+        return sum(p.numel() for p in self.parameters())
 
     def forward(self, inputs: Tensor, input_lengths: Tensor) -> Tuple[Tensor, Tensor]:
         encoder_outputs, encoder_output_lengths = self.encoder(inputs, input_lengths)

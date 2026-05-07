@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from .activation import GLU, Swish
+from .activation import Swish
 from .modules import Transpose
 
 
@@ -130,7 +130,7 @@ class PointwiseConv1d(nn.Module):
 
 class ConvModule(nn.Module):
     """
-    Convolution module: pointwise → GLU → depthwise → BatchNorm → Swish → pointwise.
+    Convolution module: pointwise -> Swish -> depthwise -> BatchNorm -> Swish -> pointwise.
     Input/output shape: (batch, time, dim).
     """
 
@@ -147,16 +147,32 @@ class ConvModule(nn.Module):
         self.sequential = nn.Sequential(
             Transpose(shape=(1, 2)),
             PointwiseConv1d(in_channels, in_channels * expansion_factor, stride=1, padding=0, bias=True),
-            GLU(dim=1),
-            DepthwiseConv1d(in_channels, in_channels, kernel_size, stride=1, padding=(kernel_size - 1) // 2),
-            nn.BatchNorm1d(in_channels),
             Swish(),
-            PointwiseConv1d(in_channels, in_channels, stride=1, padding=0, bias=True),
+            DepthwiseConv1d(
+                in_channels * expansion_factor,
+                in_channels * expansion_factor,
+                kernel_size,
+                stride=1,
+                padding=(kernel_size - 1) // 2,
+            ),
+            nn.BatchNorm1d(in_channels * expansion_factor),
+            Swish(),
+            PointwiseConv1d(in_channels * expansion_factor, in_channels, stride=1, padding=0, bias=True),
             nn.Dropout(p=dropout_p),
         )
 
-    def forward(self, inputs: Tensor) -> Tensor:
-        return self.sequential(inputs).transpose(1, 2)
+    def forward(self, inputs: Tensor, pad_mask: Tensor = None) -> Tensor:
+        outputs = inputs.transpose(1, 2)
+        outputs = self.sequential[1](outputs)
+        outputs = self.sequential[2](outputs)
+        if pad_mask is not None:
+            outputs = outputs * pad_mask.unsqueeze(1).to(dtype=outputs.dtype)
+        outputs = self.sequential[3](outputs)
+        outputs = self.sequential[4](outputs)
+        outputs = self.sequential[5](outputs)
+        outputs = self.sequential[6](outputs)
+        outputs = self.sequential[7](outputs)
+        return outputs.transpose(1, 2)
 
 
 class TimeReductionLayer(nn.Module):

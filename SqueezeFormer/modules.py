@@ -85,13 +85,12 @@ class ResidualConnectionModule(nn.Module):
         return (self.module(inputs) * self.module_factor) + inputs
 
 
-class AdaptiveScale(nn.Module):
+class ScaleBias(nn.Module):
     """
-    Adaptive scaling: replaces LayerNorm with a learnable per-channel scalar.
-    Paper micro-architecture: each sub-module output is multiplied by γ before
-    the residual connection instead of using LayerNorm.
+    Learnable per-channel affine scaling used after post-LayerNorm.
 
-    Matches official TF: scale = 1 + trainable_weight (initialized near 1).
+    SqueezeFormer replaces the following module's pre-LayerNorm with this
+    cheaper transform: Scaling(x) = gamma * x + beta.
     """
 
     def __init__(self, d_model: int) -> None:
