@@ -73,6 +73,7 @@ accelerate launch \
     --main_process_ip "${MASTER_ADDR}" \
     --main_process_port "${MASTER_PORT}" \
     SqueezeFormer/train.py \
+    --data-root dataset/datasets/librispeech/LibriSpeech \
     --epochs 150 \
     --variant xs \
     --eval-split dev-other \
