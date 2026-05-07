@@ -78,6 +78,7 @@ accelerate launch \
     --variant xs \
     --eval-split dev-other \
     --eval-every 1 \
+    --no-compile \
     --tokenizer-path "${TOKENIZER_PATH}" \
     --batch-size 128 \
     --eval-batch-size 128 \
