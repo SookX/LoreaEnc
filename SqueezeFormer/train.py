@@ -179,7 +179,7 @@ class SentencePieceCTCTokenizer:
         self.vocab_size = self.piece_size
 
     def encode(self, text: str):
-        return self.processor.encode(text.lower(), out_type=int)
+        return self.processor.encode(text.strip(), out_type=int)
 
     def decode(self, token_ids):
         pieces = [int(t) for t in token_ids if 0 <= int(t) < self.piece_size]
