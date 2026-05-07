@@ -9,7 +9,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
 #SBATCH --mem=256G
-#SBATCH --gres=gpu:8
+#SBATCH --gres=gpu:2
 
 #SBATCH -o logs/sqformer_xs.%j.out
 #SBATCH -e logs/sqformer_xs.%j.err
