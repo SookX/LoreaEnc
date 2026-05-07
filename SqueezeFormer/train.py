@@ -32,6 +32,12 @@ from accelerate import Accelerator
 from transformers import Wav2Vec2CTCTokenizer
 from tqdm import tqdm
 
+try:
+    from torch.distributed.elastic.multiprocessing.errors import record
+except ImportError:
+    def record(fn):
+        return fn
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dataset.dataset import LibriSpeechDataset
 from SqueezeFormer import Squeezeformer, get_config
@@ -637,4 +643,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    record(main)()

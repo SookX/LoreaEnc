@@ -44,8 +44,11 @@ export PYTHONFAULTHANDLER=1
 export CUDA_LAUNCH_BLOCKING=0
 export TOKENIZERS_PARALLELISM=false
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK}"
+export TORCH_DISTRIBUTED_DEBUG=DETAIL
 
 NUM_PROCESSES="${SLURM_GPUS_ON_NODE:-8}"
+ACCELERATE_LOG_DIR="logs/accelerate_${SLURM_JOB_ID}"
+mkdir -p "${ACCELERATE_LOG_DIR}"
 
 echo "Job ${SLURM_JOB_ID} starting at $(date)"
 echo "Project: ${PROJECT_DIR}"
@@ -63,6 +66,9 @@ print("CUDA devices:", torch.cuda.device_count())
 PY
 
 accelerate launch \
+    --debug \
+    --tee 3 \
+    --log_dir "${ACCELERATE_LOG_DIR}" \
     --num_processes "${NUM_PROCESSES}" \
     --main_process_ip "${MASTER_ADDR}" \
     --main_process_port "${MASTER_PORT}" \
