@@ -1,0 +1,17 @@
+Job 11320 starting at Thu May  7 03:51:48 PM UTC 2026
+Project: /valhalla/projects/bg-eng-01/LoreaEnc
+Python: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/python
+Accelerate: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/accelerate
+GPUs on node: 2
+PyTorch: 2.8.0
+Accelerate: 1.13.0
+CUDA available: True
+CUDA devices: 2
+[default0]:[Gloo] Rank 0 is connected to 1 peer ranks. Expected number of connected peer ranks is : 1
+[default1]:[Gloo] Rank 1 is connected to 1 peer ranks. Expected number of connected peer ranks is : 1
+[default0]:Vocab size: 128 | CTC blank: 0
+[default0]:Using full dataset: 281241 utterances
+[default0]:Validation: dev-other | 2864 utterances
+[default0]:SqueezeFormer-XS | 9.0M params | 2 GPU(s) | run: squeezeformer_xs_150ep
+[default0]:LR: extended Noam | peak=0.002 | warmup=20 ep | hold=160 ep | decay=1 | train=150 ep
+[default0]:torch.compile: enabled

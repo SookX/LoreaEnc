@@ -1,0 +1,404 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+		More than one GPU was found, enabling multi-GPU training.
+		If this was unintended please pass in `--num_processes=1`.
+	`--num_machines` was set to a value of `1`
+	`--mixed_precision` was set to a value of `'no'`
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+[default0]:
+[default0]:squeezeformer_xs_150ep | 9.0M | 2 GPU(s):   0%|          | 0/150 [00:00<?, ?ep/s]
+[default0]:
+[default0]:  Epoch 001:   0%|          | 0/1099 [00:00<?, ?batch/s][A[default1]:[rank1]: Traceback (most recent call last):
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/train.py", line 646, in <module>
+[default1]:[rank1]:     record(main)()
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+[default1]:[rank1]:     return f(*args, **kwargs)
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/train.py", line 535, in main
+[default1]:[rank1]:     log_probs, output_lengths = model(mel, lengths)
+[default1]:[rank1]:                                 ^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[default1]:[rank1]:     return self._call_impl(*args, **kwargs)
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[default1]:[rank1]:     return forward_call(*args, **kwargs)
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/parallel/distributed.py", line 1648, in forward
+[default1]:[rank1]:     else self._run_ddp_forward(*inputs, **kwargs)
+[default1]:[rank1]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/parallel/distributed.py", line 1474, in _run_ddp_forward
+[default1]:[rank1]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_dynamo/eval_frame.py", line 375, in __call__
+[default1]:[rank1]:     return super().__call__(*args, **kwargs)
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[default1]:[rank1]:     return self._call_impl(*args, **kwargs)
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[default1]:[rank1]:     return forward_call(*args, **kwargs)
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/accelerate/utils/operations.py", line 823, in forward
+[default1]:[rank1]:     return model_forward(*args, **kwargs)
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/accelerate/utils/operations.py", line 811, in __call__
+[default1]:[rank1]:     return convert_to_fp32(self.model_forward(*args, **kwargs))
+[default1]:[rank1]:                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/amp/autocast_mode.py", line 44, in decorate_autocast
+[default1]:[rank1]:     return func(*args, **kwargs)
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_dynamo/eval_frame.py", line 749, in compile_wrapper
+[default1]:[rank1]:     raise e.remove_dynamo_frames() from None  # see TORCHDYNAMO_VERBOSE=1
+[default1]:[rank1]:     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/compile_fx.py", line 923, in _compile_fx_inner
+[default1]:[rank1]:     raise InductorError(e, currentframe()).with_traceback(
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/compile_fx.py", line 907, in _compile_fx_inner
+[default1]:[rank1]:     mb_compiled_graph = fx_codegen_and_compile(
+[default1]:[rank1]:                         ^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/compile_fx.py", line 1578, in fx_codegen_and_compile
+[default1]:[rank1]:     return scheme.codegen_and_compile(gm, example_inputs, inputs_to_check, graph_kwargs)
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/compile_fx.py", line 1456, in codegen_and_compile
+[default1]:[rank1]:     compiled_module = graph.compile_to_module()
+[default1]:[rank1]:                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/graph.py", line 2293, in compile_to_module
+[default1]:[rank1]:     return self._compile_to_module()
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/graph.py", line 2303, in _compile_to_module
+[default1]:[rank1]:     mod = self._compile_to_module_lines(wrapper_code)
+[default1]:[rank1]:           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/graph.py", line 2371, in _compile_to_module_lines
+[default1]:[rank1]:     mod = PyCodeCache.load_by_key_path(
+[default1]:[rank1]:           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/codecache.py", line 3296, in load_by_key_path
+[default1]:[rank1]:     mod = _reload_python_module(key, path, set_sys_modules=in_toplevel)
+[default1]:[rank1]:           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/runtime/compile_tasks.py", line 31, in _reload_python_module
+[default1]:[rank1]:     exec(code, mod.__dict__, mod.__dict__)
+[default1]:[rank1]:   File "/tmp/torchinductor_vvasilev/ku/ckua3hw46hkrauppaqe4exthfsidkdhkjn64bpinp53z2dpbvslo.py", line 303, in <module>
+[default1]:[rank1]:     async_compile.wait(globals())
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/async_compile.py", line 491, in wait
+[default1]:[rank1]:     self._wait_futures(scope)
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/async_compile.py", line 511, in _wait_futures
+[default1]:[rank1]:     kernel = result.result()
+[default1]:[rank1]:              ^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/codecache.py", line 4014, in result
+[default1]:[rank1]:     return self.result_fn()
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/async_compile.py", line 370, in get_result
+[default1]:[rank1]:     kernel, elapsed_us = task.result()
+[default1]:[rank1]:                          ^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/concurrent/futures/_base.py", line 456, in result
+[default1]:[rank1]:     return self.__get_result()
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/concurrent/futures/_base.py", line 401, in __get_result
+[default1]:[rank1]:     raise self._exception
+[default1]:[rank1]: torch._inductor.exc.InductorError: SubprocException: An exception occurred in a subprocess:
+[default1]:
+[default1]:[rank1]: Traceback (most recent call last):
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/compile_worker/subproc_pool.py", line 340, in do_job
+[default1]:[rank1]:     result = job()
+[default1]:[rank1]:              ^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/runtime/compile_tasks.py", line 61, in _worker_compile_triton
+[default1]:[rank1]:     kernel = load_kernel()
+[default1]:[rank1]:              ^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/codecache.py", line 3364, in _load_triton_kernel_from_source
+[default1]:[rank1]:     return getattr(PyCodeCache.load(source_code), kernel_name)
+[default1]:[rank1]:                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/codecache.py", line 3278, in load
+[default1]:[rank1]:     return cls.load_by_key_path(key, path)
+[default1]:[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/codecache.py", line 3296, in load_by_key_path
+[default1]:[rank1]:     mod = _reload_python_module(key, path, set_sys_modules=in_toplevel)
+[default1]:[rank1]:           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/runtime/compile_tasks.py", line 31, in _reload_python_module
+[default1]:[rank1]:     exec(code, mod.__dict__, mod.__dict__)
+[default1]:[rank1]:   File "/tmp/torchinductor_vvasilev/aa/caa3kanypqp23xlkvxhw3ihba4tfffgs5rz4ncli3dkv4vzdegky.py", line 8, in <module>
+[default1]:[rank1]:     triton_helpers.set_driver_to_gpu()
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/runtime/triton_helpers.py", line 49, in set_driver_to_gpu
+[default1]:[rank1]:     driver.set_active(backend.driver())
+[default1]:[rank1]:                       ^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/triton/backends/nvidia/driver.py", line 716, in __init__
+[default1]:[rank1]:     self.utils = CudaUtils()  # TODO: make static
+[default1]:[rank1]:                  ^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/triton/backends/nvidia/driver.py", line 62, in __init__
+[default1]:[rank1]:     mod = compile_module_from_src(
+[default1]:[rank1]:           ^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/triton/runtime/build.py", line 110, in compile_module_from_src
+[default1]:[rank1]:     so = _build(name, src_path, tmpdir, library_dirs or [], include_dirs or [], libraries or [])
+[default1]:[rank1]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/triton/runtime/build.py", line 73, in _build
+[default1]:[rank1]:     subprocess.check_call(cc_cmd, stdout=subprocess.DEVNULL)
+[default1]:[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/subprocess.py", line 413, in check_call
+[default1]:[rank1]:     raise CalledProcessError(retcode, cmd)
+[default1]:[rank1]: subprocess.CalledProcessError: Command '['/usr/bin/gcc', '/tmp/tmp4nmy48s8/cuda_utils.c', '-O3', '-shared', '-fPIC', '-Wno-psabi', '-o', '/tmp/tmp4nmy48s8/cuda_utils.cpython-311-x86_64-linux-gnu.so', '-lcuda', '-L/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/triton/backends/nvidia/lib', '-L/lib64', '-L/lib', '-I/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/triton/backends/nvidia/include', '-I/tmp/tmp4nmy48s8', '-I/valhalla/projects/bg-eng-01/conda_envs/torch/include/python3.11', '-I/valhalla/projects/bg-eng-01/conda_envs/torch/targets/x86_64-linux/include']' returned non-zero exit status 1.
+[default1]:
+[default1]:
+[default1]:[rank1]: Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+[default1]:
+[default0]:[rank0]:[E507 15:53:40.157126466 ProcessGroupGloo.cpp:2524] [Rank 0]: Rank 1 failed to pass monitoredBarrier in 600000 ms
+[default0]:[rank0]:[E507 15:53:40.157185029 ProcessGroupGloo.cpp:71] [Rank 0]: Ranks 1 failed to pass monitoredBarrier in 600000 ms
+[default0]:
+[default0]:
+[default0]:                                                        [A
+[default0]:squeezeformer_xs_150ep | 9.0M | 2 GPU(s):   0%|          | 0/150 [01:01<?, ?ep/s]
+[default0]:[rank0]: Traceback (most recent call last):
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/train.py", line 646, in <module>
+[default0]:[rank0]:     record(main)()
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+[default0]:[rank0]:     return f(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/train.py", line 535, in main
+[default0]:[rank0]:     log_probs, output_lengths = model(mel, lengths)
+[default0]:[rank0]:                                 ^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[default0]:[rank0]:     return self._call_impl(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[default0]:[rank0]:     return forward_call(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/parallel/distributed.py", line 1648, in forward
+[default0]:[rank0]:     else self._run_ddp_forward(*inputs, **kwargs)
+[default0]:[rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/parallel/distributed.py", line 1474, in _run_ddp_forward
+[default0]:[rank0]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_dynamo/eval_frame.py", line 375, in __call__
+[default0]:[rank0]:     return super().__call__(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[default0]:[rank0]:     return self._call_impl(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[default0]:[rank0]:     return forward_call(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/accelerate/utils/operations.py", line 823, in forward
+[default0]:[rank0]:     return model_forward(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/accelerate/utils/operations.py", line 811, in __call__
+[default0]:[rank0]:     return convert_to_fp32(self.model_forward(*args, **kwargs))
+[default0]:[rank0]:                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/amp/autocast_mode.py", line 44, in decorate_autocast
+[default0]:[rank0]:     return func(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_dynamo/eval_frame.py", line 736, in compile_wrapper
+[default0]:[rank0]:     return fn(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[default0]:[rank0]:     return self._call_impl(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[default0]:[rank0]:     return forward_call(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/../SqueezeFormer/model.py", line 82, in forward
+[default0]:[rank0]:     encoder_outputs, encoder_output_lengths = self.encoder(inputs, input_lengths)
+[default0]:[rank0]:                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[default0]:[rank0]:     return self._call_impl(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[default0]:[rank0]:     return forward_call(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/../SqueezeFormer/encoder.py", line 213, in forward
+[default0]:[rank0]:     outputs = layer(outputs, mask=mask, pad_mask=pad_mask)
+[default0]:[rank0]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[default0]:[rank0]:     return self._call_impl(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[default0]:[rank0]:     return forward_call(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/../SqueezeFormer/encoder.py", line 102, in forward
+[default0]:[rank0]:     outputs = module.module(outputs, pad_mask=pad_mask) * module.module_factor + outputs
+[default0]:[rank0]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[default0]:[rank0]:     return self._call_impl(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[default0]:[rank0]:     return forward_call(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/../SqueezeFormer/convolution.py", line 171, in forward
+[default0]:[rank0]:     outputs = self.sequential[4](outputs)
+[default0]:[rank0]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[default0]:[rank0]:     return self._call_impl(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[default0]:[rank0]:     return forward_call(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/batchnorm.py", line 811, in forward
+[default0]:[rank0]:     return sync_batch_norm.apply(
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/autograd/function.py", line 576, in apply
+[default0]:[rank0]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/_functions.py", line 73, in forward
+[default0]:[rank0]:     dist.all_gather_into_tensor(
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/c10d_logger.py", line 81, in wrapper
+[default0]:[rank0]:     return func(*args, **kwargs)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/distributed_c10d.py", line 3986, in all_gather_into_tensor
+[default0]:[rank0]:     work = group._allgather_base(output_tensor, input_tensor, opts)
+[default0]:[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[default0]:[rank0]: RuntimeError: [Rank 0]: Ranks 1 failed to pass monitoredBarrier in 600000 ms
+W0507 15:53:41.611000 2301760 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 2304237 closing signal SIGTERM
+E0507 15:53:41.827000 2301760 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 1 (pid: 2304238) of binary: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/python3.11
+Traceback (most recent call last):
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/bin/accelerate", line 10, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/accelerate/commands/accelerate_cli.py", line 50, in main
+    args.func(args)
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1396, in launch_command
+    multi_gpu_launcher(args)
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1023, in multi_gpu_launcher
+    distrib_run.run(args)
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 143, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 277, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+SqueezeFormer/train.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-05-07_15:52:58
+  host      : dgx1.plus.discoverer.bg
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 2304238)
+  error_file: logs/accelerate_11320/none_qhdhau2k/attempt_0/1/error.json
+  traceback : Traceback (most recent call last):
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+      return f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/train.py", line 535, in main
+      log_probs, output_lengths = model(mel, lengths)
+                                  ^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+      return self._call_impl(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+      return forward_call(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/parallel/distributed.py", line 1648, in forward
+      else self._run_ddp_forward(*inputs, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/parallel/distributed.py", line 1474, in _run_ddp_forward
+      return self.module(*inputs, **kwargs)  # type: ignore[index]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_dynamo/eval_frame.py", line 375, in __call__
+      return super().__call__(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+      return self._call_impl(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+      return forward_call(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/accelerate/utils/operations.py", line 823, in forward
+      return model_forward(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/accelerate/utils/operations.py", line 811, in __call__
+      return convert_to_fp32(self.model_forward(*args, **kwargs))
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/amp/autocast_mode.py", line 44, in decorate_autocast
+      return func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_dynamo/eval_frame.py", line 749, in compile_wrapper
+      raise e.remove_dynamo_frames() from None  # see TORCHDYNAMO_VERBOSE=1
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/compile_fx.py", line 923, in _compile_fx_inner
+      raise InductorError(e, currentframe()).with_traceback(
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/compile_fx.py", line 907, in _compile_fx_inner
+      mb_compiled_graph = fx_codegen_and_compile(
+                          ^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/compile_fx.py", line 1578, in fx_codegen_and_compile
+      return scheme.codegen_and_compile(gm, example_inputs, inputs_to_check, graph_kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/compile_fx.py", line 1456, in codegen_and_compile
+      compiled_module = graph.compile_to_module()
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/graph.py", line 2293, in compile_to_module
+      return self._compile_to_module()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/graph.py", line 2303, in _compile_to_module
+      mod = self._compile_to_module_lines(wrapper_code)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/graph.py", line 2371, in _compile_to_module_lines
+      mod = PyCodeCache.load_by_key_path(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/codecache.py", line 3296, in load_by_key_path
+      mod = _reload_python_module(key, path, set_sys_modules=in_toplevel)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/runtime/compile_tasks.py", line 31, in _reload_python_module
+      exec(code, mod.__dict__, mod.__dict__)
+    File "/tmp/torchinductor_vvasilev/ku/ckua3hw46hkrauppaqe4exthfsidkdhkjn64bpinp53z2dpbvslo.py", line 303, in <module>
+      async_compile.wait(globals())
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/async_compile.py", line 491, in wait
+      self._wait_futures(scope)
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/async_compile.py", line 511, in _wait_futures
+      kernel = result.result()
+               ^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/codecache.py", line 4014, in result
+      return self.result_fn()
+             ^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/async_compile.py", line 370, in get_result
+      kernel, elapsed_us = task.result()
+                           ^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/concurrent/futures/_base.py", line 456, in result
+      return self.__get_result()
+             ^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/concurrent/futures/_base.py", line 401, in __get_result
+      raise self._exception
+  torch._inductor.exc.InductorError: SubprocException: An exception occurred in a subprocess:
+  
+  Traceback (most recent call last):
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/compile_worker/subproc_pool.py", line 340, in do_job
+      result = job()
+               ^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/runtime/compile_tasks.py", line 61, in _worker_compile_triton
+      kernel = load_kernel()
+               ^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/codecache.py", line 3364, in _load_triton_kernel_from_source
+      return getattr(PyCodeCache.load(source_code), kernel_name)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/codecache.py", line 3278, in load
+      return cls.load_by_key_path(key, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/codecache.py", line 3296, in load_by_key_path
+      mod = _reload_python_module(key, path, set_sys_modules=in_toplevel)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/runtime/compile_tasks.py", line 31, in _reload_python_module
+      exec(code, mod.__dict__, mod.__dict__)
+    File "/tmp/torchinductor_vvasilev/aa/caa3kanypqp23xlkvxhw3ihba4tfffgs5rz4ncli3dkv4vzdegky.py", line 8, in <module>
+      triton_helpers.set_driver_to_gpu()
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/_inductor/runtime/triton_helpers.py", line 49, in set_driver_to_gpu
+      driver.set_active(backend.driver())
+                        ^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/triton/backends/nvidia/driver.py", line 716, in __init__
+      self.utils = CudaUtils()  # TODO: make static
+                   ^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/triton/backends/nvidia/driver.py", line 62, in __init__
+      mod = compile_module_from_src(
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/triton/runtime/build.py", line 110, in compile_module_from_src
+      so = _build(name, src_path, tmpdir, library_dirs or [], include_dirs or [], libraries or [])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/triton/runtime/build.py", line 73, in _build
+      subprocess.check_call(cc_cmd, stdout=subprocess.DEVNULL)
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/subprocess.py", line 413, in check_call
+      raise CalledProcessError(retcode, cmd)
+  subprocess.CalledProcessError: Command '['/usr/bin/gcc', '/tmp/tmp4nmy48s8/cuda_utils.c', '-O3', '-shared', '-fPIC', '-Wno-psabi', '-o', '/tmp/tmp4nmy48s8/cuda_utils.cpython-311-x86_64-linux-gnu.so', '-lcuda', '-L/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/triton/backends/nvidia/lib', '-L/lib64', '-L/lib', '-I/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/triton/backends/nvidia/include', '-I/tmp/tmp4nmy48s8', '-I/valhalla/projects/bg-eng-01/conda_envs/torch/include/python3.11', '-I/valhalla/projects/bg-eng-01/conda_envs/torch/targets/x86_64-linux/include']' returned non-zero exit status 1.
+  
+  
+  Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+  
+  
+============================================================

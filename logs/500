@@ -1,0 +1,10 @@
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ready andt a later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 027] dev-other
+    dev loss : 0.6225
+    WER      : 24.38%  best 23.85%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and alou later i found the streets a stir with throngs of weld dressed people and family groups winding their way hither and thither
+

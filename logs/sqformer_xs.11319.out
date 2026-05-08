@@ -1,0 +1,12 @@
+Job 11319 starting at Thu May  7 03:48:51 PM UTC 2026
+Project: /valhalla/projects/bg-eng-01/LoreaEnc
+Python: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/python
+Accelerate: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/accelerate
+GPUs on node: 2
+PyTorch: 2.8.0
+Accelerate: 1.13.0
+CUDA available: True
+CUDA devices: 2
+[default0]:[Gloo] Rank 0 is connected to 1 peer ranks. Expected number of connected peer ranks is : 1
+[default1]:[Gloo] Rank 1 is connected to 1 peer ranks. Expected number of connected peer ranks is : 1
+[default0]:Vocab size: 128 | CTC blank: 0

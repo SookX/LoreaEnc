@@ -1,0 +1,38 @@
+Job 11324 starting at Thu May  7 03:58:30 PM UTC 2026
+Project: /valhalla/projects/bg-eng-01/LoreaEnc
+Python: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/python
+Accelerate: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/accelerate
+GPUs on node: 2
+PyTorch: 2.8.0
+Accelerate: 1.13.0
+CUDA available: True
+CUDA devices: 2
+Vocab size: 128 | CTC blank: 0
+Using full dataset: 281241 utterances
+Validation: dev-other | 2864 utterances
+SqueezeFormer-XS | 9.0M params | 2 GPU(s) | run: squeezeformer_xs_150ep
+LR: extended Noam | peak=0.002 | warmup=20 ep | hold=160 ep | decay=1 | train=150 ep
+torch.compile: skipped
+
+  [epoch 001] dev-other
+    dev loss : 0.1490
+    WER      : 100.00%  best 100.00%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : ⁇ ⁇
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 002] dev-other
+    dev loss : 0.1295
+    WER      : 100.00%  best 100.00%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : ⁇ ⁇ ⁇
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 003] dev-other
+    dev loss : 0.1352
+    WER      : 100.00%  best 100.00%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : ⁇ ⁇ ⁇ ⁇ ⁇ ⁇ ⁇
+
