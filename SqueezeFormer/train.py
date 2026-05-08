@@ -96,8 +96,12 @@ def parse_args():
                    help="Root directory of LibriSpeech.")
     p.add_argument("--epochs",     type=int,   default=NUM_EPOCHS)
     p.add_argument("--batch-size", type=int,   default=PER_GPU_BATCH_SIZE)
+    p.add_argument("--grad-accum-steps", type=int, default=GRADIENT_ACCUMULATION,
+                   help="Optimizer update every N microbatches. --batch-size is per-GPU microbatch size.")
     p.add_argument("--eval-batch-size", type=int, default=None,
                    help="Evaluation batch size. Defaults to --batch-size.")
+    p.add_argument("--max-grad-norm", type=float, default=5.0,
+                   help="Global gradient clipping norm applied on optimizer steps.")
     p.add_argument("--workers",    type=int,   default=NUM_WORKERS)
     p.add_argument("--eval-split", type=str,   default=DEV_SPLIT,
                    help="LibriSpeech split for validation WER.")
@@ -363,13 +367,14 @@ def main():
     output_dir     = args.output_dir or os.path.join(WORKING_DIR, run_name)
     seed           = args.seed
     hours          = args.hours      # None → use full dataset
+    grad_accum_steps = max(1, args.grad_accum_steps)
     os.makedirs(output_dir, exist_ok=True)
 
     # ── Accelerator ───────────────────────────────────────────────────────
     accelerator = Accelerator(
         project_dir=output_dir,
         log_with="wandb" if args.wandb else None,
-        gradient_accumulation_steps=GRADIENT_ACCUMULATION,
+        gradient_accumulation_steps=grad_accum_steps,
         mixed_precision="bf16",   # H200: 989 TFLOPs BF16 vs 67 TFLOPs FP32
     )
     if args.wandb:
@@ -419,11 +424,12 @@ def main():
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=args.batch_size // GRADIENT_ACCUMULATION,
+        batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.workers,
         collate_fn=collate_fn,
         pin_memory=True,
+        drop_last=True,
         persistent_workers=args.workers > 0,  # keep workers alive between epochs
     )
 
@@ -458,8 +464,7 @@ def main():
     )
 
     num_epochs       = args.epochs
-    steps_per_epoch  = math.ceil(len(train_loader) / GRADIENT_ACCUMULATION)
-    total_steps      = num_epochs * steps_per_epoch
+    steps_per_epoch  = math.ceil(len(train_loader) / grad_accum_steps)
     scheduler = build_extended_noam_scheduler(
         optimizer=optimizer,
         steps_per_epoch=steps_per_epoch,
@@ -470,6 +475,11 @@ def main():
     accelerator.print(
         f"LR: extended Noam | peak={peak_lr:g} | warmup={NUM_WARMUP_EPOCHS} ep | "
         f"hold={NUM_PEAK_EPOCHS} ep | decay={NOAM_DECAY_RATE:g} | train={num_epochs} ep"
+    )
+    accelerator.print(
+        f"Batching: per_gpu_micro={args.batch_size} | grad_accum={grad_accum_steps} | "
+        f"effective_global={args.batch_size * grad_accum_steps * accelerator.num_processes} | "
+        f"optimizer_steps/epoch={steps_per_epoch}"
     )
 
     ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)
@@ -511,6 +521,7 @@ def main():
     )
 
     loss_window = collections.deque(maxlen=50)
+    last_grad_norm = float("nan")
 
     for epoch in epoch_bar:
         model.train()
@@ -528,18 +539,28 @@ def main():
             disable=not accelerator.is_local_main_process,
         )
 
-        for batch in batch_bar:
+        for step, batch in enumerate(batch_bar, start=1):
             mel, lengths, labels, label_lengths = batch
 
             with accelerator.accumulate(model):
                 log_probs, output_lengths = model(mel, lengths)
                 loss = ctc_loss(log_probs.permute(1, 0, 2), labels, output_lengths, label_lengths)
+                if not torch.isfinite(loss):
+                    accelerator.print(f"[warn] non-finite loss at epoch {epoch}, batch {step}; skipping update")
+                    optimizer.zero_grad(set_to_none=True)
+                    continue
                 accelerator.backward(loss)
                 if accelerator.sync_gradients:
-                    accelerator.clip_grad_norm_(model.parameters(), max_norm=10.0)
-                optimizer.step()
-                scheduler.step()
-                optimizer.zero_grad()
+                    grad_norm = accelerator.clip_grad_norm_(model.parameters(), max_norm=args.max_grad_norm)
+                    last_grad_norm = float(grad_norm.detach().item() if isinstance(grad_norm, torch.Tensor) else grad_norm)
+                    if math.isfinite(last_grad_norm):
+                        optimizer.step()
+                        scheduler.step()
+                    else:
+                        accelerator.print(
+                            f"[warn] non-finite grad norm at epoch {epoch}, batch {step}; skipping update"
+                        )
+                    optimizer.zero_grad(set_to_none=True)
 
             loss_val = accelerator.gather(loss.detach().unsqueeze(0)).mean().item()
             loss_window.append(loss_val)
@@ -559,7 +580,7 @@ def main():
                 smoothed = sum(loss_window) / len(loss_window)
                 batch_bar.set_postfix_str(
                     f"loss {loss_val:.3f}  smooth {smoothed:.3f}  TER {ter:.2%}"
-                    f"  lr {scheduler.get_last_lr()[0]:.1e}",
+                    f"  grad {last_grad_norm:.2f}  lr {scheduler.get_last_lr()[0]:.1e}",
                     refresh=False,
                 )
 

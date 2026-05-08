@@ -84,6 +84,8 @@ accelerate launch \
     --no-compile \
     --tokenizer-path "${TOKENIZER_PATH}" \
     --batch-size 128 \
+    --grad-accum-steps 2 \
+    --max-grad-norm 5.0 \
     --eval-batch-size 128 \
     --workers 8 \
     --output-dir outputs/squeezeformer_xs_150ep \
