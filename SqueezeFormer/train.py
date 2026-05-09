@@ -23,6 +23,8 @@ import random
 import shutil
 import argparse
 import collections
+import socket
+import time
 
 import torch
 import torch.nn as nn
@@ -115,6 +117,12 @@ def parse_args():
                    help="LibriSpeech split for validation WER.")
     p.add_argument("--eval-every", type=int,   default=EVAL_EVERY,
                    help="Run full validation every N epochs.")
+    p.add_argument("--max-train-batches", type=int, default=None,
+                   help="Debug/probe mode: stop each epoch after N training batches.")
+    p.add_argument("--log-every", type=int, default=100,
+                   help="Print rank-0 training heartbeat every N batches. Use 0 to disable.")
+    p.add_argument("--debug-ranks", action="store_true",
+                   help="Print rank-stamped diagnostics around DDP setup, batches, and barriers.")
     p.add_argument("--variant",    type=str,   default=VARIANT,
                    choices=["xs", "s", "sm", "m", "ml", "l"])
     p.add_argument("--lr",         type=float, default=LEARNING_RATE,
@@ -276,6 +284,13 @@ def is_main_process(rank: int) -> bool:
 def print0(rank: int, *args, **kwargs):
     if is_main_process(rank):
         print(*args, **kwargs, flush=True)
+
+
+def debug_print(enabled: bool, rank: int, message: str):
+    if enabled:
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        host = socket.gethostname()
+        print(f"[{now}] [host {host}] [rank {rank}] {message}", flush=True)
 
 
 def barrier():
@@ -504,12 +519,20 @@ def main_ddp():
     hours = args.hours
     grad_accum_steps = max(1, args.grad_accum_steps)
 
+    debug_print(args.debug_ranks, -1, "entering setup_distributed")
     rank, local_rank, world_size, device = setup_distributed()
+    debug_print(
+        args.debug_ranks,
+        rank,
+        f"distributed ready local_rank={local_rank} world_size={world_size} device={device} "
+        f"cuda_devices={torch.cuda.device_count()}",
+    )
     os.makedirs(output_dir, exist_ok=True)
 
     torch.manual_seed(seed + rank)
     random.seed(seed + rank)
 
+    debug_print(args.debug_ranks, rank, "building tokenizer")
     tokenizer = build_tokenizer(args.tokenizer_path)
     blank_id = tokenizer.pad_token_id
     num_classes = tokenizer.vocab_size
@@ -521,6 +544,7 @@ def main_ddp():
             "pass --tokenizer-path to a 128-token SentencePiece model.",
         )
 
+    debug_print(args.debug_ranks, rank, "building train dataset")
     full_train = LibriSpeechDataset(
         path_to_data_root=args.data_root,
         include_splits=TRAIN_SPLITS,
@@ -539,6 +563,7 @@ def main_ddp():
         train_dataset = full_train
         print0(rank, f"Using full dataset: {len(train_dataset)} utterances")
 
+    debug_print(args.debug_ranks, rank, "building dev dataset")
     dev_dataset = LibriSpeechDataset(
         path_to_data_root=args.data_root,
         include_splits=[args.eval_split],
@@ -559,6 +584,7 @@ def main_ddp():
             drop_last=True,
         )
 
+    debug_print(args.debug_ranks, rank, "building train dataloader")
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.batch_size,
@@ -571,6 +597,7 @@ def main_ddp():
         persistent_workers=args.workers > 0,
     )
 
+    debug_print(args.debug_ranks, rank, "building dev dataloader")
     dev_loader = DataLoader(
         dev_dataset,
         batch_size=args.eval_batch_size or args.batch_size,
@@ -582,6 +609,7 @@ def main_ddp():
     )
     print0(rank, f"Validation: {args.eval_split} | {len(dev_dataset)} utterances")
 
+    debug_print(args.debug_ranks, rank, "building model")
     model_config = get_config(args.variant)
     model = build_model(model_config, num_classes)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -624,6 +652,7 @@ def main_ddp():
     ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)
 
     if world_size > 1:
+        debug_print(args.debug_ranks, rank, "converting SyncBatchNorm")
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     start_epoch = 1
@@ -646,6 +675,7 @@ def main_ddp():
             best_wer = loaded_best_wer
         print0(rank, f"Resumed from {args.resume} -> starting epoch {start_epoch}")
 
+    debug_print(args.debug_ranks, rank, "moving model to device")
     model.to(device)
     move_optimizer_state(optimizer, device)
     if sys.platform != "win32" and not args.no_compile:
@@ -655,7 +685,9 @@ def main_ddp():
         print0(rank, "torch.compile: skipped")
 
     if world_size > 1:
+        debug_print(args.debug_ranks, rank, "wrapping model in DDP")
         model = DDP(model, device_ids=[local_rank], output_device=local_rank)
+    debug_print(args.debug_ranks, rank, "training loop ready")
 
     epoch_bar = tqdm(
         range(start_epoch, num_epochs + 1),
@@ -690,6 +722,11 @@ def main_ddp():
             )
 
             for step, batch in enumerate(batch_bar, start=1):
+                if args.max_train_batches is not None and step > args.max_train_batches:
+                    break
+
+                if step <= 3:
+                    debug_print(args.debug_ranks, rank, f"epoch {epoch} got batch {step}")
                 mel, lengths, labels, label_lengths = batch
                 mel = mel.to(device, non_blocking=True)
                 lengths = lengths.to(device, non_blocking=True)
@@ -727,6 +764,15 @@ def main_ddp():
                     optimizer.step()
                     scheduler.step()
                     optimizer.zero_grad(set_to_none=True)
+                    if args.log_every > 0 and is_main_process(rank) and (
+                        step <= 4 or step % args.log_every == 0 or step == len(train_loader)
+                    ):
+                        print(
+                            f"[train] epoch={epoch} batch={step}/{len(train_loader)} "
+                            f"loss={loss.detach().float().item():.4f} grad={last_grad_norm:.2f} "
+                            f"lr={scheduler.get_last_lr()[0]:.3e}",
+                            flush=True,
+                        )
 
                 loss_val = reduce_mean(loss.detach().float().item(), device)
                 loss_window.append(loss_val)
@@ -754,8 +800,11 @@ def main_ddp():
             avg_ter = epoch_ter / max(n_batches, 1)
 
             should_eval = (args.eval_every > 0) and (epoch % args.eval_every == 0 or epoch == num_epochs)
+            debug_print(args.debug_ranks, rank, f"epoch {epoch} entering end-of-epoch barrier")
             barrier()
+            debug_print(args.debug_ranks, rank, f"epoch {epoch} left end-of-epoch barrier")
             if is_main_process(rank) and should_eval:
+                debug_print(args.debug_ranks, rank, f"epoch {epoch} starting evaluation")
                 eval_metrics = evaluate_dev_other(
                     model=model,
                     dev_loader=dev_loader,
@@ -794,6 +843,7 @@ def main_ddp():
                     refresh=True,
                 )
             barrier()
+            debug_print(args.debug_ranks, rank, f"epoch {epoch} completed eval/checkpoint barrier")
 
             if epoch % SAVE_EVERY == 0:
                 barrier()

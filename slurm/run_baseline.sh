@@ -40,12 +40,15 @@ if [ ! -f "${TOKENIZER_PATH}" ]; then
 fi
 
 export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
-export MASTER_PORT="${MASTER_PORT:-12355}"
+export MASTER_PORT="${MASTER_PORT:-$((12000 + SLURM_JOB_ID % 20000))}"
 export PYTHONFAULTHANDLER=1
 export CUDA_LAUNCH_BLOCKING=0
 export TOKENIZERS_PARALLELISM=false
-export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-40}"
-export TORCH_DISTRIBUTED_DEBUG="${TORCH_DISTRIBUTED_DEBUG:-OFF}"
+export OMP_NUM_THREADS=8
+export TORCH_DISTRIBUTED_DEBUG="${TORCH_DISTRIBUTED_DEBUG:-DETAIL}"
+export NCCL_DEBUG="${NCCL_DEBUG:-WARN}"
+export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
+export TORCH_NCCL_BLOCKING_WAIT=1
 
 # Match the Slurm request above. Keeping this explicit avoids accidentally
 # launching 8 processes when Slurm reports no GPU count variable.
@@ -57,6 +60,7 @@ echo "Project: ${PROJECT_DIR}"
 echo "Python: $(which python)"
 echo "Torchrun: $(which torchrun)"
 echo "GPUs on node: ${NUM_PROCESSES}"
+echo "Master: ${MASTER_ADDR}:${MASTER_PORT}"
 
 python - <<'PY'
 import torch
@@ -83,6 +87,8 @@ torchrun \
     --max-safe-grad-norm 50.0 \
     --eval-batch-size 128 \
     --workers "${WORKERS}" \
+    --log-every 25 \
+    --debug-ranks \
     --output-dir "${OUTPUT_DIR}" \
     --run-name squeezeformer_xs_150ep_scratch
 
