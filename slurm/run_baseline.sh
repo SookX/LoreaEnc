@@ -49,7 +49,6 @@ fi
 export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
 export MASTER_PORT="${MASTER_PORT:-12355}"
 export PYTHONFAULTHANDLER=1
-export PYTHONUNBUFFERED=1
 export CUDA_LAUNCH_BLOCKING=0
 export TOKENIZERS_PARALLELISM=false
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-40}"
@@ -73,11 +72,7 @@ echo "Job ${SLURM_JOB_ID} starting at $(date)"
 echo "Project: ${PROJECT_DIR}"
 echo "Python: $(which python)"
 echo "Accelerate: $(which accelerate)"
-echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-unset}"
-echo "Processes: ${NUM_PROCESSES}"
-echo "Resume: ${RESUME_CHECKPOINT}"
-echo "Start epoch: ${START_EPOCH}"
-echo "Workers per process: ${WORKERS}"
+echo "GPUs on node: ${NUM_PROCESSES}"
 
 python - <<'PY'
 import torch
