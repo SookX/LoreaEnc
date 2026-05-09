@@ -121,6 +121,8 @@ def parse_args():
                    help="Debug/probe mode: stop each epoch after N training batches.")
     p.add_argument("--log-every", type=int, default=100,
                    help="Print rank-0 training heartbeat every N batches. Use 0 to disable.")
+    p.add_argument("--dataloader-timeout", type=int, default=0,
+                   help="Seconds before a DataLoader worker timeout raises an error. Use 0 to disable.")
     p.add_argument("--debug-ranks", action="store_true",
                    help="Print rank-stamped diagnostics around DDP setup, batches, and barriers.")
     p.add_argument("--variant",    type=str,   default=VARIANT,
@@ -613,6 +615,7 @@ def main_ddp():
         collate_fn=collate_fn,
         pin_memory=True,
         drop_last=True,
+        timeout=args.dataloader_timeout,
     )
 
     debug_print(args.debug_ranks, rank, "building dev dataloader")
@@ -624,6 +627,7 @@ def main_ddp():
         num_workers=args.workers,
         collate_fn=eval_collate_fn,
         pin_memory=True,
+        timeout=args.dataloader_timeout,
     )
     print0(rank, f"Validation: {args.eval_split} | {len(dev_dataset)} utterances")
 
@@ -779,7 +783,7 @@ def main_ddp():
                     scheduler.step()
                     optimizer.zero_grad(set_to_none=True)
                     if args.log_every > 0 and is_main_process(rank) and (
-                        step <= 4 or step % args.log_every == 0 or step == len(train_loader)
+                        step <= 20 or step % args.log_every == 0 or step == len(train_loader)
                     ):
                         print(
                             f"[train] epoch={epoch} batch={step}/{len(train_loader)} "
