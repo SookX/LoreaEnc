@@ -17,8 +17,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=0
 #SBATCH --time=12:00:00
-#SBATCH --output=logs/finetune_%x_%j.out
-#SBATCH --error=logs/finetune_%x_%j.err
+#SBATCH --output=/valhalla/projects/bg-eng-01/LoreaEnc/logs/finetune_%x_%j.out
+#SBATCH --error=/valhalla/projects/bg-eng-01/LoreaEnc/logs/finetune_%x_%j.err
 ##SBATCH --partition=gpu
 ##SBATCH --account=YOUR_ACCOUNT
 
