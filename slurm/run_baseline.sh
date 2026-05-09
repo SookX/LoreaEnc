@@ -47,6 +47,9 @@ export TOKENIZERS_PARALLELISM=false
 export OMP_NUM_THREADS=8
 export TORCH_DISTRIBUTED_DEBUG="${TORCH_DISTRIBUTED_DEBUG:-OFF}"
 export NCCL_DEBUG="${NCCL_DEBUG:-WARN}"
+export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-0}"
+export NCCL_SOCKET_IFNAME="${NCCL_SOCKET_IFNAME:-^lo,docker}"
+export NCCL_RAS_ENABLE=0
 export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 
 # Match the Slurm request above. Keeping this explicit avoids accidentally
