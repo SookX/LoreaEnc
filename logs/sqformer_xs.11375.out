@@ -1,0 +1,1128 @@
+Job 11375 starting at Fri May  8 08:48:22 AM UTC 2026
+Project: /valhalla/projects/bg-eng-01/LoreaEnc
+Python: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/python
+Accelerate: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/accelerate
+GPUs on node: 2
+PyTorch: 2.8.0
+Accelerate: 1.13.0
+CUDA available: True
+CUDA devices: 2
+Vocab size: 128 | CTC blank: 0
+Using full dataset: 281241 utterances
+Validation: dev-other | 2864 utterances
+SqueezeFormer-XS | 9.0M params | 2 GPU(s) | run: squeezeformer_xs_150ep
+LR: extended Noam | peak=0.002 | warmup=20 ep | hold=160 ep | decay=1 | train=150 ep
+Batching: per_gpu_micro=128 | grad_accum=2 | effective_global=512 | optimizer_steps/epoch=1099
+torch.compile: skipped
+
+  [epoch 001] dev-other
+    dev loss : 4.5492
+    WER      : 98.85%  best 98.85%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : 
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 002] dev-other
+    dev loss : 3.4452
+    WER      : 92.84%  best 92.84%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : was s id bing there fnisrs s f rs of wvespk the fn grs w the w andve m dd
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 003] dev-other
+    dev loss : 2.6641
+    WER      : 87.31%  best 87.31%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i prt s i had b win and l layre found the straat to star with the rns of wldrespple and fammy grs wing n w hadveher in dither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 004] dev-other
+    dev loss : 2.1323
+    WER      : 77.46%  best 77.46%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as ip profed to s and hadd bmany andll lader i thound the straat to ster with th romns of wlders peple in fammy groops oning the way ether indit
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 005] dev-other
+    dev loss : 1.7376
+    WER      : 68.33%  best 68.33%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as ipprosed to sit i hed bld many and l lader i thound the strat to a star with th rouons of willlders people in famy grops winding noway ether indiv
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 006] dev-other
+    dev loss : 1.4726
+    WER      : 59.64%  best 59.64%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i ap proced to sit i heard b rany and lt later i thound the streates star with th rons of wellres people in famly grops winding no way ether indiither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 007] dev-other
+    dev loss : 1.2797
+    WER      : 53.01%  best 53.01%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i ap proac to sity i heard bells rady and lt later i found the streat to a star with th rongs of wellldss people in famly grps winding no way ether indiit
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 008] dev-other
+    dev loss : 1.1369
+    WER      : 47.28%  best 47.28%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approac to city i heard bells rading and lt later i found the streight to a stir with throngs of we dress people in family groops winding their way either in diter
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 009] dev-other
+    dev loss : 1.0149
+    WER      : 42.49%  best 42.49%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approac a city i heard bells ready and ltle later i found the streetes stir with throngs of well dress people in family groops winding their way hither innditer
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 010] dev-other
+    dev loss : 0.9205
+    WER      : 39.31%  best 39.31%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approacedd a city i heard bells reading andllow later i found the street to a stir with throngs of wellldress people in family groups winding their way hither in theither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep010
+
+  [epoch 011] dev-other
+    dev loss : 0.8666
+    WER      : 36.53%  best 36.53%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approacedd a city i heard bells rading and ltle later i found the streets stir with throngs of wllld ress people in family groups winding their way hither indither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 012] dev-other
+    dev loss : 0.8023
+    WER      : 33.97%  best 33.97%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approacd the city i heard bells ringing andt later i found the streets a stir with throngs of well dress people and family groups winding their way hither in theither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 013] dev-other
+    dev loss : 0.7674
+    WER      : 32.29%  best 32.29%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approacd the city i heard bells ringing andt the later i found the streets a stir with throngs of wld rest people in family groups winding their way hither in thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 014] dev-other
+    dev loss : 0.7324
+    WER      : 30.54%  best 30.54%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and in the later i found the streets as stir with throngs of wellld resst people in family groups winding their way hither in thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 015] dev-other
+    dev loss : 0.7134
+    WER      : 29.33%  best 29.33%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing andll the later i found the streets a stir with throngs of wll dress people in family groups winding their way hither thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 016] dev-other
+    dev loss : 0.6800
+    WER      : 27.74%  best 27.74%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells rining andill the later i found the streets of staar with throngs of wellld resst people and family groups winding their way hither inditred
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 017] dev-other
+    dev loss : 0.6617
+    WER      : 26.82%  best 26.82%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and l low later i found the streets of stir with throngs of well dress people and family groups winding their way hither edither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 018] dev-other
+    dev loss : 0.6632
+    WER      : 26.59%  best 26.59%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and little later i found the streets of stir with throngs of wellld rest people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 019] dev-other
+    dev loss : 0.6440
+    WER      : 26.32%  best 26.32%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and the later i found the streets to stir with throngs of well dress people in family groups winding their way hither endither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 020] dev-other
+    dev loss : 0.6181
+    WER      : 24.93%  best 24.93%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard the bells ring and l little later i found the streets as stir with throngs of well dress people in family groups winding their way hither thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep020
+
+  [epoch 021] dev-other
+    dev loss : 0.6103
+    WER      : 24.81%  best 24.81%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's reading and a low later i found the streets to stir with throngs of well dress people in family groups winding their way hither and thher
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 022] dev-other
+    dev loss : 0.6221
+    WER      : 24.74%  best 24.74%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ready and low later i found the streets a stir with throngs of well dress people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 023] dev-other
+    dev loss : 0.5897
+    WER      : 23.64%  best 23.64%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's ringing and the ltle later i found the street to stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 024] dev-other
+    dev loss : 0.6043
+    WER      : 23.54%  best 23.54%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing and the later i found the streets a stir with throngs of well dress people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 025] dev-other
+    dev loss : 0.6012
+    WER      : 23.75%  best 23.54%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing andl later i found the streets to stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 026] dev-other
+    dev loss : 0.5951
+    WER      : 23.56%  best 23.54%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's rading andit the later i found the streets to stir with throngs of well dress people in family groups winding their way hither and thither
+
+
+  [epoch 027] dev-other
+    dev loss : 0.6035
+    WER      : 23.57%  best 23.54%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing andtllow later i found the street to stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 028] dev-other
+    dev loss : 0.5761
+    WER      : 23.59%  best 23.54%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells raning andntther later i found the street to stir with throngs of well dressed people and family groups winding their way hither and thither
+
+
+  [epoch 029] dev-other
+    dev loss : 0.5720
+    WER      : 22.95%  best 22.95%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's reinging andtow later i found the streets to stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 030] dev-other
+    dev loss : 0.5956
+    WER      : 23.07%  best 22.95%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing and alow later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep030
+
+  [epoch 031] dev-other
+    dev loss : 0.5805
+    WER      : 22.77%  best 22.77%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approacd a city i heard bell's reading and allow later i found the street to stir withrongs of weld dress people and family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 032] dev-other
+    dev loss : 0.5932
+    WER      : 22.91%  best 22.77%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ready unlitherle later i found the street to stir with throngs of well dressed people in family groups winding their way hither andndither
+
+
+  [epoch 033] dev-other
+    dev loss : 0.6108
+    WER      : 22.99%  best 22.77%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and att later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+
+  [epoch 034] dev-other
+    dev loss : 0.5874
+    WER      : 22.84%  best 22.77%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and the the later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 035] dev-other
+    dev loss : 0.5883
+    WER      : 23.21%  best 22.77%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells rading and l little later i found the streets to stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 036] dev-other
+    dev loss : 0.5982
+    WER      : 23.11%  best 22.77%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ring and lt later i found the streets a stir with throngs of well dress people and family groups winding their way hither and dither
+
+
+  [epoch 037] dev-other
+    dev loss : 0.5849
+    WER      : 22.96%  best 22.77%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ready and little later i found the streets a stir with throngs of well dressed people in family groups wining their way hither and thither
+
+
+  [epoch 038] dev-other
+    dev loss : 0.5672
+    WER      : 22.75%  best 22.75%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and litt later i found the streets of stir with throngs of well dressed people in family groups winding their way hitherinndither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 039] dev-other
+    dev loss : 0.5933
+    WER      : 22.61%  best 22.61%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard the beills rading and litle later i found the streets of stir with throngs of well dress people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 040] dev-other
+    dev loss : 0.6011
+    WER      : 22.96%  best 22.61%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells rading andtittle later i found the streets to stir with throngs of will dress people in family groups winding their way hither and thither
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep040
+
+  [epoch 041] dev-other
+    dev loss : 0.5891
+    WER      : 22.91%  best 22.61%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ready and l l later i found the streets to stir with throngs of well dressed people in family groups winding their way hither inditre
+
+
+  [epoch 042] dev-other
+    dev loss : 0.6011
+    WER      : 22.14%  best 22.14%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ready andn litle later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 043] dev-other
+    dev loss : 0.5854
+    WER      : 22.64%  best 22.14%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells reinging and low later i found the streets to stir with throngs of weldressed people and family groups winding their way hither and thither
+
+
+  [epoch 044] dev-other
+    dev loss : 0.5802
+    WER      : 22.74%  best 22.14%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing and ait later i found the streets of stir with throngs of well dressed people and family groups winding their way hither and dither
+
+
+  [epoch 045] dev-other
+    dev loss : 0.5837
+    WER      : 22.41%  best 22.14%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing and a l later i found the streets a star with throngs of well dressed people and family groups winding their way hither and thither
+
+
+  [epoch 046] dev-other
+    dev loss : 0.5804
+    WER      : 22.17%  best 22.14%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells rinking andlthou later i found the streets of stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 047] dev-other
+    dev loss : 0.5852
+    WER      : 22.11%  best 22.11%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells rading and l a later i found the streets to stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 048] dev-other
+    dev loss : 0.5655
+    WER      : 21.63%  best 21.63%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ready andl later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 049] dev-other
+    dev loss : 0.5499
+    WER      : 21.71%  best 21.63%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and a low later i found the streets a stir with throngs of well dressed people and family groups winding their way hither andditred
+
+
+  [epoch 050] dev-other
+    dev loss : 0.5730
+    WER      : 21.89%  best 21.63%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ready and lle later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep050
+
+  [epoch 051] dev-other
+    dev loss : 0.5569
+    WER      : 21.41%  best 21.41%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard the bells ready and a litt later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 052] dev-other
+    dev loss : 0.5565
+    WER      : 21.35%  best 21.35%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells rading and a little later i found the street to stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 053] dev-other
+    dev loss : 0.5694
+    WER      : 21.57%  best 21.35%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and low later i found the streets of stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 054] dev-other
+    dev loss : 0.5532
+    WER      : 21.30%  best 21.30%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and aittle later i found the streets of stir withrongs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 055] dev-other
+    dev loss : 0.5633
+    WER      : 21.36%  best 21.30%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing and l later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 056] dev-other
+    dev loss : 0.5509
+    WER      : 20.93%  best 20.93%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ready and little later i found the streets of stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 057] dev-other
+    dev loss : 0.5350
+    WER      : 20.62%  best 20.62%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing and a little later i found the streets of stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 058] dev-other
+    dev loss : 0.5415
+    WER      : 20.52%  best 20.52%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing and a litt later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 059] dev-other
+    dev loss : 0.5371
+    WER      : 20.36%  best 20.36%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ry and a low later i found the streets of stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 060] dev-other
+    dev loss : 0.5569
+    WER      : 20.46%  best 20.36%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and a lowtle later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep060
+
+  [epoch 061] dev-other
+    dev loss : 0.5456
+    WER      : 20.42%  best 20.36%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ready a little later i found the streets to stir with throngs of well dressed people and found the groups winding their way hither and thither
+
+
+  [epoch 062] dev-other
+    dev loss : 0.5326
+    WER      : 20.38%  best 20.36%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and litowg later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 063] dev-other
+    dev loss : 0.5344
+    WER      : 20.17%  best 20.17%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and litow later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 064] dev-other
+    dev loss : 0.5290
+    WER      : 20.33%  best 20.17%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ready and a low later i found the streets a stir with throngs of well dressed people in family groups wining their way hither and thither
+
+
+  [epoch 065] dev-other
+    dev loss : 0.5245
+    WER      : 19.99%  best 19.99%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing and a little later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 066] dev-other
+    dev loss : 0.5201
+    WER      : 19.71%  best 19.71%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing and a littleater i found the streets of stir with throngs of well dressed people and family groups winding their way hither and dinner
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 067] dev-other
+    dev loss : 0.5347
+    WER      : 20.40%  best 19.71%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing and a a later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 068] dev-other
+    dev loss : 0.7033
+    WER      : 25.00%  best 19.71%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approacd the city i heard bells ready and a litle later i found the streets of stir with throngs of well dressed people and family groups win in their way hither and thither
+
+
+  [epoch 069] dev-other
+    dev loss : 0.5246
+    WER      : 20.00%  best 19.71%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's ringing and l little later i found the streets of stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 070] dev-other
+    dev loss : 0.5397
+    WER      : 19.99%  best 19.71%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ready and little later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep070
+
+  [epoch 071] dev-other
+    dev loss : 0.5390
+    WER      : 19.99%  best 19.71%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's ringing and uli later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 072] dev-other
+    dev loss : 0.5374
+    WER      : 20.01%  best 19.71%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's ringing and litt later i found the streets to stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 073] dev-other
+    dev loss : 0.5242
+    WER      : 19.91%  best 19.71%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and li later i found the streets to stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 074] dev-other
+    dev loss : 0.5409
+    WER      : 20.28%  best 19.71%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing and a lt later i found the streets of stir with throngs of well dressed people and family groups winding their way hither and thither
+
+
+  [epoch 075] dev-other
+    dev loss : 0.5455
+    WER      : 20.24%  best 19.71%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing and l lt later i found the streets of stir with throngs of well dressed people and family groups winding their way hither and thither
+
+
+  [epoch 076] dev-other
+    dev loss : 0.5340
+    WER      : 19.98%  best 19.71%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's ringding and allow later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 077] dev-other
+    dev loss : 0.5292
+    WER      : 19.78%  best 19.71%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ready and a lowt later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+
+  [epoch 078] dev-other
+    dev loss : 0.5094
+    WER      : 19.65%  best 19.65%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing and allll later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 079] dev-other
+    dev loss : 0.5148
+    WER      : 19.23%  best 19.23%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells reading and little later i found the streets of stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 080] dev-other
+    dev loss : 0.5061
+    WER      : 19.37%  best 19.23%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard the bells ringing and alow later i found the streets to stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep080
+
+  [epoch 081] dev-other
+    dev loss : 0.5024
+    WER      : 19.08%  best 19.08%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells rading and aillll later i found the streets of stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 082] dev-other
+    dev loss : 0.5220
+    WER      : 19.18%  best 19.08%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells reading and a litowle later i found the streets of stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 083] dev-other
+    dev loss : 0.5722
+    WER      : 21.70%  best 19.08%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's rining and litow later i found the street a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 084] dev-other
+    dev loss : 0.5308
+    WER      : 19.56%  best 19.08%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ready and a lle later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+
+  [epoch 085] dev-other
+    dev loss : 0.5296
+    WER      : 20.07%  best 19.08%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells reinging and a low later i found the streets to stir with throngs of well dressed people in family groups winding their way hither in dinner
+
+
+  [epoch 086] dev-other
+    dev loss : 0.5127
+    WER      : 19.81%  best 19.08%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells rading and allle later i found the streets of stir with throngs of well dressed people and family groups winding their way hither in dinner
+
+
+  [epoch 087] dev-other
+    dev loss : 0.5030
+    WER      : 18.96%  best 18.96%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells reining and w a later i found the streets to stir with throngs of well dressed people in family groups winding their way hither and dither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 088] dev-other
+    dev loss : 0.5169
+    WER      : 19.66%  best 18.96%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells rading and a low later i found the streets to stir with wrongs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 089] dev-other
+    dev loss : 0.5076
+    WER      : 19.00%  best 18.96%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's reading and low later i found the streets to stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 090] dev-other
+    dev loss : 0.5125
+    WER      : 19.16%  best 18.96%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's rading and l litgh later i found the streaets of stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep090
+
+  [epoch 091] dev-other
+    dev loss : 0.5166
+    WER      : 19.61%  best 18.96%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells reading and a lit later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+
+  [epoch 092] dev-other
+    dev loss : 0.4922
+    WER      : 18.76%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard the bells riting and a little later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [ckpt] best dev-other WER saved → outputs/squeezeformer_xs_150ep/checkpoint_best
+
+  [epoch 093] dev-other
+    dev loss : 5.2228
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : 
+
+
+  [epoch 094] dev-other
+    dev loss : 5.0248
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : 
+
+
+  [epoch 095] dev-other
+    dev loss : 4.9904
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : 
+
+
+  [epoch 096] dev-other
+    dev loss : 5.0309
+    WER      : 99.97%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 097] dev-other
+    dev loss : 5.1490
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : 
+
+
+  [epoch 098] dev-other
+    dev loss : 4.7756
+    WER      : 99.90%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s so
+
+
+  [epoch 099] dev-other
+    dev loss : 4.5907
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s s
+
+
+  [epoch 100] dev-other
+    dev loss : 4.4718
+    WER      : 99.63%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s so s s s s s s s s s s s
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep100
+
+  [epoch 101] dev-other
+    dev loss : 4.6989
+    WER      : 99.99%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s s s s s s
+
+
+  [epoch 102] dev-other
+    dev loss : 4.7182
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 103] dev-other
+    dev loss : 4.6420
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 104] dev-other
+    dev loss : 4.5171
+    WER      : 99.69%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s so
+
+
+  [epoch 105] dev-other
+    dev loss : 4.4103
+    WER      : 99.69%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s so so s s so s s s
+
+
+  [epoch 106] dev-other
+    dev loss : 4.3781
+    WER      : 99.65%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : so s s s s s so
+
+
+  [epoch 107] dev-other
+    dev loss : 4.7270
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : 
+
+
+  [epoch 108] dev-other
+    dev loss : 4.3692
+    WER      : 99.70%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s so s so s s so s s s s so
+
+
+  [epoch 109] dev-other
+    dev loss : 4.4687
+    WER      : 99.70%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s so
+
+
+  [epoch 110] dev-other
+    dev loss : 4.6052
+    WER      : 99.66%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : so s s
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep110
+
+  [epoch 111] dev-other
+    dev loss : 4.7437
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 112] dev-other
+    dev loss : 4.7573
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 113] dev-other
+    dev loss : 4.4250
+    WER      : 99.68%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s so
+
+
+  [epoch 114] dev-other
+    dev loss : 4.5519
+    WER      : 99.99%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s
+
+
+  [epoch 115] dev-other
+    dev loss : 4.5659
+    WER      : 99.98%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 116] dev-other
+    dev loss : 4.7945
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s
+
+
+  [epoch 117] dev-other
+    dev loss : 4.7774
+    WER      : 99.92%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s
+
+
+  [epoch 118] dev-other
+    dev loss : 4.4958
+    WER      : 99.67%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s so
+
+
+  [epoch 119] dev-other
+    dev loss : 4.6424
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 120] dev-other
+    dev loss : 4.8370
+    WER      : 99.99%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep120
+
+  [epoch 121] dev-other
+    dev loss : 4.9947
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s
+
+
+  [epoch 122] dev-other
+    dev loss : 4.7575
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 123] dev-other
+    dev loss : 4.7742
+    WER      : 99.67%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s so
+
+
+  [epoch 124] dev-other
+    dev loss : 4.6202
+    WER      : 99.99%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s
+
+
+  [epoch 125] dev-other
+    dev loss : 4.7956
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s s
+
+
+  [epoch 126] dev-other
+    dev loss : 4.7336
+    WER      : 99.68%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s so s
+
+
+  [epoch 127] dev-other
+    dev loss : 4.7365
+    WER      : 99.65%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s so
+
+
+  [epoch 128] dev-other
+    dev loss : 4.7633
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s
+
+
+  [epoch 129] dev-other
+    dev loss : 4.5564
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 130] dev-other
+    dev loss : 4.5537
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s s
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep130
+
+  [epoch 131] dev-other
+    dev loss : 4.5808
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 132] dev-other
+    dev loss : 4.4249
+    WER      : 99.67%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s so s so s s
+
+
+  [epoch 133] dev-other
+    dev loss : 4.8231
+    WER      : 99.99%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 134] dev-other
+    dev loss : 4.7826
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 135] dev-other
+    dev loss : 4.8316
+    WER      : 99.65%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s so
+
+
+  [epoch 136] dev-other
+    dev loss : 4.8773
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : 
+
+
+  [epoch 137] dev-other
+    dev loss : 4.5699
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 138] dev-other
+    dev loss : 4.8704
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 139] dev-other
+    dev loss : 5.1158
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 140] dev-other
+    dev loss : 5.2934
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep140
+
+  [epoch 141] dev-other
+    dev loss : 5.0841
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 142] dev-other
+    dev loss : 4.9208
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 143] dev-other
+    dev loss : 4.9284
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 144] dev-other
+    dev loss : 4.9116
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 145] dev-other
+    dev loss : 4.8740
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 146] dev-other
+    dev loss : 4.9980
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 147] dev-other
+    dev loss : 4.9658
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 148] dev-other
+    dev loss : 4.9446
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 149] dev-other
+    dev loss : 4.8746
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+
+  [epoch 150] dev-other
+    dev loss : 5.0802
+    WER      : 100.00%  best 18.76%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : s
+
+  [ckpt] saved → outputs/squeezeformer_xs_150ep/checkpoint_ep150
+Job 11375 finished at Sat May  9 03:17:55 AM UTC 2026
