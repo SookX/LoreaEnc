@@ -82,10 +82,13 @@ accelerate launch \
     --eval-split dev-other \
     --eval-every 1 \
     --no-compile \
+    --resume outputs/squeezeformer_xs_150ep/checkpoint_best \
+    --start-epoch 93 \
     --tokenizer-path "${TOKENIZER_PATH}" \
     --batch-size 128 \
     --grad-accum-steps 2 \
-    --max-grad-norm 5.0 \
+    --max-grad-norm 1.0 \
+    --max-safe-grad-norm 50.0 \
     --eval-batch-size 128 \
     --workers 8 \
     --output-dir outputs/squeezeformer_xs_150ep \

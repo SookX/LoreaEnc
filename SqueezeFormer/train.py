@@ -92,6 +92,9 @@ def parse_args():
                    help="Override experiment name (used in W&B and checkpoint paths).")
     p.add_argument("--resume",     type=str,   default=None,
                    help="Path to checkpoint directory to resume from.")
+    p.add_argument("--start-epoch", type=int,  default=None,
+                   help="Epoch number to start from after --resume. "
+                        "Required for checkpoint names without _epNNN, such as checkpoint_best.")
     p.add_argument("--data-root",  type=str,   default=DATA_ROOT,
                    help="Root directory of LibriSpeech.")
     p.add_argument("--epochs",     type=int,   default=NUM_EPOCHS)
@@ -102,6 +105,9 @@ def parse_args():
                    help="Evaluation batch size. Defaults to --batch-size.")
     p.add_argument("--max-grad-norm", type=float, default=5.0,
                    help="Global gradient clipping norm applied on optimizer steps.")
+    p.add_argument("--max-safe-grad-norm", type=float, default=0.0,
+                   help="Skip an optimizer update if the pre-clipping grad norm exceeds this value. "
+                        "Use 0 to disable.")
     p.add_argument("--workers",    type=int,   default=NUM_WORKERS)
     p.add_argument("--eval-split", type=str,   default=DEV_SPLIT,
                    help="LibriSpeech split for validation WER.")
@@ -505,7 +511,16 @@ def main():
     if args.resume is not None:
         with accelerator.main_process_first():
             accelerator.load_state(args.resume)
-        start_epoch = int(args.resume.rstrip("/").split("_ep")[-1]) + 1
+        if args.start_epoch is not None:
+            start_epoch = args.start_epoch
+        else:
+            try:
+                start_epoch = int(args.resume.rstrip("/").split("_ep")[-1]) + 1
+            except ValueError as exc:
+                raise ValueError(
+                    "--start-epoch is required when --resume does not end with _epNNN "
+                    f"(got {args.resume!r})"
+                ) from exc
         accelerator.print(f"Resumed from {args.resume} → starting epoch {start_epoch}")
 
     best_wer = float("inf")
@@ -553,12 +568,17 @@ def main():
                 if accelerator.sync_gradients:
                     grad_norm = accelerator.clip_grad_norm_(model.parameters(), max_norm=args.max_grad_norm)
                     last_grad_norm = float(grad_norm.detach().item() if isinstance(grad_norm, torch.Tensor) else grad_norm)
-                    if math.isfinite(last_grad_norm):
+                    grad_is_safe = (
+                        math.isfinite(last_grad_norm)
+                        and (args.max_safe_grad_norm <= 0.0 or last_grad_norm <= args.max_safe_grad_norm)
+                    )
+                    if grad_is_safe:
                         optimizer.step()
                         scheduler.step()
                     else:
                         accelerator.print(
-                            f"[warn] non-finite grad norm at epoch {epoch}, batch {step}; skipping update"
+                            f"[warn] unsafe grad norm {last_grad_norm:.2f} at epoch {epoch}, "
+                            f"batch {step}; skipping update"
                         )
                     optimizer.zero_grad(set_to_none=True)
 
