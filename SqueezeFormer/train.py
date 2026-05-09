@@ -457,10 +457,9 @@ def normalize_transcript(text: str) -> str:
 
 
 @torch.no_grad()
-def evaluate_dev_other(model, dev_loader, tokenizer, blank_id, device, ctc_loss=None, is_main=True):
+def evaluate_dev_other(model, dev_loader, tokenizer, blank_id, device, ctc_loss=None, rank=0):
     """Full greedy CTC evaluation on the configured dev split."""
-    unwrapped = unwrap_model(model)
-    unwrapped.eval()
+    model.eval()
 
     total_word_errors = 0
     total_ref_words = 0
@@ -474,7 +473,7 @@ def evaluate_dev_other(model, dev_loader, tokenizer, blank_id, device, ctc_loss=
         unit="batch",
         dynamic_ncols=True,
         leave=False,
-        disable=not is_main,
+        disable=not is_main_process(rank),
     ):
         mel = mel.to(device, non_blocking=True)
         lengths = lengths.to(device, non_blocking=True)
@@ -482,7 +481,7 @@ def evaluate_dev_other(model, dev_loader, tokenizer, blank_id, device, ctc_loss=
         label_lengths = label_lengths.to(device, non_blocking=True)
 
         with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-            log_probs, out_lengths = unwrapped(mel, lengths)
+            log_probs, out_lengths = model(mel, lengths)
             if ctc_loss is not None:
                 loss = ctc_loss(log_probs.permute(1, 0, 2), labels, out_lengths, label_lengths)
                 total_loss += loss.item()
@@ -497,12 +496,24 @@ def evaluate_dev_other(model, dev_loader, tokenizer, blank_id, device, ctc_loss=
             ref_words = ref.split()
             total_word_errors += _edit_distance(hyp_words, ref_words)
             total_ref_words += max(len(ref_words), 1)
-            if example is None:
+            if is_main_process(rank) and example is None:
                 example = (hyp, ref)
+
+    if dist.is_available() and dist.is_initialized():
+        totals = torch.tensor(
+            [total_word_errors, total_ref_words, total_loss, total_batches],
+            dtype=torch.float64,
+            device=device,
+        )
+        dist.all_reduce(totals, op=dist.ReduceOp.SUM)
+        total_word_errors = totals[0].item()
+        total_ref_words = totals[1].item()
+        total_loss = totals[2].item()
+        total_batches = totals[3].item()
 
     wer = total_word_errors / max(total_ref_words, 1)
     avg_loss = total_loss / max(total_batches, 1) if ctc_loss is not None else None
-    unwrapped.train()
+    model.train()
     return {"wer": wer, "loss": avg_loss, "example": example}
 
 
@@ -574,6 +585,7 @@ def main_ddp():
     )
 
     train_sampler = None
+    dev_sampler = None
     if world_size > 1:
         train_sampler = DistributedSampler(
             train_dataset,
@@ -582,6 +594,13 @@ def main_ddp():
             shuffle=True,
             seed=seed,
             drop_last=True,
+        )
+        dev_sampler = DistributedSampler(
+            dev_dataset,
+            num_replicas=world_size,
+            rank=rank,
+            shuffle=False,
+            drop_last=False,
         )
 
     debug_print(args.debug_ranks, rank, "building train dataloader")
@@ -594,7 +613,6 @@ def main_ddp():
         collate_fn=collate_fn,
         pin_memory=True,
         drop_last=True,
-        persistent_workers=args.workers > 0,
     )
 
     debug_print(args.debug_ranks, rank, "building dev dataloader")
@@ -602,10 +620,10 @@ def main_ddp():
         dev_dataset,
         batch_size=args.eval_batch_size or args.batch_size,
         shuffle=False,
+        sampler=dev_sampler,
         num_workers=args.workers,
         collate_fn=eval_collate_fn,
         pin_memory=True,
-        persistent_workers=args.workers > 0,
     )
     print0(rank, f"Validation: {args.eval_split} | {len(dev_dataset)} utterances")
 
@@ -650,10 +668,6 @@ def main_ddp():
     )
 
     ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)
-
-    if world_size > 1:
-        debug_print(args.debug_ranks, rank, "converting SyncBatchNorm")
-        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     start_epoch = 1
     best_wer = float("inf")
@@ -774,7 +788,7 @@ def main_ddp():
                             flush=True,
                         )
 
-                loss_val = reduce_mean(loss.detach().float().item(), device)
+                loss_val = loss.detach().float().item()
                 loss_window.append(loss_val)
                 epoch_loss += loss_val
                 n_batches += 1
@@ -800,10 +814,9 @@ def main_ddp():
             avg_ter = epoch_ter / max(n_batches, 1)
 
             should_eval = (args.eval_every > 0) and (epoch % args.eval_every == 0 or epoch == num_epochs)
-            debug_print(args.debug_ranks, rank, f"epoch {epoch} entering end-of-epoch barrier")
-            barrier()
-            debug_print(args.debug_ranks, rank, f"epoch {epoch} left end-of-epoch barrier")
-            if is_main_process(rank) and should_eval:
+            if should_eval and dev_sampler is not None:
+                dev_sampler.set_epoch(epoch)
+            if should_eval:
                 debug_print(args.debug_ranks, rank, f"epoch {epoch} starting evaluation")
                 eval_metrics = evaluate_dev_other(
                     model=model,
@@ -812,8 +825,9 @@ def main_ddp():
                     blank_id=blank_id,
                     device=device,
                     ctc_loss=ctc_loss,
-                    is_main=True,
+                    rank=rank,
                 )
+            if is_main_process(rank) and should_eval:
                 wer = eval_metrics["wer"]
                 dev_loss = eval_metrics["loss"]
                 hyp, ref = eval_metrics["example"] or ("", "")
@@ -843,10 +857,8 @@ def main_ddp():
                     refresh=True,
                 )
             barrier()
-            debug_print(args.debug_ranks, rank, f"epoch {epoch} completed eval/checkpoint barrier")
 
             if epoch % SAVE_EVERY == 0:
-                barrier()
                 if is_main_process(rank):
                     ckpt_dir = os.path.join(output_dir, f"checkpoint_ep{epoch:03d}")
                     save_checkpoint(ckpt_dir, model, optimizer, scheduler, epoch, best_wer)

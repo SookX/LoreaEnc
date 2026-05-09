@@ -45,15 +45,14 @@ export PYTHONFAULTHANDLER=1
 export CUDA_LAUNCH_BLOCKING=0
 export TOKENIZERS_PARALLELISM=false
 export OMP_NUM_THREADS=8
-export TORCH_DISTRIBUTED_DEBUG="${TORCH_DISTRIBUTED_DEBUG:-DETAIL}"
+export TORCH_DISTRIBUTED_DEBUG="${TORCH_DISTRIBUTED_DEBUG:-OFF}"
 export NCCL_DEBUG="${NCCL_DEBUG:-WARN}"
 export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
-export TORCH_NCCL_BLOCKING_WAIT=1
 
 # Match the Slurm request above. Keeping this explicit avoids accidentally
 # launching 8 processes when Slurm reports no GPU count variable.
 NUM_PROCESSES=2
-WORKERS=4
+WORKERS=2
 
 echo "Job ${SLURM_JOB_ID} starting at $(date)"
 echo "Project: ${PROJECT_DIR}"
@@ -88,7 +87,6 @@ torchrun \
     --eval-batch-size 128 \
     --workers "${WORKERS}" \
     --log-every 25 \
-    --debug-ranks \
     --output-dir "${OUTPUT_DIR}" \
     --run-name squeezeformer_xs_150ep_scratch
 
