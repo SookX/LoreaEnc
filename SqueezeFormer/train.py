@@ -106,7 +106,7 @@ def parse_args():
     p.add_argument("--max-grad-norm", type=float, default=5.0,
                    help="Global gradient clipping norm applied on optimizer steps.")
     p.add_argument("--max-safe-grad-norm", type=float, default=0.0,
-                   help="Skip an optimizer update if the pre-clipping grad norm exceeds this value. "
+                   help="Suppress a parameter update if the pre-clipping grad norm exceeds this value. "
                         "Use 0 to disable.")
     p.add_argument("--workers",    type=int,   default=NUM_WORKERS)
     p.add_argument("--eval-split", type=str,   default=DEV_SPLIT,
@@ -561,9 +561,8 @@ def main():
                 log_probs, output_lengths = model(mel, lengths)
                 loss = ctc_loss(log_probs.permute(1, 0, 2), labels, output_lengths, label_lengths)
                 if not torch.isfinite(loss):
-                    accelerator.print(f"[warn] non-finite loss at epoch {epoch}, batch {step}; skipping update")
-                    optimizer.zero_grad(set_to_none=True)
-                    continue
+                    accelerator.print(f"[warn] non-finite loss at epoch {epoch}, batch {step}; using zero-loss update")
+                    loss = log_probs.sum() * 0.0
                 accelerator.backward(loss)
                 if accelerator.sync_gradients:
                     grad_norm = accelerator.clip_grad_norm_(model.parameters(), max_norm=args.max_grad_norm)
@@ -574,12 +573,15 @@ def main():
                     )
                     if grad_is_safe:
                         optimizer.step()
-                        scheduler.step()
                     else:
                         accelerator.print(
                             f"[warn] unsafe grad norm {last_grad_norm:.2f} at epoch {epoch}, "
-                            f"batch {step}; skipping update"
+                            f"batch {step}; suppressing parameter update"
                         )
+                        for param in model.parameters():
+                            param.grad = None
+                        optimizer.step()
+                    scheduler.step()
                     optimizer.zero_grad(set_to_none=True)
 
             loss_val = accelerator.gather(loss.detach().unsqueeze(0)).mean().item()
