@@ -119,7 +119,7 @@ def parse_args():
                    help="Run full validation every N epochs.")
     p.add_argument("--max-train-batches", type=int, default=None,
                    help="Debug/probe mode: stop each epoch after N training batches.")
-    p.add_argument("--log-every", type=int, default=100,
+    p.add_argument("--log-every", type=int, default=0,
                    help="Print rank-0 training heartbeat every N batches. Use 0 to disable.")
     p.add_argument("--dataloader-timeout", type=int, default=0,
                    help="Seconds before a DataLoader worker timeout raises an error. Use 0 to disable.")
@@ -286,6 +286,11 @@ def is_main_process(rank: int) -> bool:
 def print0(rank: int, *args, **kwargs):
     if is_main_process(rank):
         print(*args, **kwargs, flush=True)
+
+
+def tqdm_write0(rank: int, message: str):
+    if is_main_process(rank):
+        tqdm.write(message)
 
 
 def debug_print(enabled: bool, rank: int, message: str):
@@ -459,7 +464,7 @@ def normalize_transcript(text: str) -> str:
 
 
 @torch.no_grad()
-def evaluate_dev_other(model, dev_loader, tokenizer, blank_id, device, ctc_loss=None, rank=0):
+def evaluate_dev_other(model, dev_loader, tokenizer, blank_id, device, ctc_loss=None, rank=0, eval_split="dev"):
     """Full greedy CTC evaluation on the configured dev split."""
     model.eval()
 
@@ -471,7 +476,7 @@ def evaluate_dev_other(model, dev_loader, tokenizer, blank_id, device, ctc_loss=
 
     for mel, lengths, labels, label_lengths, transcripts in tqdm(
         dev_loader,
-        desc="  dev-other",
+        desc=f"  {eval_split}",
         unit="batch",
         dynamic_ncols=True,
         leave=False,
@@ -734,6 +739,7 @@ def main_ddp():
                 desc=f"  Epoch {epoch:03d}",
                 unit="batch",
                 dynamic_ncols=True,
+                mininterval=1.0,
                 position=1,
                 leave=False,
                 disable=not is_main_process(rank),
@@ -751,7 +757,10 @@ def main_ddp():
                 labels = labels.to(device, non_blocking=True)
                 label_lengths = label_lengths.to(device, non_blocking=True)
 
-                sync_step = (step % grad_accum_steps == 0) or (step == len(train_loader))
+                window_start = ((step - 1) // grad_accum_steps) * grad_accum_steps + 1
+                window_end = min(window_start + grad_accum_steps - 1, len(train_loader))
+                actual_accum_steps = window_end - window_start + 1
+                sync_step = step == window_end
                 sync_context = model.no_sync if isinstance(model, DDP) and not sync_step else torch.enable_grad
 
                 with sync_context():
@@ -761,7 +770,7 @@ def main_ddp():
                         if not torch.isfinite(loss):
                             print0(rank, f"[warn] non-finite loss at epoch {epoch}, batch {step}; using zero-loss update")
                             loss = log_probs.sum() * 0.0
-                        scaled_loss = loss / grad_accum_steps
+                        scaled_loss = loss / actual_accum_steps
                     scaled_loss.backward()
 
                 if sync_step:
@@ -782,14 +791,11 @@ def main_ddp():
                     optimizer.step()
                     scheduler.step()
                     optimizer.zero_grad(set_to_none=True)
-                    if args.log_every > 0 and is_main_process(rank) and (
-                        step <= 20 or step % args.log_every == 0 or step == len(train_loader)
-                    ):
-                        print(
+                    if args.log_every > 0 and is_main_process(rank) and step % args.log_every == 0:
+                        tqdm.write(
                             f"[train] epoch={epoch} batch={step}/{len(train_loader)} "
                             f"loss={loss.detach().float().item():.4f} grad={last_grad_norm:.2f} "
-                            f"lr={scheduler.get_last_lr()[0]:.3e}",
-                            flush=True,
+                            f"lr={scheduler.get_last_lr()[0]:.3e}"
                         )
 
                 loss_val = loss.detach().float().item()
@@ -830,6 +836,7 @@ def main_ddp():
                     device=device,
                     ctc_loss=ctc_loss,
                     rank=rank,
+                    eval_split=args.eval_split,
                 )
             if is_main_process(rank) and should_eval:
                 wer = eval_metrics["wer"]
@@ -837,7 +844,8 @@ def main_ddp():
                 hyp, ref = eval_metrics["example"] or ("", "")
                 improved = wer < best_wer
                 best_wer = min(best_wer, wer)
-                tqdm.write(
+                tqdm_write0(
+                    rank,
                     f"\n  [epoch {epoch:03d}] {args.eval_split}"
                     f"\n    dev loss : {dev_loss:.4f}"
                     f"\n    WER      : {wer:.2%}  best {best_wer:.2%}"
@@ -853,7 +861,7 @@ def main_ddp():
                 if improved:
                     ckpt_dir = os.path.join(output_dir, "checkpoint_best")
                     save_checkpoint(ckpt_dir, model, optimizer, scheduler, epoch, best_wer)
-                    tqdm.write(f"  [ckpt] best {args.eval_split} WER saved -> {ckpt_dir}")
+                    tqdm_write0(rank, f"  [ckpt] best {args.eval_split} WER saved -> {ckpt_dir}")
             elif is_main_process(rank):
                 epoch_bar.set_postfix_str(
                     f"loss {avg_loss:.4f}  avg-TER {avg_ter:.2%}"
@@ -866,7 +874,7 @@ def main_ddp():
                 if is_main_process(rank):
                     ckpt_dir = os.path.join(output_dir, f"checkpoint_ep{epoch:03d}")
                     save_checkpoint(ckpt_dir, model, optimizer, scheduler, epoch, best_wer)
-                    tqdm.write(f"  [ckpt] saved -> {ckpt_dir}")
+                    tqdm_write0(rank, f"  [ckpt] saved -> {ckpt_dir}")
 
                     all_ckpts = sorted(
                         [c for c in os.listdir(output_dir) if c.startswith("checkpoint_ep")],

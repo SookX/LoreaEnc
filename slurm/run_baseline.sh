@@ -89,7 +89,7 @@ torchrun \
     --max-safe-grad-norm 50.0 \
     --eval-batch-size 128 \
     --workers "${WORKERS}" \
-    --log-every 10 \
+    --log-every 0 \
     --dataloader-timeout 120 \
     --output-dir "${OUTPUT_DIR}" \
     --run-name squeezeformer_xs_150ep_scratch
