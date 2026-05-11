@@ -91,6 +91,8 @@ torchrun \
     --eval-batch-size 128 \
     --workers "${WORKERS}" \
     --log-every 0 \
+    --train-metrics-every 0 \
+    --progress on \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --output-dir "${OUTPUT_DIR}" \
     --run-name squeezeformer_xs_150ep_scratch

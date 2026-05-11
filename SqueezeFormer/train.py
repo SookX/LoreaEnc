@@ -22,7 +22,6 @@ import math
 import random
 import shutil
 import argparse
-import collections
 import socket
 import time
 
@@ -121,6 +120,10 @@ def parse_args():
                    help="Debug/probe mode: stop each epoch after N training batches.")
     p.add_argument("--log-every", type=int, default=0,
                    help="Print rank-0 training heartbeat every N batches. Use 0 to disable.")
+    p.add_argument("--train-metrics-every", type=int, default=0,
+                   help="Decode training batches and update tqdm postfix every N batches. Use 0 to disable.")
+    p.add_argument("--progress", choices=["auto", "on", "off"], default="auto",
+                   help="Show tqdm progress bars. 'auto' shows bars only in an interactive terminal.")
     p.add_argument("--dataloader-timeout", type=int, default=0,
                    help="Seconds before a DataLoader worker timeout raises an error. Use 0 to disable.")
     p.add_argument("--debug-ranks", action="store_true",
@@ -281,6 +284,16 @@ def cleanup_distributed():
 
 def is_main_process(rank: int) -> bool:
     return rank == 0
+
+
+def should_show_progress(progress: str, rank: int) -> bool:
+    if not is_main_process(rank):
+        return False
+    if progress == "on":
+        return True
+    if progress == "off":
+        return False
+    return sys.stderr.isatty()
 
 
 def print0(rank: int, *args, **kwargs):
@@ -464,7 +477,17 @@ def normalize_transcript(text: str) -> str:
 
 
 @torch.no_grad()
-def evaluate_dev_other(model, dev_loader, tokenizer, blank_id, device, ctc_loss=None, rank=0, eval_split="dev"):
+def evaluate_dev_other(
+    model,
+    dev_loader,
+    tokenizer,
+    blank_id,
+    device,
+    ctc_loss=None,
+    rank=0,
+    eval_split="dev",
+    show_progress=True,
+):
     """Full greedy CTC evaluation on the configured dev split."""
     model.eval()
 
@@ -480,7 +503,7 @@ def evaluate_dev_other(model, dev_loader, tokenizer, blank_id, device, ctc_loss=
         unit="batch",
         dynamic_ncols=True,
         leave=False,
-        disable=not is_main_process(rank),
+        disable=not show_progress,
     ):
         mel = mel.to(device, non_blocking=True)
         lengths = lengths.to(device, non_blocking=True)
@@ -549,6 +572,9 @@ def main_ddp():
 
     torch.manual_seed(seed + rank)
     random.seed(seed + rank)
+    if device.type == "cuda":
+        torch.set_float32_matmul_precision("high")
+        torch.backends.cudnn.benchmark = True
 
     debug_print(args.debug_ranks, rank, "building tokenizer")
     tokenizer = build_tokenizer(args.tokenizer_path)
@@ -610,6 +636,13 @@ def main_ddp():
             drop_last=False,
         )
 
+    dataloader_worker_kwargs = {}
+    if args.workers > 0:
+        dataloader_worker_kwargs = {
+            "persistent_workers": True,
+            "prefetch_factor": 4,
+        }
+
     debug_print(args.debug_ranks, rank, "building train dataloader")
     train_loader = DataLoader(
         train_dataset,
@@ -621,6 +654,7 @@ def main_ddp():
         pin_memory=True,
         drop_last=True,
         timeout=args.dataloader_timeout,
+        **dataloader_worker_kwargs,
     )
 
     debug_print(args.debug_ranks, rank, "building dev dataloader")
@@ -633,6 +667,7 @@ def main_ddp():
         collate_fn=eval_collate_fn,
         pin_memory=True,
         timeout=args.dataloader_timeout,
+        **dataloader_worker_kwargs,
     )
     print0(rank, f"Validation: {args.eval_split} | {len(dev_dataset)} utterances")
 
@@ -711,38 +746,28 @@ def main_ddp():
         debug_print(args.debug_ranks, rank, "wrapping model in DDP")
         model = DDP(model, device_ids=[local_rank], output_device=local_rank)
     debug_print(args.debug_ranks, rank, "training loop ready")
+    show_progress = should_show_progress(args.progress, rank)
 
-    epoch_bar = tqdm(
-        range(start_epoch, num_epochs + 1),
-        desc=f"{run_name} | {n_params/1e6:.1f}M | {world_size} GPU(s)",
-        unit="ep",
-        dynamic_ncols=True,
-        position=0,
-        disable=not is_main_process(rank),
-    )
-
-    loss_window = collections.deque(maxlen=50)
     last_grad_norm = float("nan")
 
     try:
-        for epoch in epoch_bar:
+        for epoch in range(start_epoch, num_epochs + 1):
+            tqdm_write0(rank, f"Epoch {epoch}/{num_epochs}")
             if train_sampler is not None:
                 train_sampler.set_epoch(epoch)
             model.train()
             optimizer.zero_grad(set_to_none=True)
             epoch_loss = 0.0
+            running_loss = 0.0
             epoch_ter = 0.0
+            n_ter_batches = 0
             n_batches = 0
 
             batch_bar = tqdm(
                 train_loader,
-                desc=f"  Epoch {epoch:03d}",
-                unit="batch",
-                dynamic_ncols=True,
-                mininterval=1.0,
-                position=1,
+                desc=f"Epoch {epoch:03d}",
                 leave=False,
-                disable=not is_main_process(rank),
+                disable=not show_progress,
             )
 
             for step, batch in enumerate(batch_bar, start=1):
@@ -799,11 +824,23 @@ def main_ddp():
                         )
 
                 loss_val = loss.detach().float().item()
-                loss_window.append(loss_val)
                 epoch_loss += loss_val
+                running_loss += loss_val
                 n_batches += 1
+                if show_progress and is_main_process(rank):
+                    batch_bar.set_postfix(
+                        loss=f"{loss_val:.3f}",
+                        avg=f"{running_loss / max(n_batches, 1):.3f}",
+                        lr=f"{scheduler.get_last_lr()[0]:.1e}",
+                        refresh=False,
+                    )
 
-                if is_main_process(rank):
+                should_update_train_metrics = (
+                    args.train_metrics_every > 0
+                    and is_main_process(rank)
+                    and (step % args.train_metrics_every == 0 or step == len(train_loader))
+                )
+                if should_update_train_metrics:
                     with torch.no_grad():
                         hyps = greedy_decode(log_probs.detach(), output_lengths, blank_id)
                     offset, refs = 0, []
@@ -812,16 +849,10 @@ def main_ddp():
                         offset += ll
                     ter = token_error_rate(hyps, refs)
                     epoch_ter += ter
-
-                    smoothed = sum(loss_window) / len(loss_window)
-                    batch_bar.set_postfix_str(
-                        f"loss {loss_val:.3f}  smooth {smoothed:.3f}  TER {ter:.2%}"
-                        f"  grad {last_grad_norm:.2f}  lr {scheduler.get_last_lr()[0]:.1e}",
-                        refresh=False,
-                    )
+                    n_ter_batches += 1
 
             avg_loss = epoch_loss / max(n_batches, 1)
-            avg_ter = epoch_ter / max(n_batches, 1)
+            avg_ter = epoch_ter / max(n_ter_batches, 1)
 
             should_eval = (args.eval_every > 0) and (epoch % args.eval_every == 0 or epoch == num_epochs)
             if should_eval and dev_sampler is not None:
@@ -837,6 +868,7 @@ def main_ddp():
                     ctc_loss=ctc_loss,
                     rank=rank,
                     eval_split=args.eval_split,
+                    show_progress=show_progress,
                 )
             if is_main_process(rank) and should_eval:
                 wer = eval_metrics["wer"]
@@ -852,22 +884,26 @@ def main_ddp():
                     f"\n    REF      : {ref}"
                     f"\n    HYP      : {hyp}\n"
                 )
-                epoch_bar.set_postfix_str(
-                    f"loss {avg_loss:.4f}  avg-TER {avg_ter:.2%}  {args.eval_split} WER {wer:.2%}"
-                    f"  lr {scheduler.get_last_lr()[0]:.1e}",
-                    refresh=True,
+                postfix = (
+                    f"loss {avg_loss:.4f}  {args.eval_split} WER {wer:.2%}"
+                    f"  lr {scheduler.get_last_lr()[0]:.1e}"
                 )
+                if n_ter_batches > 0:
+                    postfix = (
+                        f"loss {avg_loss:.4f}  avg-TER {avg_ter:.2%}  {args.eval_split} WER {wer:.2%}"
+                        f"  lr {scheduler.get_last_lr()[0]:.1e}"
+                    )
+                tqdm_write0(rank, f"  [train] {postfix}")
 
                 if improved:
                     ckpt_dir = os.path.join(output_dir, "checkpoint_best")
                     save_checkpoint(ckpt_dir, model, optimizer, scheduler, epoch, best_wer)
                     tqdm_write0(rank, f"  [ckpt] best {args.eval_split} WER saved -> {ckpt_dir}")
             elif is_main_process(rank):
-                epoch_bar.set_postfix_str(
-                    f"loss {avg_loss:.4f}  avg-TER {avg_ter:.2%}"
-                    f"  lr {scheduler.get_last_lr()[0]:.1e}",
-                    refresh=True,
-                )
+                postfix = f"loss {avg_loss:.4f}  lr {scheduler.get_last_lr()[0]:.1e}"
+                if n_ter_batches > 0:
+                    postfix = f"loss {avg_loss:.4f}  avg-TER {avg_ter:.2%}  lr {scheduler.get_last_lr()[0]:.1e}"
+                tqdm_write0(rank, f"  [train] {postfix}")
             barrier()
 
             if epoch % SAVE_EVERY == 0:
