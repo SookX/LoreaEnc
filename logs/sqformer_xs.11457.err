@@ -1,0 +1,512 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+		More than one GPU was found, enabling multi-GPU training.
+		If this was unintended please pass in `--num_processes=1`.
+	`--num_machines` was set to a value of `1`
+	`--mixed_precision` was set to a value of `'no'`
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+squeezeformer_xs_150ep | 9.0M | 2 GPU(s):   0%|          | 0/58 [00:00<?, ?ep/s]
+  Epoch 093:   0%|          | 0/1098 [00:00<?, ?batch/s][A
+  Epoch 093:   0%|          | 1/1098 [00:09<2:57:16,  9.70s/batch, loss 0.755  smooth 0.755  TER 19.12%  grad nan  lr 2.0e-03][A
+  Epoch 093:   0%|          | 2/1098 [00:10<1:20:39,  4.42s/batch, loss 0.776  smooth 0.766  TER 18.63%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:   0%|          | 3/1098 [00:10<47:24,  2.60s/batch, loss 0.742  smooth 0.758  TER 19.23%  grad 0.40  lr 2.0e-03]  [A
+  Epoch 093:   0%|          | 4/1098 [00:11<31:53,  1.75s/batch, loss 0.745  smooth 0.755  TER 18.44%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:   0%|          | 5/1098 [00:11<23:37,  1.30s/batch, loss 0.790  smooth 0.762  TER 19.27%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:   1%|          | 6/1098 [00:12<18:24,  1.01s/batch, loss 0.815  smooth 0.771  TER 20.91%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:   1%|          | 7/1098 [00:12<14:50,  1.23batch/s, loss 0.778  smooth 0.772  TER 19.28%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:   1%|          | 8/1098 [00:13<12:48,  1.42batch/s, loss 0.753  smooth 0.769  TER 18.70%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:   1%|          | 9/1098 [00:13<11:06,  1.63batch/s, loss 0.757  smooth 0.768  TER 19.87%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:   1%|          | 10/1098 [00:14<10:21,  1.75batch/s, loss 0.763  smooth 0.767  TER 20.13%  grad 0.61  lr 2.0e-03][A
+  Epoch 093:   1%|          | 11/1098 [00:14<09:29,  1.91batch/s, loss 0.792  smooth 0.770  TER 20.79%  grad 0.61  lr 2.0e-03][A
+  Epoch 093:   1%|          | 12/1098 [00:14<08:59,  2.01batch/s, loss 0.769  smooth 0.770  TER 19.41%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:   1%|          | 13/1098 [00:15<08:33,  2.11batch/s, loss 0.689  smooth 0.764  TER 18.18%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:   1%|▏         | 14/1098 [00:15<08:30,  2.12batch/s, loss 0.749  smooth 0.763  TER 20.25%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:   1%|▏         | 15/1098 [00:16<08:23,  2.15batch/s, loss 0.799  smooth 0.765  TER 20.22%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:   1%|▏         | 16/1098 [00:16<08:20,  2.16batch/s, loss 0.800  smooth 0.767  TER 20.24%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:   2%|▏         | 17/1098 [00:17<08:35,  2.10batch/s, loss 0.757  smooth 0.767  TER 18.75%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:   2%|▏         | 18/1098 [00:17<08:44,  2.06batch/s, loss 0.768  smooth 0.767  TER 19.08%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:   2%|▏         | 19/1098 [00:18<08:29,  2.12batch/s, loss 0.793  smooth 0.768  TER 20.47%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:   2%|▏         | 20/1098 [00:18<08:26,  2.13batch/s, loss 0.748  smooth 0.767  TER 18.45%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:   2%|▏         | 21/1098 [00:19<08:10,  2.20batch/s, loss 0.802  smooth 0.769  TER 19.46%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:   2%|▏         | 22/1098 [00:19<08:10,  2.19batch/s, loss 0.771  smooth 0.769  TER 19.69%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:   2%|▏         | 23/1098 [00:19<08:14,  2.18batch/s, loss 0.782  smooth 0.769  TER 18.94%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:   2%|▏         | 24/1098 [00:20<08:23,  2.13batch/s, loss 0.757  smooth 0.769  TER 17.92%  grad 0.58  lr 2.0e-03][A
+  Epoch 093:   2%|▏         | 25/1098 [00:20<08:11,  2.18batch/s, loss 0.732  smooth 0.767  TER 18.12%  grad 0.58  lr 2.0e-03][A
+  Epoch 093:   2%|▏         | 26/1098 [00:21<08:09,  2.19batch/s, loss 0.805  smooth 0.769  TER 19.82%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:   2%|▏         | 27/1098 [00:21<08:49,  2.02batch/s, loss 0.761  smooth 0.768  TER 18.41%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:   3%|▎         | 28/1098 [00:22<08:34,  2.08batch/s, loss 0.768  smooth 0.768  TER 19.09%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:   3%|▎         | 29/1098 [00:22<08:28,  2.10batch/s, loss 0.783  smooth 0.769  TER 19.83%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:   3%|▎         | 30/1098 [00:23<08:28,  2.10batch/s, loss 0.760  smooth 0.769  TER 19.62%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:   3%|▎         | 31/1098 [00:23<08:14,  2.16batch/s, loss 0.771  smooth 0.769  TER 19.33%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:   3%|▎         | 32/1098 [00:24<08:29,  2.09batch/s, loss 0.760  smooth 0.768  TER 20.03%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:   3%|▎         | 33/1098 [00:24<08:22,  2.12batch/s, loss 0.811  smooth 0.770  TER 20.37%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:   3%|▎         | 34/1098 [00:25<08:12,  2.16batch/s, loss 0.805  smooth 0.771  TER 19.48%  grad 1.09  lr 2.0e-03][A
+  Epoch 093:   3%|▎         | 35/1098 [00:25<08:16,  2.14batch/s, loss 0.759  smooth 0.770  TER 19.39%  grad 1.09  lr 2.0e-03][A
+  Epoch 093:   3%|▎         | 36/1098 [00:26<08:01,  2.21batch/s, loss 0.787  smooth 0.771  TER 19.52%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:   3%|▎         | 37/1098 [00:26<07:43,  2.29batch/s, loss 0.769  smooth 0.771  TER 20.57%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:   3%|▎         | 38/1098 [00:26<07:52,  2.24batch/s, loss 0.769  smooth 0.771  TER 19.55%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:   4%|▎         | 39/1098 [00:27<07:43,  2.28batch/s, loss 0.776  smooth 0.771  TER 20.79%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:   4%|▎         | 40/1098 [00:27<08:10,  2.16batch/s, loss 0.743  smooth 0.770  TER 18.45%  grad 0.64  lr 2.0e-03][A
+  Epoch 093:   4%|▎         | 41/1098 [00:28<07:58,  2.21batch/s, loss 0.753  smooth 0.770  TER 18.85%  grad 0.64  lr 2.0e-03][A
+  Epoch 093:   4%|▍         | 42/1098 [00:28<07:57,  2.21batch/s, loss 0.773  smooth 0.770  TER 19.65%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:   4%|▍         | 43/1098 [00:29<07:45,  2.27batch/s, loss 0.799  smooth 0.771  TER 19.66%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:   4%|▍         | 44/1098 [00:29<07:44,  2.27batch/s, loss 0.776  smooth 0.771  TER 20.18%  grad 0.98  lr 2.0e-03][A
+  Epoch 093:   4%|▍         | 45/1098 [00:30<08:25,  2.08batch/s, loss 0.820  smooth 0.772  TER 20.26%  grad 0.98  lr 2.0e-03][A
+  Epoch 093:   4%|▍         | 46/1098 [00:30<08:14,  2.13batch/s, loss 0.763  smooth 0.772  TER 20.12%  grad 0.72  lr 2.0e-03][A
+  Epoch 093:   4%|▍         | 47/1098 [00:31<08:00,  2.19batch/s, loss 0.774  smooth 0.772  TER 19.80%  grad 0.72  lr 2.0e-03][A
+  Epoch 093:   4%|▍         | 48/1098 [00:31<07:47,  2.25batch/s, loss 0.783  smooth 0.772  TER 20.14%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:   4%|▍         | 49/1098 [00:31<07:45,  2.25batch/s, loss 0.767  smooth 0.772  TER 20.29%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:   5%|▍         | 50/1098 [00:32<08:20,  2.09batch/s, loss 0.813  smooth 0.773  TER 20.28%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:   5%|▍         | 51/1098 [00:32<08:13,  2.12batch/s, loss 0.760  smooth 0.773  TER 18.80%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:   5%|▍         | 52/1098 [00:33<08:21,  2.09batch/s, loss 0.789  smooth 0.773  TER 19.69%  grad 2.07  lr 2.0e-03][A
+  Epoch 093:   5%|▍         | 53/1098 [00:33<07:59,  2.18batch/s, loss 0.828  smooth 0.775  TER 21.72%  grad 2.07  lr 2.0e-03][A
+  Epoch 093:   5%|▍         | 54/1098 [00:34<07:54,  2.20batch/s, loss 0.846  smooth 0.777  TER 22.15%  grad 0.60  lr 2.0e-03][A
+  Epoch 093:   5%|▌         | 55/1098 [00:34<07:41,  2.26batch/s, loss 0.810  smooth 0.777  TER 20.20%  grad 0.60  lr 2.0e-03][A
+  Epoch 093:   5%|▌         | 56/1098 [00:35<07:40,  2.26batch/s, loss 0.788  smooth 0.777  TER 20.55%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:   5%|▌         | 57/1098 [00:35<07:56,  2.19batch/s, loss 0.810  smooth 0.777  TER 20.14%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:   5%|▌         | 58/1098 [00:36<07:48,  2.22batch/s, loss 0.815  smooth 0.778  TER 20.81%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:   5%|▌         | 59/1098 [00:36<07:42,  2.24batch/s, loss 0.779  smooth 0.779  TER 19.53%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:   5%|▌         | 60/1098 [00:36<07:38,  2.26batch/s, loss 0.846  smooth 0.781  TER 21.23%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:   6%|▌         | 61/1098 [00:37<07:41,  2.25batch/s, loss 0.791  smooth 0.781  TER 19.57%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:   6%|▌         | 62/1098 [00:37<07:43,  2.24batch/s, loss 0.781  smooth 0.781  TER 21.18%  grad 0.58  lr 2.0e-03][A
+  Epoch 093:   6%|▌         | 63/1098 [00:38<07:30,  2.30batch/s, loss 0.841  smooth 0.784  TER 21.44%  grad 0.58  lr 2.0e-03][A
+  Epoch 093:   6%|▌         | 64/1098 [00:38<07:32,  2.29batch/s, loss 0.839  smooth 0.786  TER 20.94%  grad 0.65  lr 2.0e-03][A
+  Epoch 093:   6%|▌         | 65/1098 [00:39<07:45,  2.22batch/s, loss 0.787  smooth 0.785  TER 19.88%  grad 0.65  lr 2.0e-03][A
+  Epoch 093:   6%|▌         | 66/1098 [00:39<07:41,  2.24batch/s, loss 0.781  smooth 0.785  TER 19.60%  grad 0.93  lr 2.0e-03][A
+  Epoch 093:   6%|▌         | 67/1098 [00:40<07:40,  2.24batch/s, loss 0.797  smooth 0.786  TER 20.10%  grad 0.93  lr 2.0e-03][A
+  Epoch 093:   6%|▌         | 68/1098 [00:40<07:37,  2.25batch/s, loss 0.849  smooth 0.787  TER 20.38%  grad 0.62  lr 2.0e-03][A
+  Epoch 093:   6%|▋         | 69/1098 [00:40<07:49,  2.19batch/s, loss 0.791  smooth 0.787  TER 19.77%  grad 0.62  lr 2.0e-03][A
+  Epoch 093:   6%|▋         | 70/1098 [00:41<07:38,  2.24batch/s, loss 0.862  smooth 0.790  TER 22.33%  grad 0.57  lr 2.0e-03][A
+  Epoch 093:   6%|▋         | 71/1098 [00:41<07:44,  2.21batch/s, loss 0.799  smooth 0.790  TER 20.04%  grad 0.57  lr 2.0e-03][A
+  Epoch 093:   7%|▋         | 72/1098 [00:42<07:38,  2.24batch/s, loss 0.872  smooth 0.792  TER 20.93%  grad 0.54  lr 2.0e-03][A
+  Epoch 093:   7%|▋         | 73/1098 [00:42<07:47,  2.19batch/s, loss 0.827  smooth 0.792  TER 21.61%  grad 0.54  lr 2.0e-03][A
+  Epoch 093:   7%|▋         | 74/1098 [00:43<07:43,  2.21batch/s, loss 0.777  smooth 0.793  TER 19.58%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:   7%|▋         | 75/1098 [00:43<07:27,  2.28batch/s, loss 0.828  smooth 0.795  TER 21.39%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:   7%|▋         | 76/1098 [00:44<07:27,  2.29batch/s, loss 0.787  smooth 0.794  TER 19.50%  grad 0.57  lr 2.0e-03][A
+  Epoch 093:   7%|▋         | 77/1098 [00:44<07:21,  2.31batch/s, loss 0.760  smooth 0.794  TER 19.25%  grad 0.57  lr 2.0e-03][A
+  Epoch 093:   7%|▋         | 78/1098 [00:44<07:21,  2.31batch/s, loss 0.831  smooth 0.796  TER 20.69%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:   7%|▋         | 79/1098 [00:45<08:07,  2.09batch/s, loss 0.818  smooth 0.796  TER 21.69%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:   7%|▋         | 80/1098 [00:45<07:57,  2.13batch/s, loss 0.813  smooth 0.797  TER 21.32%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:   7%|▋         | 81/1098 [00:46<07:41,  2.20batch/s, loss 0.795  smooth 0.798  TER 20.06%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:   7%|▋         | 82/1098 [00:46<07:37,  2.22batch/s, loss 0.803  smooth 0.799  TER 20.84%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:   8%|▊         | 83/1098 [00:47<07:31,  2.25batch/s, loss 0.819  smooth 0.799  TER 20.31%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:   8%|▊         | 84/1098 [00:47<07:31,  2.25batch/s, loss 0.776  smooth 0.798  TER 19.75%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:   8%|▊         | 85/1098 [00:48<07:18,  2.31batch/s, loss 0.802  smooth 0.799  TER 20.27%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:   8%|▊         | 86/1098 [00:48<07:39,  2.20batch/s, loss 0.789  smooth 0.799  TER 19.60%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:   8%|▊         | 87/1098 [00:48<07:25,  2.27batch/s, loss 0.768  smooth 0.799  TER 18.15%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:   8%|▊         | 88/1098 [00:49<07:24,  2.27batch/s, loss 0.819  smooth 0.800  TER 20.96%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:   8%|▊         | 89/1098 [00:49<07:17,  2.30batch/s, loss 0.799  smooth 0.801  TER 20.95%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:   8%|▊         | 90/1098 [00:50<07:21,  2.28batch/s, loss 0.821  smooth 0.802  TER 19.92%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:   8%|▊         | 91/1098 [00:50<07:33,  2.22batch/s, loss 0.783  smooth 0.803  TER 19.81%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:   8%|▊         | 92/1098 [00:51<07:28,  2.24batch/s, loss 0.839  smooth 0.804  TER 21.16%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:   8%|▊         | 93/1098 [00:51<07:16,  2.30batch/s, loss 0.800  smooth 0.804  TER 20.00%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:   9%|▊         | 94/1098 [00:52<07:18,  2.29batch/s, loss 0.793  smooth 0.805  TER 19.15%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:   9%|▊         | 95/1098 [00:52<07:12,  2.32batch/s, loss 0.793  smooth 0.804  TER 19.94%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:   9%|▊         | 96/1098 [00:52<07:28,  2.23batch/s, loss 0.820  smooth 0.805  TER 22.18%  grad 0.41  lr 2.0e-03][A
+  Epoch 093:   9%|▉         | 97/1098 [00:53<07:36,  2.19batch/s, loss 0.771  smooth 0.805  TER 19.99%  grad 0.41  lr 2.0e-03][A
+  Epoch 093:   9%|▉         | 98/1098 [00:53<07:38,  2.18batch/s, loss 0.803  smooth 0.805  TER 19.63%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:   9%|▉         | 99/1098 [00:54<07:37,  2.19batch/s, loss 0.820  smooth 0.807  TER 20.66%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:   9%|▉         | 100/1098 [00:54<07:31,  2.21batch/s, loss 0.831  smooth 0.807  TER 20.99%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:   9%|▉         | 101/1098 [00:55<07:16,  2.28batch/s, loss 0.760  smooth 0.807  TER 19.67%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:   9%|▉         | 102/1098 [00:55<07:17,  2.27batch/s, loss 0.814  smooth 0.807  TER 22.10%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:   9%|▉         | 103/1098 [00:56<07:07,  2.33batch/s, loss 0.793  smooth 0.807  TER 19.87%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:   9%|▉         | 104/1098 [00:56<07:08,  2.32batch/s, loss 0.785  smooth 0.805  TER 19.77%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  10%|▉         | 105/1098 [00:56<07:05,  2.33batch/s, loss 0.785  smooth 0.805  TER 20.56%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  10%|▉         | 106/1098 [00:57<07:08,  2.31batch/s, loss 0.818  smooth 0.806  TER 20.00%  grad 0.64  lr 2.0e-03][A
+  Epoch 093:  10%|▉         | 107/1098 [00:57<07:01,  2.35batch/s, loss 0.796  smooth 0.805  TER 19.54%  grad 0.64  lr 2.0e-03][A
+  Epoch 093:  10%|▉         | 108/1098 [00:58<07:05,  2.33batch/s, loss 0.836  smooth 0.806  TER 20.90%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  10%|▉         | 109/1098 [00:58<06:58,  2.36batch/s, loss 0.805  smooth 0.806  TER 19.31%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  10%|█         | 110/1098 [00:59<06:59,  2.35batch/s, loss 0.807  smooth 0.805  TER 20.97%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  10%|█         | 111/1098 [00:59<06:50,  2.40batch/s, loss 0.790  smooth 0.805  TER 20.15%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  10%|█         | 112/1098 [00:59<06:54,  2.38batch/s, loss 0.768  smooth 0.805  TER 19.12%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  10%|█         | 113/1098 [01:00<06:55,  2.37batch/s, loss 0.792  smooth 0.804  TER 21.12%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  10%|█         | 114/1098 [01:00<06:56,  2.36batch/s, loss 0.800  smooth 0.803  TER 19.50%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  10%|█         | 115/1098 [01:01<06:54,  2.37batch/s, loss 0.750  smooth 0.803  TER 20.08%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  11%|█         | 116/1098 [01:01<07:02,  2.32batch/s, loss 0.792  smooth 0.803  TER 19.84%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  11%|█         | 117/1098 [01:01<06:55,  2.36batch/s, loss 0.755  smooth 0.802  TER 20.11%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  11%|█         | 118/1098 [01:02<06:56,  2.35batch/s, loss 0.753  smooth 0.800  TER 18.94%  grad 0.41  lr 2.0e-03][A
+  Epoch 093:  11%|█         | 119/1098 [01:02<06:50,  2.38batch/s, loss 0.767  smooth 0.800  TER 19.69%  grad 0.41  lr 2.0e-03][A
+  Epoch 093:  11%|█         | 120/1098 [01:03<06:58,  2.34batch/s, loss 0.785  smooth 0.798  TER 20.37%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  11%|█         | 121/1098 [01:03<06:49,  2.38batch/s, loss 0.775  smooth 0.798  TER 19.27%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  11%|█         | 122/1098 [01:04<06:53,  2.36batch/s, loss 0.776  smooth 0.796  TER 19.19%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  11%|█         | 123/1098 [01:04<06:47,  2.39batch/s, loss 0.779  smooth 0.795  TER 19.32%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  11%|█▏        | 124/1098 [01:04<06:55,  2.34batch/s, loss 0.795  smooth 0.795  TER 19.62%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  11%|█▏        | 125/1098 [01:05<06:51,  2.37batch/s, loss 0.819  smooth 0.795  TER 21.63%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  11%|█▏        | 126/1098 [01:05<06:55,  2.34batch/s, loss 0.827  smooth 0.796  TER 20.94%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  12%|█▏        | 127/1098 [01:06<06:49,  2.37batch/s, loss 0.742  smooth 0.795  TER 18.53%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  12%|█▏        | 128/1098 [01:06<06:55,  2.34batch/s, loss 0.787  smooth 0.794  TER 19.80%  grad 1.50  lr 2.0e-03][A
+  Epoch 093:  12%|█▏        | 129/1098 [01:07<07:01,  2.30batch/s, loss 0.795  smooth 0.794  TER 21.22%  grad 1.50  lr 2.0e-03][A
+  Epoch 093:  12%|█▏        | 130/1098 [01:07<07:17,  2.21batch/s, loss 0.756  smooth 0.793  TER 19.23%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  12%|█▏        | 131/1098 [01:07<07:04,  2.28batch/s, loss 0.776  smooth 0.793  TER 19.83%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  12%|█▏        | 132/1098 [01:08<07:05,  2.27batch/s, loss 0.750  smooth 0.791  TER 18.31%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  12%|█▏        | 133/1098 [01:08<07:14,  2.22batch/s, loss 0.799  smooth 0.791  TER 19.92%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  12%|█▏        | 134/1098 [01:09<07:07,  2.25batch/s, loss 0.770  smooth 0.791  TER 18.66%  grad 0.87  lr 2.0e-03][A
+  Epoch 093:  12%|█▏        | 135/1098 [01:09<06:58,  2.30batch/s, loss 0.797  smooth 0.791  TER 20.33%  grad 0.87  lr 2.0e-03][A
+  Epoch 093:  12%|█▏        | 136/1098 [01:10<07:01,  2.28batch/s, loss 0.804  smooth 0.791  TER 20.61%  grad 1.33  lr 2.0e-03][A
+  Epoch 093:  12%|█▏        | 137/1098 [01:10<07:18,  2.19batch/s, loss 0.823  smooth 0.792  TER 18.50%  grad 1.33  lr 2.0e-03][A
+  Epoch 093:  13%|█▎        | 138/1098 [01:11<07:31,  2.13batch/s, loss 0.878  smooth 0.793  TER 21.02%  grad 3.94  lr 2.0e-03][A
+  Epoch 093:  13%|█▎        | 139/1098 [01:11<07:15,  2.20batch/s, loss 0.835  smooth 0.794  TER 21.64%  grad 3.94  lr 2.0e-03][A
+  Epoch 093:  13%|█▎        | 140/1098 [01:12<07:07,  2.24batch/s, loss 0.867  smooth 0.795  TER 21.36%  grad 2.08  lr 2.0e-03][A
+  Epoch 093:  13%|█▎        | 141/1098 [01:12<06:51,  2.33batch/s, loss 0.821  smooth 0.796  TER 19.84%  grad 2.08  lr 2.0e-03][A
+  Epoch 093:  13%|█▎        | 142/1098 [01:12<06:57,  2.29batch/s, loss 0.824  smooth 0.796  TER 20.02%  grad 1.37  lr 2.0e-03][A
+  Epoch 093:  13%|█▎        | 143/1098 [01:13<06:48,  2.34batch/s, loss 0.754  smooth 0.795  TER 18.80%  grad 1.37  lr 2.0e-03][A
+  Epoch 093:  13%|█▎        | 144/1098 [01:13<07:16,  2.19batch/s, loss 0.838  smooth 0.796  TER 20.91%  grad 1.36  lr 2.0e-03][A
+  Epoch 093:  13%|█▎        | 145/1098 [01:14<07:55,  2.01batch/s, loss 0.767  smooth 0.795  TER 18.86%  grad 1.36  lr 2.0e-03][A
+  Epoch 093:  13%|█▎        | 146/1098 [01:14<07:51,  2.02batch/s, loss 0.806  smooth 0.795  TER 19.61%  grad 1.28  lr 2.0e-03][A
+  Epoch 093:  13%|█▎        | 147/1098 [01:15<07:36,  2.08batch/s, loss 0.817  smooth 0.796  TER 20.20%  grad 1.28  lr 2.0e-03][A
+  Epoch 093:  13%|█▎        | 148/1098 [01:15<07:23,  2.14batch/s, loss 0.830  smooth 0.796  TER 20.63%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:  14%|█▎        | 149/1098 [01:16<07:06,  2.22batch/s, loss 0.842  smooth 0.797  TER 21.52%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:  14%|█▎        | 150/1098 [01:16<07:00,  2.25batch/s, loss 0.815  smooth 0.796  TER 20.35%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  14%|█▍        | 151/1098 [01:17<06:51,  2.30batch/s, loss 0.764  smooth 0.796  TER 19.78%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  14%|█▍        | 152/1098 [01:17<06:56,  2.27batch/s, loss 0.795  smooth 0.796  TER 18.84%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  14%|█▍        | 153/1098 [01:17<06:58,  2.26batch/s, loss 0.771  smooth 0.796  TER 19.01%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  14%|█▍        | 154/1098 [01:18<06:55,  2.27batch/s, loss 0.804  smooth 0.796  TER 21.46%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  14%|█▍        | 155/1098 [01:18<06:52,  2.29batch/s, loss 0.769  smooth 0.796  TER 19.66%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  14%|█▍        | 156/1098 [01:19<06:54,  2.27batch/s, loss 0.819  smooth 0.796  TER 20.12%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  14%|█▍        | 157/1098 [01:19<06:45,  2.32batch/s, loss 0.789  smooth 0.796  TER 19.68%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  14%|█▍        | 158/1098 [01:20<06:45,  2.32batch/s, loss 0.830  smooth 0.795  TER 20.29%  grad 0.66  lr 2.0e-03][A
+  Epoch 093:  14%|█▍        | 159/1098 [01:20<06:38,  2.36batch/s, loss 0.785  smooth 0.795  TER 20.03%  grad 0.66  lr 2.0e-03][A
+  Epoch 093:  15%|█▍        | 160/1098 [01:21<07:04,  2.21batch/s, loss 0.794  smooth 0.795  TER 19.44%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  15%|█▍        | 161/1098 [01:21<06:55,  2.25batch/s, loss 0.780  smooth 0.795  TER 19.58%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  15%|█▍        | 162/1098 [01:21<06:50,  2.28batch/s, loss 0.736  smooth 0.794  TER 18.72%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  15%|█▍        | 163/1098 [01:22<06:43,  2.32batch/s, loss 0.763  smooth 0.793  TER 20.16%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  15%|█▍        | 164/1098 [01:22<07:14,  2.15batch/s, loss 0.820  smooth 0.794  TER 21.37%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  15%|█▌        | 165/1098 [01:23<06:57,  2.23batch/s, loss 0.795  smooth 0.795  TER 19.78%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  15%|█▌        | 166/1098 [01:23<06:54,  2.25batch/s, loss 0.793  smooth 0.795  TER 19.26%  grad 0.57  lr 2.0e-03][A
+  Epoch 093:  15%|█▌        | 167/1098 [01:24<06:46,  2.29batch/s, loss 0.828  smooth 0.796  TER 20.28%  grad 0.57  lr 2.0e-03][A
+  Epoch 093:  15%|█▌        | 168/1098 [01:24<06:50,  2.26batch/s, loss 0.785  smooth 0.797  TER 20.19%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  15%|█▌        | 169/1098 [01:24<06:42,  2.31batch/s, loss 0.818  smooth 0.798  TER 20.46%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  15%|█▌        | 170/1098 [01:25<06:37,  2.33batch/s, loss 0.766  smooth 0.797  TER 18.59%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  16%|█▌        | 171/1098 [01:25<06:28,  2.39batch/s, loss 0.808  smooth 0.798  TER 20.32%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  16%|█▌        | 172/1098 [01:26<06:44,  2.29batch/s, loss 0.772  smooth 0.798  TER 20.21%  grad 0.54  lr 2.0e-03][A
+  Epoch 093:  16%|█▌        | 173/1098 [01:26<06:51,  2.25batch/s, loss 0.767  smooth 0.798  TER 18.87%  grad 0.54  lr 2.0e-03][A
+  Epoch 093:  16%|█▌        | 174/1098 [01:27<06:49,  2.26batch/s, loss 0.787  smooth 0.798  TER 20.50%  grad 0.41  lr 2.0e-03][A
+  Epoch 093:  16%|█▌        | 175/1098 [01:27<06:37,  2.32batch/s, loss 0.770  smooth 0.797  TER 21.04%  grad 0.41  lr 2.0e-03][A
+  Epoch 093:  16%|█▌        | 176/1098 [01:27<06:39,  2.31batch/s, loss 0.845  smooth 0.797  TER 21.31%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  16%|█▌        | 177/1098 [01:28<07:30,  2.04batch/s, loss 0.797  smooth 0.798  TER 20.45%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  16%|█▌        | 178/1098 [01:29<07:23,  2.07batch/s, loss 0.817  smooth 0.799  TER 20.28%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  16%|█▋        | 179/1098 [01:29<07:04,  2.16batch/s, loss 0.787  smooth 0.798  TER 20.52%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  16%|█▋        | 180/1098 [01:29<06:59,  2.19batch/s, loss 0.770  smooth 0.799  TER 19.68%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  16%|█▋        | 181/1098 [01:30<06:43,  2.27batch/s, loss 0.817  smooth 0.800  TER 19.76%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  17%|█▋        | 182/1098 [01:30<06:49,  2.24batch/s, loss 0.875  smooth 0.802  TER 22.45%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  17%|█▋        | 183/1098 [01:31<06:51,  2.22batch/s, loss 0.780  smooth 0.802  TER 20.77%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  17%|█▋        | 184/1098 [01:31<07:25,  2.05batch/s, loss 0.774  smooth 0.802  TER 19.73%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  17%|█▋        | 185/1098 [01:32<07:06,  2.14batch/s, loss 0.816  smooth 0.802  TER 19.93%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  17%|█▋        | 186/1098 [01:32<06:59,  2.18batch/s, loss 0.737  smooth 0.801  TER 18.20%  grad 0.41  lr 2.0e-03][A
+  Epoch 093:  17%|█▋        | 187/1098 [01:33<06:45,  2.25batch/s, loss 0.758  smooth 0.800  TER 18.51%  grad 0.41  lr 2.0e-03][A
+  Epoch 093:  17%|█▋        | 188/1098 [01:33<06:59,  2.17batch/s, loss 0.788  smooth 0.798  TER 19.46%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  17%|█▋        | 189/1098 [01:34<06:47,  2.23batch/s, loss 0.803  smooth 0.797  TER 20.52%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  17%|█▋        | 190/1098 [01:34<06:43,  2.25batch/s, loss 0.788  smooth 0.796  TER 19.84%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  17%|█▋        | 191/1098 [01:34<06:29,  2.33batch/s, loss 0.813  smooth 0.795  TER 20.48%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  17%|█▋        | 192/1098 [01:35<06:31,  2.32batch/s, loss 0.769  smooth 0.794  TER 17.09%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:  18%|█▊        | 193/1098 [01:35<06:26,  2.34batch/s, loss 0.792  smooth 0.795  TER 19.50%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:  18%|█▊        | 194/1098 [01:36<06:31,  2.31batch/s, loss 0.758  smooth 0.793  TER 18.76%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  18%|█▊        | 195/1098 [01:36<06:24,  2.35batch/s, loss 0.771  smooth 0.793  TER 19.59%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  18%|█▊        | 196/1098 [01:37<06:30,  2.31batch/s, loss 0.769  smooth 0.793  TER 20.05%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:  18%|█▊        | 197/1098 [01:37<06:20,  2.37batch/s, loss 0.753  smooth 0.791  TER 19.46%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:  18%|█▊        | 198/1098 [01:37<06:21,  2.36batch/s, loss 0.793  smooth 0.791  TER 20.10%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  18%|█▊        | 199/1098 [01:38<06:18,  2.37batch/s, loss 0.767  smooth 0.789  TER 19.73%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  18%|█▊        | 200/1098 [01:38<07:02,  2.13batch/s, loss 0.786  smooth 0.789  TER 20.45%  grad 0.67  lr 2.0e-03][A
+  Epoch 093:  18%|█▊        | 201/1098 [01:39<06:47,  2.20batch/s, loss 0.779  smooth 0.789  TER 20.09%  grad 0.67  lr 2.0e-03][A
+  Epoch 093:  18%|█▊        | 202/1098 [01:39<06:39,  2.24batch/s, loss 0.804  smooth 0.789  TER 21.00%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  18%|█▊        | 203/1098 [01:40<06:43,  2.22batch/s, loss 0.797  smooth 0.790  TER 20.52%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  19%|█▊        | 204/1098 [01:40<06:38,  2.24batch/s, loss 0.749  smooth 0.789  TER 18.29%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  19%|█▊        | 205/1098 [01:40<06:30,  2.29batch/s, loss 0.786  smooth 0.789  TER 19.55%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  19%|█▉        | 206/1098 [01:41<06:24,  2.32batch/s, loss 0.785  smooth 0.788  TER 19.61%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  19%|█▉        | 207/1098 [01:41<06:16,  2.36batch/s, loss 0.790  smooth 0.788  TER 20.29%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  19%|█▉        | 208/1098 [01:42<06:31,  2.27batch/s, loss 0.816  smooth 0.788  TER 20.97%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  19%|█▉        | 209/1098 [01:42<06:37,  2.24batch/s, loss 0.770  smooth 0.788  TER 19.93%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  19%|█▉        | 210/1098 [01:43<06:38,  2.23batch/s, loss 0.755  smooth 0.787  TER 19.00%  grad 0.39  lr 2.0e-03][A
+  Epoch 093:  19%|█▉        | 211/1098 [01:43<06:27,  2.29batch/s, loss 0.784  smooth 0.787  TER 19.50%  grad 0.39  lr 2.0e-03][A
+  Epoch 093:  19%|█▉        | 212/1098 [01:44<06:29,  2.27batch/s, loss 0.810  smooth 0.788  TER 20.33%  grad 1.94  lr 2.0e-03][A
+  Epoch 093:  19%|█▉        | 213/1098 [01:44<06:21,  2.32batch/s, loss 0.774  smooth 0.789  TER 19.17%  grad 1.94  lr 2.0e-03][A
+  Epoch 093:  19%|█▉        | 214/1098 [01:44<06:41,  2.20batch/s, loss 0.791  smooth 0.788  TER 20.08%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  20%|█▉        | 215/1098 [01:45<06:49,  2.16batch/s, loss 0.800  smooth 0.788  TER 19.50%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  20%|█▉        | 216/1098 [01:45<06:54,  2.13batch/s, loss 0.808  smooth 0.788  TER 20.52%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  20%|█▉        | 217/1098 [01:46<07:00,  2.09batch/s, loss 0.792  smooth 0.788  TER 18.77%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  20%|█▉        | 218/1098 [01:46<06:48,  2.15batch/s, loss 0.787  smooth 0.788  TER 19.84%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  20%|█▉        | 219/1098 [01:47<06:31,  2.25batch/s, loss 0.773  smooth 0.787  TER 18.62%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  20%|██        | 220/1098 [01:47<06:26,  2.27batch/s, loss 0.769  smooth 0.787  TER 20.22%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  20%|██        | 221/1098 [01:48<06:17,  2.32batch/s, loss 0.804  smooth 0.787  TER 20.22%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  20%|██        | 222/1098 [01:48<06:39,  2.19batch/s, loss 0.781  smooth 0.787  TER 19.38%  grad 0.59  lr 2.0e-03][A
+  Epoch 093:  20%|██        | 223/1098 [01:49<06:42,  2.18batch/s, loss 0.807  smooth 0.788  TER 19.30%  grad 0.59  lr 2.0e-03][A
+  Epoch 093:  20%|██        | 224/1098 [01:49<06:51,  2.12batch/s, loss 0.738  smooth 0.787  TER 19.16%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  20%|██        | 225/1098 [01:50<06:47,  2.14batch/s, loss 0.778  smooth 0.787  TER 19.41%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  21%|██        | 226/1098 [01:50<06:42,  2.16batch/s, loss 0.791  smooth 0.786  TER 19.28%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  21%|██        | 227/1098 [01:50<06:29,  2.24batch/s, loss 0.796  smooth 0.786  TER 21.04%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  21%|██        | 228/1098 [01:51<06:27,  2.25batch/s, loss 0.826  smooth 0.786  TER 21.65%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  21%|██        | 229/1098 [01:51<06:18,  2.29batch/s, loss 0.795  smooth 0.786  TER 20.80%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  21%|██        | 230/1098 [01:52<06:20,  2.28batch/s, loss 0.756  smooth 0.786  TER 18.44%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  21%|██        | 231/1098 [01:52<06:13,  2.32batch/s, loss 0.778  smooth 0.785  TER 19.11%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  21%|██        | 232/1098 [01:53<07:02,  2.05batch/s, loss 0.823  smooth 0.784  TER 20.35%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  21%|██        | 233/1098 [01:53<06:39,  2.17batch/s, loss 0.807  smooth 0.785  TER 19.77%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  21%|██▏       | 234/1098 [01:54<06:30,  2.21batch/s, loss 0.799  smooth 0.785  TER 20.40%  grad 0.61  lr 2.0e-03][A
+  Epoch 093:  21%|██▏       | 235/1098 [01:54<06:21,  2.26batch/s, loss 0.828  smooth 0.785  TER 19.75%  grad 0.61  lr 2.0e-03][A
+  Epoch 093:  21%|██▏       | 236/1098 [01:55<06:38,  2.16batch/s, loss 0.751  smooth 0.786  TER 19.15%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  22%|██▏       | 237/1098 [01:55<06:25,  2.23batch/s, loss 0.797  smooth 0.787  TER 20.09%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  22%|██▏       | 238/1098 [01:55<06:43,  2.13batch/s, loss 0.760  smooth 0.786  TER 20.09%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  22%|██▏       | 239/1098 [01:56<06:42,  2.14batch/s, loss 0.806  smooth 0.786  TER 20.56%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  22%|██▏       | 240/1098 [01:56<06:32,  2.19batch/s, loss 0.871  smooth 0.788  TER 21.50%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  22%|██▏       | 241/1098 [01:57<06:21,  2.25batch/s, loss 0.756  smooth 0.787  TER 19.30%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  22%|██▏       | 242/1098 [01:57<06:30,  2.19batch/s, loss 0.844  smooth 0.788  TER 20.69%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:  22%|██▏       | 243/1098 [01:58<06:18,  2.26batch/s, loss 0.778  smooth 0.788  TER 18.74%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:  22%|██▏       | 244/1098 [01:58<06:19,  2.25batch/s, loss 0.808  smooth 0.789  TER 19.87%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  22%|██▏       | 245/1098 [01:59<06:10,  2.30batch/s, loss 0.784  smooth 0.789  TER 18.52%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  22%|██▏       | 246/1098 [01:59<06:15,  2.27batch/s, loss 0.826  smooth 0.790  TER 18.90%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  22%|██▏       | 247/1098 [01:59<06:05,  2.33batch/s, loss 0.815  smooth 0.791  TER 19.94%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  23%|██▎       | 248/1098 [02:00<06:08,  2.31batch/s, loss 0.803  smooth 0.792  TER 20.15%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  23%|██▎       | 249/1098 [02:00<05:57,  2.37batch/s, loss 0.760  smooth 0.791  TER 20.22%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  23%|██▎       | 250/1098 [02:01<05:59,  2.36batch/s, loss 0.792  smooth 0.792  TER 19.75%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:  23%|██▎       | 251/1098 [02:01<05:53,  2.40batch/s, loss 0.795  smooth 0.792  TER 20.01%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:  23%|██▎       | 252/1098 [02:01<05:54,  2.39batch/s, loss 0.782  smooth 0.791  TER 20.00%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  23%|██▎       | 253/1098 [02:02<05:52,  2.40batch/s, loss 0.747  smooth 0.790  TER 18.97%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  23%|██▎       | 254/1098 [02:02<05:58,  2.35batch/s, loss 0.804  smooth 0.792  TER 21.22%  grad 0.67  lr 2.0e-03][A
+  Epoch 093:  23%|██▎       | 255/1098 [02:03<05:51,  2.40batch/s, loss 0.787  smooth 0.792  TER 19.74%  grad 0.67  lr 2.0e-03][A
+  Epoch 093:  23%|██▎       | 256/1098 [02:03<05:53,  2.38batch/s, loss 0.887  smooth 0.794  TER 21.33%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  23%|██▎       | 257/1098 [02:04<05:57,  2.35batch/s, loss 0.761  smooth 0.793  TER 19.16%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  23%|██▎       | 258/1098 [02:04<05:57,  2.35batch/s, loss 0.789  smooth 0.792  TER 20.44%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:  24%|██▎       | 259/1098 [02:04<05:55,  2.36batch/s, loss 0.766  smooth 0.792  TER 19.92%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:  24%|██▎       | 260/1098 [02:05<05:56,  2.35batch/s, loss 0.815  smooth 0.794  TER 20.76%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:  24%|██▍       | 261/1098 [02:05<05:53,  2.37batch/s, loss 0.768  smooth 0.793  TER 20.01%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:  24%|██▍       | 262/1098 [02:06<05:58,  2.33batch/s, loss 0.805  smooth 0.793  TER 20.49%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  24%|██▍       | 263/1098 [02:06<05:54,  2.36batch/s, loss 0.749  smooth 0.793  TER 20.21%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  24%|██▍       | 264/1098 [02:07<05:54,  2.35batch/s, loss 0.848  smooth 0.794  TER 21.18%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  24%|██▍       | 265/1098 [02:07<05:51,  2.37batch/s, loss 0.726  smooth 0.792  TER 16.97%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  24%|██▍       | 266/1098 [02:07<05:57,  2.33batch/s, loss 0.750  smooth 0.791  TER 19.02%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  24%|██▍       | 267/1098 [02:08<05:50,  2.37batch/s, loss 0.804  smooth 0.791  TER 20.06%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  24%|██▍       | 268/1098 [02:08<05:58,  2.31batch/s, loss 0.777  smooth 0.791  TER 18.61%  grad 0.54  lr 2.0e-03][A
+  Epoch 093:  24%|██▍       | 269/1098 [02:09<05:50,  2.37batch/s, loss 0.781  smooth 0.791  TER 20.02%  grad 0.54  lr 2.0e-03][A
+  Epoch 093:  25%|██▍       | 270/1098 [02:09<05:53,  2.34batch/s, loss 0.771  smooth 0.791  TER 19.82%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  25%|██▍       | 271/1098 [02:10<05:46,  2.38batch/s, loss 0.840  smooth 0.792  TER 20.96%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  25%|██▍       | 272/1098 [02:10<05:48,  2.37batch/s, loss 0.768  smooth 0.792  TER 19.80%  grad 0.62  lr 2.0e-03][A
+  Epoch 093:  25%|██▍       | 273/1098 [02:10<05:43,  2.40batch/s, loss 0.805  smooth 0.792  TER 20.51%  grad 0.62  lr 2.0e-03][A
+  Epoch 093:  25%|██▍       | 274/1098 [02:11<05:48,  2.37batch/s, loss 0.799  smooth 0.793  TER 18.99%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  25%|██▌       | 275/1098 [02:11<05:42,  2.40batch/s, loss 0.828  smooth 0.794  TER 21.34%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  25%|██▌       | 276/1098 [02:12<06:03,  2.26batch/s, loss 0.810  smooth 0.794  TER 19.98%  grad 0.61  lr 2.0e-03][A
+  Epoch 093:  25%|██▌       | 277/1098 [02:12<05:55,  2.31batch/s, loss 0.768  smooth 0.794  TER 18.71%  grad 0.61  lr 2.0e-03][A
+  Epoch 093:  25%|██▌       | 278/1098 [02:13<06:13,  2.19batch/s, loss 0.803  smooth 0.793  TER 19.12%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  25%|██▌       | 279/1098 [02:13<06:24,  2.13batch/s, loss 0.755  smooth 0.793  TER 18.30%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  26%|██▌       | 280/1098 [02:14<06:11,  2.20batch/s, loss 0.791  smooth 0.793  TER 20.37%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:  26%|██▌       | 281/1098 [02:14<05:58,  2.28batch/s, loss 0.781  smooth 0.793  TER 20.43%  grad 0.52  lr 2.0e-03][A
+  Epoch 093:  26%|██▌       | 282/1098 [02:14<05:52,  2.31batch/s, loss 0.780  smooth 0.793  TER 20.31%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  26%|██▌       | 283/1098 [02:15<05:49,  2.33batch/s, loss 0.768  smooth 0.792  TER 18.72%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  26%|██▌       | 284/1098 [02:15<05:54,  2.30batch/s, loss 0.726  smooth 0.790  TER 17.84%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  26%|██▌       | 285/1098 [02:16<06:03,  2.24batch/s, loss 0.801  smooth 0.790  TER 20.19%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  26%|██▌       | 286/1098 [02:16<06:00,  2.25batch/s, loss 0.831  smooth 0.791  TER 19.95%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  26%|██▌       | 287/1098 [02:17<05:50,  2.31batch/s, loss 0.742  smooth 0.790  TER 18.57%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  26%|██▌       | 288/1098 [02:17<06:02,  2.24batch/s, loss 0.744  smooth 0.790  TER 18.55%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  26%|██▋       | 289/1098 [02:17<05:52,  2.29batch/s, loss 0.797  smooth 0.790  TER 20.41%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  26%|██▋       | 290/1098 [02:18<05:51,  2.30batch/s, loss 0.748  smooth 0.787  TER 19.43%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  27%|██▋       | 291/1098 [02:18<05:43,  2.35batch/s, loss 0.797  smooth 0.788  TER 21.00%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  27%|██▋       | 292/1098 [02:19<06:00,  2.23batch/s, loss 0.805  smooth 0.787  TER 19.79%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  27%|██▋       | 293/1098 [02:19<06:08,  2.19batch/s, loss 0.798  smooth 0.788  TER 19.23%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  27%|██▋       | 294/1098 [02:20<06:19,  2.12batch/s, loss 0.760  smooth 0.787  TER 18.56%  grad 0.59  lr 2.0e-03][A
+  Epoch 093:  27%|██▋       | 295/1098 [02:20<06:03,  2.21batch/s, loss 0.788  smooth 0.787  TER 19.81%  grad 0.59  lr 2.0e-03][A
+  Epoch 093:  27%|██▋       | 296/1098 [02:21<06:01,  2.22batch/s, loss 0.800  smooth 0.786  TER 19.17%  grad 0.71  lr 2.0e-03][A
+  Epoch 093:  27%|██▋       | 297/1098 [02:21<05:50,  2.29batch/s, loss 0.776  smooth 0.786  TER 20.16%  grad 0.71  lr 2.0e-03][A
+  Epoch 093:  27%|██▋       | 298/1098 [02:21<05:47,  2.30batch/s, loss 0.762  smooth 0.785  TER 18.04%  grad 0.41  lr 2.0e-03][A
+  Epoch 093:  27%|██▋       | 299/1098 [02:22<05:41,  2.34batch/s, loss 0.768  smooth 0.785  TER 19.45%  grad 0.41  lr 2.0e-03][A
+  Epoch 093:  27%|██▋       | 300/1098 [02:22<05:55,  2.24batch/s, loss 0.802  smooth 0.785  TER 20.54%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  27%|██▋       | 301/1098 [02:23<06:06,  2.18batch/s, loss 0.760  smooth 0.784  TER 18.15%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  28%|██▊       | 302/1098 [02:23<06:13,  2.13batch/s, loss 0.769  smooth 0.784  TER 19.44%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  28%|██▊       | 303/1098 [02:24<05:58,  2.22batch/s, loss 0.826  smooth 0.786  TER 20.08%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  28%|██▊       | 304/1098 [02:24<05:55,  2.24batch/s, loss 0.775  smooth 0.785  TER 20.05%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  28%|██▊       | 305/1098 [02:25<05:44,  2.30batch/s, loss 0.764  smooth 0.785  TER 20.06%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  28%|██▊       | 306/1098 [02:25<06:01,  2.19batch/s, loss 0.787  smooth 0.783  TER 19.44%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  28%|██▊       | 307/1098 [02:26<05:57,  2.21batch/s, loss 0.741  smooth 0.782  TER 18.69%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  28%|██▊       | 308/1098 [02:26<05:52,  2.24batch/s, loss 0.763  smooth 0.782  TER 19.10%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  28%|██▊       | 309/1098 [02:26<05:48,  2.26batch/s, loss 0.743  smooth 0.781  TER 19.01%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  28%|██▊       | 310/1098 [02:27<05:48,  2.26batch/s, loss 0.779  smooth 0.781  TER 20.22%  grad 0.38  lr 2.0e-03][A
+  Epoch 093:  28%|██▊       | 311/1098 [02:27<05:43,  2.29batch/s, loss 0.795  smooth 0.781  TER 20.20%  grad 0.38  lr 2.0e-03][A
+  Epoch 093:  28%|██▊       | 312/1098 [02:28<05:44,  2.28batch/s, loss 0.791  smooth 0.781  TER 19.43%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  29%|██▊       | 313/1098 [02:28<05:52,  2.22batch/s, loss 0.785  smooth 0.782  TER 19.57%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  29%|██▊       | 314/1098 [02:29<05:48,  2.25batch/s, loss 0.790  smooth 0.780  TER 19.59%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  29%|██▊       | 315/1098 [02:29<05:38,  2.31batch/s, loss 0.777  smooth 0.781  TER 19.52%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  29%|██▉       | 316/1098 [02:29<05:38,  2.31batch/s, loss 0.784  smooth 0.782  TER 19.56%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  29%|██▉       | 317/1098 [02:30<05:51,  2.22batch/s, loss 0.789  smooth 0.782  TER 19.52%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  29%|██▉       | 318/1098 [02:30<05:48,  2.24batch/s, loss 0.808  smooth 0.782  TER 20.18%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  29%|██▉       | 319/1098 [02:31<05:39,  2.29batch/s, loss 0.789  smooth 0.783  TER 20.42%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  29%|██▉       | 320/1098 [02:31<05:38,  2.30batch/s, loss 0.811  smooth 0.783  TER 20.73%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  29%|██▉       | 321/1098 [02:32<05:31,  2.34batch/s, loss 0.736  smooth 0.781  TER 18.02%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  29%|██▉       | 322/1098 [02:32<05:32,  2.33batch/s, loss 0.788  smooth 0.782  TER 19.78%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  29%|██▉       | 323/1098 [02:32<05:26,  2.37batch/s, loss 0.762  smooth 0.781  TER 18.91%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  30%|██▉       | 324/1098 [02:33<05:27,  2.36batch/s, loss 0.761  smooth 0.780  TER 18.91%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  30%|██▉       | 325/1098 [02:33<05:33,  2.32batch/s, loss 0.740  smooth 0.778  TER 18.10%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  30%|██▉       | 326/1098 [02:34<05:47,  2.22batch/s, loss 0.831  smooth 0.779  TER 21.04%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  30%|██▉       | 327/1098 [02:34<05:37,  2.28batch/s, loss 0.739  smooth 0.778  TER 18.50%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  30%|██▉       | 328/1098 [02:35<05:35,  2.29batch/s, loss 0.746  smooth 0.777  TER 18.93%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  30%|██▉       | 329/1098 [02:35<05:43,  2.24batch/s, loss 0.820  smooth 0.778  TER 19.36%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  30%|███       | 330/1098 [02:36<05:53,  2.17batch/s, loss 0.796  smooth 0.778  TER 20.61%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  30%|███       | 331/1098 [02:36<05:44,  2.23batch/s, loss 0.755  smooth 0.778  TER 19.23%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  30%|███       | 332/1098 [02:36<05:41,  2.24batch/s, loss 0.772  smooth 0.778  TER 19.75%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  30%|███       | 333/1098 [02:37<05:27,  2.34batch/s, loss 0.798  smooth 0.778  TER 20.39%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  30%|███       | 334/1098 [02:37<05:28,  2.32batch/s, loss 0.772  smooth 0.779  TER 18.92%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  31%|███       | 335/1098 [02:38<05:39,  2.25batch/s, loss 0.824  smooth 0.780  TER 21.17%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  31%|███       | 336/1098 [02:38<05:45,  2.20batch/s, loss 0.787  smooth 0.779  TER 19.15%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  31%|███       | 337/1098 [02:39<05:46,  2.20batch/s, loss 0.801  smooth 0.780  TER 19.62%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  31%|███       | 338/1098 [02:39<05:42,  2.22batch/s, loss 0.765  smooth 0.780  TER 18.76%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  31%|███       | 339/1098 [02:40<05:31,  2.29batch/s, loss 0.808  smooth 0.781  TER 19.45%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  31%|███       | 340/1098 [02:40<05:32,  2.28batch/s, loss 0.803  smooth 0.782  TER 20.21%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  31%|███       | 341/1098 [02:40<05:21,  2.35batch/s, loss 0.754  smooth 0.781  TER 18.10%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  31%|███       | 342/1098 [02:41<05:26,  2.32batch/s, loss 0.757  smooth 0.780  TER 20.46%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:  31%|███       | 343/1098 [02:42<06:27,  1.95batch/s, loss 0.768  smooth 0.779  TER 19.73%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:  31%|███▏      | 344/1098 [02:42<06:55,  1.82batch/s, loss 0.743  smooth 0.779  TER 19.21%  grad 0.75  lr 2.0e-03][A
+  Epoch 093:  31%|███▏      | 345/1098 [02:43<06:22,  1.97batch/s, loss 0.811  smooth 0.779  TER 20.37%  grad 0.75  lr 2.0e-03][A
+  Epoch 093:  32%|███▏      | 346/1098 [02:43<06:15,  2.00batch/s, loss 0.787  smooth 0.779  TER 19.47%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  32%|███▏      | 347/1098 [02:44<06:07,  2.05batch/s, loss 0.798  smooth 0.780  TER 19.71%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  32%|███▏      | 348/1098 [02:44<05:54,  2.11batch/s, loss 0.787  smooth 0.780  TER 19.51%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  32%|███▏      | 349/1098 [02:44<05:41,  2.20batch/s, loss 0.746  smooth 0.780  TER 19.77%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  32%|███▏      | 350/1098 [02:45<05:44,  2.17batch/s, loss 0.779  smooth 0.779  TER 19.78%  grad 0.39  lr 2.0e-03][A
+  Epoch 093:  32%|███▏      | 351/1098 [02:45<05:56,  2.09batch/s, loss 0.768  smooth 0.779  TER 19.85%  grad 0.39  lr 2.0e-03][A
+  Epoch 093:  32%|███▏      | 352/1098 [02:46<05:59,  2.07batch/s, loss 0.757  smooth 0.779  TER 19.28%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  32%|███▏      | 353/1098 [02:46<05:41,  2.18batch/s, loss 0.774  smooth 0.778  TER 18.59%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  32%|███▏      | 354/1098 [02:47<05:35,  2.22batch/s, loss 0.795  smooth 0.778  TER 20.14%  grad 0.62  lr 2.0e-03][A
+  Epoch 093:  32%|███▏      | 355/1098 [02:47<05:42,  2.17batch/s, loss 0.762  smooth 0.778  TER 19.23%  grad 0.62  lr 2.0e-03][A
+  Epoch 093:  32%|███▏      | 356/1098 [02:48<05:39,  2.19batch/s, loss 0.768  smooth 0.778  TER 19.71%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:  33%|███▎      | 357/1098 [02:48<05:26,  2.27batch/s, loss 0.822  smooth 0.780  TER 20.98%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:  33%|███▎      | 358/1098 [02:48<05:24,  2.28batch/s, loss 0.832  smooth 0.781  TER 21.47%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  33%|███▎      | 359/1098 [02:49<05:20,  2.31batch/s, loss 0.803  smooth 0.782  TER 20.26%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  33%|███▎      | 360/1098 [02:49<05:19,  2.31batch/s, loss 0.784  smooth 0.782  TER 18.50%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  33%|███▎      | 361/1098 [02:50<05:13,  2.35batch/s, loss 0.764  smooth 0.782  TER 19.55%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  33%|███▎      | 362/1098 [02:50<05:14,  2.34batch/s, loss 0.799  smooth 0.782  TER 20.03%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  33%|███▎      | 363/1098 [02:51<05:11,  2.36batch/s, loss 0.735  smooth 0.781  TER 19.42%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  33%|███▎      | 364/1098 [02:51<05:12,  2.35batch/s, loss 0.784  smooth 0.781  TER 19.50%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  33%|███▎      | 365/1098 [02:51<05:04,  2.41batch/s, loss 0.766  smooth 0.781  TER 20.12%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  33%|███▎      | 366/1098 [02:52<05:09,  2.37batch/s, loss 0.776  smooth 0.780  TER 19.14%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  33%|███▎      | 367/1098 [02:52<05:21,  2.28batch/s, loss 0.799  smooth 0.781  TER 18.95%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  34%|███▎      | 368/1098 [02:53<05:22,  2.26batch/s, loss 0.784  smooth 0.780  TER 19.73%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  34%|███▎      | 369/1098 [02:53<05:17,  2.30batch/s, loss 0.726  smooth 0.779  TER 18.13%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  34%|███▎      | 370/1098 [02:54<05:31,  2.20batch/s, loss 0.804  smooth 0.779  TER 19.50%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  34%|███▍      | 371/1098 [02:54<05:44,  2.11batch/s, loss 0.777  smooth 0.780  TER 19.42%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  34%|███▍      | 372/1098 [02:55<05:33,  2.17batch/s, loss 0.761  smooth 0.779  TER 19.44%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  34%|███▍      | 373/1098 [02:55<05:22,  2.25batch/s, loss 0.785  smooth 0.779  TER 21.34%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  34%|███▍      | 374/1098 [02:55<05:18,  2.27batch/s, loss 0.735  smooth 0.779  TER 18.78%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  34%|███▍      | 375/1098 [02:56<05:12,  2.31batch/s, loss 0.821  smooth 0.781  TER 20.06%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  34%|███▍      | 376/1098 [02:56<05:25,  2.22batch/s, loss 0.807  smooth 0.780  TER 18.89%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  34%|███▍      | 377/1098 [02:57<05:15,  2.28batch/s, loss 0.832  smooth 0.782  TER 20.97%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  34%|███▍      | 378/1098 [02:57<05:29,  2.18batch/s, loss 0.731  smooth 0.782  TER 19.12%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:  35%|███▍      | 379/1098 [02:58<05:20,  2.24batch/s, loss 0.810  smooth 0.781  TER 20.09%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:  35%|███▍      | 380/1098 [02:58<05:19,  2.25batch/s, loss 0.815  smooth 0.782  TER 21.28%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  35%|███▍      | 381/1098 [02:59<05:26,  2.20batch/s, loss 0.778  smooth 0.782  TER 19.99%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  35%|███▍      | 382/1098 [02:59<05:37,  2.12batch/s, loss 0.795  smooth 0.783  TER 20.77%  grad 0.39  lr 2.0e-03][A
+  Epoch 093:  35%|███▍      | 383/1098 [03:00<05:24,  2.20batch/s, loss 0.764  smooth 0.782  TER 19.36%  grad 0.39  lr 2.0e-03][A
+  Epoch 093:  35%|███▍      | 384/1098 [03:00<05:57,  2.00batch/s, loss 0.742  smooth 0.781  TER 17.62%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  35%|███▌      | 385/1098 [03:01<05:52,  2.02batch/s, loss 0.817  smooth 0.781  TER 21.04%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  35%|███▌      | 386/1098 [03:01<05:37,  2.11batch/s, loss 0.782  smooth 0.781  TER 18.06%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  35%|███▌      | 387/1098 [03:02<05:23,  2.19batch/s, loss 0.766  smooth 0.780  TER 20.29%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  35%|███▌      | 388/1098 [03:02<05:18,  2.23batch/s, loss 0.778  smooth 0.781  TER 19.64%  grad 0.37  lr 2.0e-03][A
+  Epoch 093:  35%|███▌      | 389/1098 [03:02<05:10,  2.28batch/s, loss 0.813  smooth 0.781  TER 21.04%  grad 0.37  lr 2.0e-03][A
+  Epoch 093:  36%|███▌      | 390/1098 [03:03<05:11,  2.27batch/s, loss 0.833  smooth 0.781  TER 20.54%  grad 0.61  lr 2.0e-03][A
+  Epoch 093:  36%|███▌      | 391/1098 [03:03<05:15,  2.24batch/s, loss 0.756  smooth 0.781  TER 17.84%  grad 0.61  lr 2.0e-03][A
+  Epoch 093:  36%|███▌      | 392/1098 [03:04<05:15,  2.24batch/s, loss 0.785  smooth 0.782  TER 19.46%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  36%|███▌      | 393/1098 [03:04<05:24,  2.17batch/s, loss 0.791  smooth 0.783  TER 19.41%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  36%|███▌      | 394/1098 [03:05<05:30,  2.13batch/s, loss 0.802  smooth 0.784  TER 20.67%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  36%|███▌      | 395/1098 [03:05<05:35,  2.10batch/s, loss 0.744  smooth 0.782  TER 18.33%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  36%|███▌      | 396/1098 [03:06<05:43,  2.04batch/s, loss 0.740  smooth 0.781  TER 20.25%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  36%|███▌      | 397/1098 [03:06<05:24,  2.16batch/s, loss 0.819  smooth 0.782  TER 21.08%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  36%|███▌      | 398/1098 [03:07<05:31,  2.11batch/s, loss 0.774  smooth 0.782  TER 19.09%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  36%|███▋      | 399/1098 [03:07<05:24,  2.15batch/s, loss 0.739  smooth 0.781  TER 19.41%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  36%|███▋      | 400/1098 [03:08<05:25,  2.15batch/s, loss 0.779  smooth 0.781  TER 18.73%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  37%|███▋      | 401/1098 [03:08<05:25,  2.14batch/s, loss 0.779  smooth 0.782  TER 19.73%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  37%|███▋      | 402/1098 [03:08<05:16,  2.20batch/s, loss 0.752  smooth 0.782  TER 18.87%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  37%|███▋      | 403/1098 [03:09<05:17,  2.19batch/s, loss 0.774  smooth 0.782  TER 19.31%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  37%|███▋      | 404/1098 [03:09<05:11,  2.23batch/s, loss 0.755  smooth 0.781  TER 19.68%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:  37%|███▋      | 405/1098 [03:10<05:11,  2.22batch/s, loss 0.769  smooth 0.781  TER 18.15%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:  37%|███▋      | 406/1098 [03:10<05:21,  2.15batch/s, loss 0.788  smooth 0.781  TER 19.64%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  37%|███▋      | 407/1098 [03:11<05:34,  2.07batch/s, loss 0.819  smooth 0.781  TER 20.02%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  37%|███▋      | 408/1098 [03:11<05:33,  2.07batch/s, loss 0.756  smooth 0.780  TER 18.83%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  37%|███▋      | 409/1098 [03:12<05:28,  2.10batch/s, loss 0.776  smooth 0.779  TER 18.97%  grad 0.42  lr 2.0e-03][A
+  Epoch 093:  37%|███▋      | 410/1098 [03:12<05:22,  2.13batch/s, loss 0.781  smooth 0.779  TER 20.05%  grad 0.54  lr 2.0e-03][A
+  Epoch 093:  37%|███▋      | 411/1098 [03:13<05:12,  2.20batch/s, loss 0.837  smooth 0.781  TER 21.34%  grad 0.54  lr 2.0e-03][A
+  Epoch 093:  38%|███▊      | 412/1098 [03:13<05:05,  2.25batch/s, loss 0.788  smooth 0.780  TER 20.13%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  38%|███▊      | 413/1098 [03:13<04:54,  2.32batch/s, loss 0.772  smooth 0.781  TER 20.28%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  38%|███▊      | 414/1098 [03:14<05:10,  2.20batch/s, loss 0.736  smooth 0.780  TER 19.01%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:  38%|███▊      | 415/1098 [03:14<05:02,  2.26batch/s, loss 0.803  smooth 0.781  TER 18.78%  grad 0.40  lr 2.0e-03][A
+  Epoch 093:  38%|███▊      | 416/1098 [03:15<05:02,  2.25batch/s, loss 0.837  smooth 0.782  TER 21.46%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  38%|███▊      | 417/1098 [03:15<04:57,  2.29batch/s, loss 0.825  smooth 0.783  TER 20.46%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  38%|███▊      | 418/1098 [03:16<05:04,  2.23batch/s, loss 0.735  smooth 0.782  TER 18.96%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  38%|███▊      | 419/1098 [03:16<04:54,  2.31batch/s, loss 0.788  smooth 0.783  TER 19.88%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  38%|███▊      | 420/1098 [03:16<04:52,  2.32batch/s, loss 0.762  smooth 0.782  TER 19.24%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  38%|███▊      | 421/1098 [03:17<04:52,  2.31batch/s, loss 0.772  smooth 0.782  TER 19.18%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  38%|███▊      | 422/1098 [03:17<04:54,  2.30batch/s, loss 0.781  smooth 0.782  TER 19.44%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  39%|███▊      | 423/1098 [03:18<04:46,  2.36batch/s, loss 0.780  smooth 0.782  TER 19.85%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  39%|███▊      | 424/1098 [03:18<04:48,  2.34batch/s, loss 0.759  smooth 0.783  TER 19.40%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  39%|███▊      | 425/1098 [03:19<04:54,  2.29batch/s, loss 0.784  smooth 0.782  TER 20.08%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  39%|███▉      | 426/1098 [03:19<04:55,  2.27batch/s, loss 0.750  smooth 0.781  TER 18.75%  grad 0.54  lr 2.0e-03][A
+  Epoch 093:  39%|███▉      | 427/1098 [03:20<04:50,  2.31batch/s, loss 0.769  smooth 0.780  TER 20.47%  grad 0.54  lr 2.0e-03][A
+  Epoch 093:  39%|███▉      | 428/1098 [03:20<04:54,  2.28batch/s, loss 0.800  smooth 0.781  TER 19.85%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  39%|███▉      | 429/1098 [03:20<04:50,  2.30batch/s, loss 0.811  smooth 0.781  TER 19.98%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  39%|███▉      | 430/1098 [03:21<04:50,  2.30batch/s, loss 0.757  smooth 0.780  TER 19.18%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  39%|███▉      | 431/1098 [03:21<04:51,  2.29batch/s, loss 0.777  smooth 0.780  TER 19.49%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  39%|███▉      | 432/1098 [03:22<05:01,  2.21batch/s, loss 0.809  smooth 0.780  TER 20.01%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  39%|███▉      | 433/1098 [03:22<05:10,  2.14batch/s, loss 0.818  smooth 0.781  TER 20.34%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  40%|███▉      | 434/1098 [03:23<05:02,  2.20batch/s, loss 0.785  smooth 0.782  TER 19.49%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  40%|███▉      | 435/1098 [03:23<05:05,  2.17batch/s, loss 0.794  smooth 0.782  TER 20.96%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  40%|███▉      | 436/1098 [03:24<05:11,  2.13batch/s, loss 0.843  smooth 0.783  TER 21.64%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  40%|███▉      | 437/1098 [03:24<05:00,  2.20batch/s, loss 0.793  smooth 0.783  TER 19.96%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  40%|███▉      | 438/1098 [03:25<05:08,  2.14batch/s, loss 0.751  smooth 0.783  TER 17.86%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:  40%|███▉      | 439/1098 [03:25<05:08,  2.14batch/s, loss 0.781  smooth 0.782  TER 20.68%  grad 0.43  lr 2.0e-03][A
+  Epoch 093:  40%|████      | 440/1098 [03:25<05:02,  2.18batch/s, loss 0.844  smooth 0.782  TER 22.49%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  40%|████      | 441/1098 [03:26<04:55,  2.23batch/s, loss 0.764  smooth 0.783  TER 18.98%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  40%|████      | 442/1098 [03:26<05:15,  2.08batch/s, loss 0.849  smooth 0.784  TER 19.73%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  40%|████      | 443/1098 [03:27<05:18,  2.06batch/s, loss 0.797  smooth 0.784  TER 19.53%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  40%|████      | 444/1098 [03:27<05:20,  2.04batch/s, loss 0.797  smooth 0.784  TER 19.12%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  41%|████      | 445/1098 [03:28<05:00,  2.17batch/s, loss 0.782  smooth 0.785  TER 19.73%  grad 0.47  lr 2.0e-03][A
+  Epoch 093:  41%|████      | 446/1098 [03:28<04:56,  2.20batch/s, loss 0.792  smooth 0.786  TER 19.60%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  41%|████      | 447/1098 [03:29<04:48,  2.25batch/s, loss 0.820  smooth 0.786  TER 20.04%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  41%|████      | 448/1098 [03:29<04:58,  2.18batch/s, loss 0.783  smooth 0.786  TER 19.89%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  41%|████      | 449/1098 [03:30<05:11,  2.08batch/s, loss 0.774  smooth 0.787  TER 19.93%  grad 0.48  lr 2.0e-03][A
+  Epoch 093:  41%|████      | 450/1098 [03:30<06:03,  1.78batch/s, loss 0.812  smooth 0.787  TER 20.47%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  41%|████      | 451/1098 [03:31<05:44,  1.88batch/s, loss 0.807  smooth 0.788  TER 20.03%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  41%|████      | 452/1098 [03:31<05:27,  1.98batch/s, loss 0.791  smooth 0.789  TER 20.96%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  41%|████▏     | 453/1098 [03:32<05:26,  1.98batch/s, loss 0.744  smooth 0.788  TER 18.39%  grad 0.50  lr 2.0e-03][A
+  Epoch 093:  41%|████▏     | 454/1098 [03:32<05:26,  1.97batch/s, loss 0.783  smooth 0.789  TER 19.82%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  41%|████▏     | 455/1098 [03:33<05:23,  1.99batch/s, loss 0.764  smooth 0.788  TER 19.07%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  42%|████▏     | 456/1098 [03:33<05:11,  2.06batch/s, loss 0.773  smooth 0.788  TER 20.62%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  42%|████▏     | 457/1098 [03:34<04:56,  2.16batch/s, loss 0.758  smooth 0.787  TER 19.07%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  42%|████▏     | 458/1098 [03:34<04:53,  2.18batch/s, loss 0.762  smooth 0.787  TER 18.75%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  42%|████▏     | 459/1098 [03:35<04:45,  2.24batch/s, loss 0.768  smooth 0.787  TER 19.38%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  42%|████▏     | 460/1098 [03:35<05:20,  1.99batch/s, loss 0.765  smooth 0.787  TER 18.33%  grad 0.59  lr 2.0e-03][A
+  Epoch 093:  42%|████▏     | 461/1098 [03:36<05:05,  2.09batch/s, loss 0.761  smooth 0.785  TER 19.87%  grad 0.59  lr 2.0e-03][A
+  Epoch 093:  42%|████▏     | 462/1098 [03:36<04:57,  2.14batch/s, loss 0.774  smooth 0.785  TER 19.91%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  42%|████▏     | 463/1098 [03:37<04:51,  2.18batch/s, loss 0.773  smooth 0.785  TER 18.81%  grad 0.45  lr 2.0e-03][A
+  Epoch 093:  42%|████▏     | 464/1098 [03:37<04:48,  2.20batch/s, loss 0.791  smooth 0.786  TER 19.21%  grad 0.63  lr 2.0e-03][A
+  Epoch 093:  42%|████▏     | 465/1098 [03:37<04:42,  2.24batch/s, loss 0.829  smooth 0.786  TER 19.66%  grad 0.63  lr 2.0e-03][A
+  Epoch 093:  42%|████▏     | 466/1098 [03:38<04:41,  2.24batch/s, loss 0.829  smooth 0.786  TER 21.56%  grad 0.82  lr 2.0e-03][A
+  Epoch 093:  43%|████▎     | 467/1098 [03:38<04:38,  2.26batch/s, loss 0.827  smooth 0.786  TER 20.91%  grad 0.82  lr 2.0e-03][A
+  Epoch 093:  43%|████▎     | 468/1098 [03:39<04:40,  2.24batch/s, loss 0.792  smooth 0.787  TER 20.01%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  43%|████▎     | 469/1098 [03:39<04:43,  2.22batch/s, loss 0.773  smooth 0.787  TER 20.57%  grad 0.44  lr 2.0e-03][A
+  Epoch 093:  43%|████▎     | 470/1098 [03:40<04:42,  2.22batch/s, loss 0.826  smooth 0.788  TER 20.01%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  43%|████▎     | 471/1098 [03:40<04:38,  2.25batch/s, loss 0.827  smooth 0.790  TER 20.55%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  43%|████▎     | 472/1098 [03:41<04:41,  2.22batch/s, loss 0.817  smooth 0.790  TER 22.02%  grad 0.59  lr 2.0e-03][A
+  Epoch 093:  43%|████▎     | 473/1098 [03:41<04:45,  2.19batch/s, loss 0.810  smooth 0.791  TER 22.00%  grad 0.59  lr 2.0e-03][A
+  Epoch 093:  43%|████▎     | 474/1098 [03:42<04:54,  2.12batch/s, loss 0.755  smooth 0.791  TER 19.03%  grad 0.57  lr 2.0e-03][A
+  Epoch 093:  43%|████▎     | 475/1098 [03:42<04:41,  2.21batch/s, loss 0.884  smooth 0.793  TER 20.74%  grad 0.57  lr 2.0e-03][A
+  Epoch 093:  43%|████▎     | 476/1098 [03:42<04:37,  2.24batch/s, loss 0.804  smooth 0.794  TER 20.00%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  43%|████▎     | 477/1098 [03:43<04:34,  2.27batch/s, loss 0.822  smooth 0.795  TER 20.53%  grad 0.56  lr 2.0e-03][A
+  Epoch 093:  44%|████▎     | 478/1098 [03:43<04:34,  2.26batch/s, loss 0.821  smooth 0.795  TER 21.09%  grad 0.57  lr 2.0e-03][A
+  Epoch 093:  44%|████▎     | 479/1098 [03:44<04:27,  2.32batch/s, loss 0.747  smooth 0.794  TER 18.98%  grad 0.57  lr 2.0e-03][A
+  Epoch 093:  44%|████▎     | 480/1098 [03:44<04:39,  2.21batch/s, loss 0.769  smooth 0.794  TER 18.75%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  44%|████▍     | 481/1098 [03:45<04:36,  2.23batch/s, loss 0.835  smooth 0.795  TER 19.51%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  44%|████▍     | 482/1098 [03:45<04:31,  2.27batch/s, loss 0.777  smooth 0.795  TER 19.12%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  44%|████▍     | 483/1098 [03:45<04:26,  2.31batch/s, loss 0.781  smooth 0.794  TER 21.11%  grad 0.49  lr 2.0e-03][A
+  Epoch 093:  44%|████▍     | 484/1098 [03:46<04:28,  2.29batch/s, loss 0.801  smooth 0.794  TER 21.05%  grad 1.11  lr 2.0e-03][A
+  Epoch 093:  44%|████▍     | 485/1098 [03:46<04:27,  2.29batch/s, loss 0.812  smooth 0.795  TER 20.58%  grad 1.11  lr 2.0e-03][A
+  Epoch 093:  44%|████▍     | 486/1098 [03:47<04:26,  2.30batch/s, loss 0.832  smooth 0.794  TER 20.80%  grad 0.64  lr 2.0e-03][A
+  Epoch 093:  44%|████▍     | 487/1098 [03:47<04:31,  2.25batch/s, loss 0.833  smooth 0.795  TER 21.44%  grad 0.64  lr 2.0e-03][A
+  Epoch 093:  44%|████▍     | 488/1098 [03:48<04:27,  2.28batch/s, loss 0.787  smooth 0.796  TER 20.58%  grad 0.64  lr 2.0e-03][A
+  Epoch 093:  45%|████▍     | 489/1098 [03:48<04:34,  2.21batch/s, loss 0.804  smooth 0.796  TER 20.83%  grad 0.64  lr 2.0e-03][A
+  Epoch 093:  45%|████▍     | 490/1098 [03:49<04:36,  2.20batch/s, loss 0.798  smooth 0.796  TER 20.46%  grad 0.60  lr 2.0e-03][A
+  Epoch 093:  45%|████▍     | 491/1098 [03:49<04:25,  2.28batch/s, loss 0.814  smooth 0.797  TER 20.21%  grad 0.60  lr 2.0e-03][A
+  Epoch 093:  45%|████▍     | 492/1098 [03:49<04:26,  2.28batch/s, loss 0.791  smooth 0.795  TER 18.71%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  45%|████▍     | 493/1098 [03:50<04:28,  2.26batch/s, loss 0.780  smooth 0.795  TER 19.70%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  45%|████▍     | 494/1098 [03:50<04:27,  2.26batch/s, loss 0.785  smooth 0.795  TER 20.24%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  45%|████▌     | 495/1098 [03:51<04:32,  2.21batch/s, loss 0.806  smooth 0.795  TER 20.26%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  45%|████▌     | 496/1098 [03:51<04:42,  2.13batch/s, loss 0.796  smooth 0.795  TER 19.65%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  45%|████▌     | 497/1098 [03:52<04:33,  2.20batch/s, loss 0.823  smooth 0.795  TER 20.60%  grad 0.55  lr 2.0e-03][A
+  Epoch 093:  45%|████▌     | 498/1098 [03:52<04:41,  2.13batch/s, loss 0.809  smooth 0.796  TER 19.68%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  45%|████▌     | 499/1098 [03:53<04:42,  2.12batch/s, loss 0.792  smooth 0.796  TER 20.17%  grad 0.51  lr 2.0e-03][A
+  Epoch 093:  46%|████▌     | 500/1098 [03:54<05:59,  1.66batch/s, loss 0.873  smooth 0.797  TER 21.16%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  46%|████▌     | 501/1098 [03:54<05:34,  1.78batch/s, loss 0.833  smooth 0.798  TER 18.87%  grad 0.46  lr 2.0e-03][A
+  Epoch 093:  46%|████▌     | 502/1098 [03:55<05:13,  1.90batch/s, loss 0.835  smooth 0.799  TER 21.67%  grad 0.53  lr 2.0e-03][A
+  Epoch 093:  46%|████▌     | 503/1098 [03:55<04:52,  2.04batch/s, loss 0.814  smooth 0.800  TER 19.68%  grad 0.53  lr 2.0e-03][Aslurmstepd: error: *** JOB 11457 ON dgx2 CANCELLED AT 2026-05-09T07:16:27 ***

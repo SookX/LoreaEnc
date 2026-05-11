@@ -1,0 +1,96 @@
+squeezeformer_xs_150ep_scratch | 9.0M | 2 GPU(s):   0%|          | 0/150 [00:00<?, ?ep/s]
+  Epoch 001:   0%|          | 0/1098 [00:00<?, ?batch/s][A
+                                                        [Asqueezeformer_xs_150ep_scratch | 9.0M | 2 GPU(s):   0%|          | 0/150 [00:00<?, ?ep/s]
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/train.py", line 891, in <module>
+[rank1]:     record(main_ddp)()
+[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+[rank1]:     return f(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/train.py", line 748, in main_ddp
+[rank1]:     for step, batch in enumerate(batch_bar, start=1):
+[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/tqdm/std.py", line 1169, in __iter__
+[rank1]:     for obj in iterable:
+[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 494, in __iter__
+[rank1]:     return self._get_iterator()
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 424, in _get_iterator
+[rank1]:     return _SingleProcessDataLoaderIter(self)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 769, in __init__
+[rank1]:     assert self._timeout == 0
+[rank1]:            ^^^^^^^^^^^^^^^^^^
+[rank1]: AssertionError
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/train.py", line 891, in <module>
+[rank0]:     record(main_ddp)()
+[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+[rank0]:     return f(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/train.py", line 748, in main_ddp
+[rank0]:     for step, batch in enumerate(batch_bar, start=1):
+[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/tqdm/std.py", line 1181, in __iter__
+[rank0]:     for obj in iterable:
+[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 494, in __iter__
+[rank0]:     return self._get_iterator()
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 424, in _get_iterator
+[rank0]:     return _SingleProcessDataLoaderIter(self)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 769, in __init__
+[rank0]:     assert self._timeout == 0
+[rank0]:            ^^^^^^^^^^^^^^^^^^
+[rank0]: AssertionError
+W0511 14:05:31.112000 430286 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 430331 closing signal SIGTERM
+E0511 14:05:31.227000 430286 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 0 (pid: 430330) of binary: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/python
+E0511 14:05:31.228000 430286 site-packages/torch/distributed/elastic/multiprocessing/errors/error_handler.py:141] no error file defined for parent, to copy child error file (/tmp/torchelastic_k60w27vz/none_2ool1s94/attempt_0/0/error.json)
+Traceback (most recent call last):
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/bin/torchrun", line 9, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 143, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 277, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+SqueezeFormer/train.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-05-11_14:05:29
+  host      : dgx1.plus.discoverer.bg
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 430330)
+  error_file: /tmp/torchelastic_k60w27vz/none_2ool1s94/attempt_0/0/error.json
+  traceback : Traceback (most recent call last):
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+      return f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/LoreaEnc/SqueezeFormer/train.py", line 748, in main_ddp
+      for step, batch in enumerate(batch_bar, start=1):
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/tqdm/std.py", line 1181, in __iter__
+      for obj in iterable:
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 494, in __iter__
+      return self._get_iterator()
+             ^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 424, in _get_iterator
+      return _SingleProcessDataLoaderIter(self)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/valhalla/projects/bg-eng-01/conda_envs/torch/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 769, in __init__
+      assert self._timeout == 0
+             ^^^^^^^^^^^^^^^^^^
+  AssertionError
+  
+============================================================

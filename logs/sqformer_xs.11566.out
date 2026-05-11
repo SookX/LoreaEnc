@@ -1,0 +1,765 @@
+Job 11566 starting at Mon May 11 02:19:38 PM UTC 2026
+Project: /valhalla/projects/bg-eng-01/LoreaEnc
+Python: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/python
+Torchrun: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/torchrun
+GPUs on node: 2
+Master: 127.0.0.1:23566
+PyTorch: 2.8.0
+CUDA available: True
+CUDA devices: 2
+Vocab size: 128 | CTC blank: 0
+Using full dataset: 281241 utterances
+Validation: dev-other | 2864 utterances
+SqueezeFormer-XS | 9.0M params | 2 GPU(s) | run: squeezeformer_xs_150ep_scratch
+LR: extended Noam | peak=0.002 | warmup=20 ep | hold=160 ep | decay=1 | train=150 ep
+Batching: per_gpu_micro=128 | grad_accum=2 | effective_global=512 | optimizer_steps/epoch=549
+torch.compile: skipped
+NCCL version 2.28.9+cuda12.9
+Epoch 1/150
+
+  [epoch 001] dev-other
+    dev loss : 4.1559
+    WER      : 96.07%  best 96.07%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : was p s b b the f s to sss fs in
+
+  [train] loss 5.1551  dev-other WER 96.07%  lr 1.0e-04
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 2/150
+
+  [epoch 002] dev-other
+    dev loss : 2.8004
+    WER      : 88.98%  best 88.98%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i prt s i hadd b rd and lll layre fnd the straat to st with th rns of wld respple and in fmy grs wing n wy hadv re in dither
+
+  [train] loss 3.5586  dev-other WER 88.98%  lr 2.0e-04
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 3/150
+
+  [epoch 003] dev-other
+    dev loss : 2.0461
+    WER      : 75.69%  best 75.69%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as ive pofed to s i hadd bo miny andll lader i thound the straat to st with rns of wllldres peple in famy grps onding the way ether indiit
+
+  [train] loss 2.6862  dev-other WER 75.69%  lr 3.0e-04
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 4/150
+
+  [epoch 004] dev-other
+    dev loss : 1.5913
+    WER      : 63.99%  best 63.99%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as ippoheed to sity i heard bills rany and l lader i found the streat to a star with th ronms of wellld rss people in famy grops winding noway ether indiven
+
+  [train] loss 2.1398  dev-other WER 63.99%  lr 4.0e-04
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 5/150
+
+  [epoch 005] dev-other
+    dev loss : 1.3052
+    WER      : 54.08%  best 54.08%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approothe to city i heard bills rading and lt later i found the street to a stir with th rongs of wllldress people in famly groops winding their way ether in diit
+
+  [train] loss 1.7840  dev-other WER 54.08%  lr 5.0e-04
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 6/150
+
+  [epoch 006] dev-other
+    dev loss : 1.1080
+    WER      : 46.73%  best 46.73%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i i pros to a city i heard bells rady andt later i found the streightes of stir with th rongs of weldress people in family groups winding their way hither inndither
+
+  [train] loss 1.5449  dev-other WER 46.73%  lr 6.0e-04
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 7/150
+
+  [epoch 007] dev-other
+    dev loss : 0.9705
+    WER      : 41.27%  best 41.27%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i ap pros to city i heard bells rading andt a later i found the streets a stir with throngs of wld rss people in family groups winding their way either indiit
+
+  [train] loss 1.3800  dev-other WER 41.27%  lr 7.0e-04
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 8/150
+
+  [epoch 008] dev-other
+    dev loss : 0.8920
+    WER      : 37.86%  best 37.86%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing andtle later i found the streets a stir with throngs of wll d ress people in family groups winding their way hither and ditre
+
+  [train] loss 1.2646  dev-other WER 37.86%  lr 8.0e-04
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 9/150
+
+  [epoch 009] dev-other
+    dev loss : 0.8145
+    WER      : 34.80%  best 34.80%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells winging andtou later i found the streets a stir with throngs of well dress people in fouindly groups wining their way hither and dither
+
+  [train] loss 1.1807  dev-other WER 34.80%  lr 9.0e-04
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 10/150
+
+  [epoch 010] dev-other
+    dev loss : 0.7601
+    WER      : 31.89%  best 31.89%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells rning andtle later i found the streets of stir with throngs of wlled ress people in family groups winding their way hither in diiter
+
+  [train] loss 1.1208  dev-other WER 31.89%  lr 1.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+  [ckpt] saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_ep010
+Epoch 11/150
+
+  [epoch 011] dev-other
+    dev loss : 0.7425
+    WER      : 30.62%  best 30.62%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the sity i heard bells ringing and in the later i found the streets stir with throngs of weldress people in family groups winding their way hither and dither
+
+  [train] loss 1.0704  dev-other WER 30.62%  lr 1.1e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 12/150
+
+  [epoch 012] dev-other
+    dev loss : 0.7110
+    WER      : 29.41%  best 29.41%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells reading and in the later i found the streets a stir with throngs of wellldress people in family groups wining their way hither in thither
+
+  [train] loss 1.0386  dev-other WER 29.41%  lr 1.2e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 13/150
+
+  [epoch 013] dev-other
+    dev loss : 0.7074
+    WER      : 28.85%  best 28.85%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i opproached a city i heard bells ringing and ltle later i found the streets of stir with throngs of well dress people in family groups winding their way hither and thither
+
+  [train] loss 1.0130  dev-other WER 28.85%  lr 1.3e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 14/150
+
+  [epoch 014] dev-other
+    dev loss : 0.6825
+    WER      : 28.03%  best 28.03%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard the bells ringing utlle later i found the streets of stir with throngs of well dressed people and family groups winding their way hither and dither
+
+  [train] loss 0.9948  dev-other WER 28.03%  lr 1.4e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 15/150
+
+  [epoch 015] dev-other
+    dev loss : 0.6801
+    WER      : 27.56%  best 27.56%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing and the later i found the streets of stir withrongs of well dress people in family groups winding their way hither and thither
+
+  [train] loss 0.9848  dev-other WER 27.56%  lr 1.5e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 16/150
+
+  [epoch 016] dev-other
+    dev loss : 0.6502
+    WER      : 26.34%  best 26.34%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing andil the later i found the streets of stir with throngs of wild dress people and family groups winding their way hither and diitor
+
+  [train] loss 0.9801  dev-other WER 26.34%  lr 1.6e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 17/150
+
+  [epoch 017] dev-other
+    dev loss : 0.6984
+    WER      : 27.15%  best 26.34%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's reinging and a low later i found the streets of stir with throngs of well dressed people in family groupes wining their way hither in dither
+
+  [train] loss 0.9732  dev-other WER 27.15%  lr 1.7e-03
+Epoch 18/150
+
+  [epoch 018] dev-other
+    dev loss : 0.6443
+    WER      : 26.19%  best 26.19%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's rging andlle later i found the streets to stir with throngs of well dressed people and family groups wining their way hither in dither
+
+  [train] loss 0.9710  dev-other WER 26.19%  lr 1.8e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 19/150
+
+  [epoch 019] dev-other
+    dev loss : 0.6596
+    WER      : 26.84%  best 26.19%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing andi a later i found the streets of stir with throngs of well dress people and family groups wining their way either andndither
+
+  [train] loss 0.9734  dev-other WER 26.84%  lr 1.9e-03
+Epoch 20/150
+
+  [epoch 020] dev-other
+    dev loss : 0.6544
+    WER      : 26.31%  best 26.19%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells reinging andt a later i found the street to stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [train] loss 0.9769  dev-other WER 26.31%  lr 2.0e-03
+  [ckpt] saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_ep020
+Epoch 21/150
+
+  [epoch 021] dev-other
+    dev loss : 0.6619
+    WER      : 26.07%  best 26.07%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing unll later i found the streets of stir with throngs of well dressed people in family groups wining their way hither and thither
+
+  [train] loss 0.9700  dev-other WER 26.07%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 22/150
+
+  [epoch 022] dev-other
+    dev loss : 0.6621
+    WER      : 25.30%  best 25.30%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells rading and litle later i found the street to to stir with throngs of weld dress people in family groups wining their way hither and thither
+
+  [train] loss 0.9614  dev-other WER 25.30%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 23/150
+
+  [epoch 023] dev-other
+    dev loss : 0.6279
+    WER      : 25.28%  best 25.28%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing andl later i found the streets of stir with throngs of weldressed people and family groups winding their way hither and thitherre
+
+  [train] loss 0.9506  dev-other WER 25.28%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 24/150
+
+  [epoch 024] dev-other
+    dev loss : 0.6270
+    WER      : 24.51%  best 24.51%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bellsringing and l ltle later i found the street to stir with throngs of weldressed people in family groups winding their way hither and thither
+
+  [train] loss 0.9434  dev-other WER 24.51%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 25/150
+
+  [epoch 025] dev-other
+    dev loss : 0.6052
+    WER      : 24.16%  best 24.16%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard the bells ringing and little later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [train] loss 0.9336  dev-other WER 24.16%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 26/150
+
+  [epoch 026] dev-other
+    dev loss : 0.6215
+    WER      : 24.36%  best 24.16%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells reading and l the later i found the streets to stir with throngs of weldressed people and family groups winding their way hither and thither
+
+  [train] loss 0.9230  dev-other WER 24.36%  lr 2.0e-03
+Epoch 27/150
+
+  [epoch 027] dev-other
+    dev loss : 0.6056
+    WER      : 23.84%  best 23.84%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells reading and a l later i found the streets a stir with throngs of well dressed people in family groups wining their way hither in thither
+
+  [train] loss 0.9170  dev-other WER 23.84%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 28/150
+
+  [epoch 028] dev-other
+    dev loss : 0.5764
+    WER      : 23.47%  best 23.47%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing and the later i found the streets a stir with throngs of well dress people in family groups winding their way hither and thither
+
+  [train] loss 0.9082  dev-other WER 23.47%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 29/150
+
+  [epoch 029] dev-other
+    dev loss : 0.5985
+    WER      : 23.47%  best 23.47%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing and on the later i found the streets a stir with thronges of well dressed people in family groups winding their way hither in dinner
+
+  [train] loss 0.9023  dev-other WER 23.47%  lr 2.0e-03
+Epoch 30/150
+
+  [epoch 030] dev-other
+    dev loss : 0.5893
+    WER      : 23.07%  best 23.07%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells ringing andtle later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and dinither
+
+  [train] loss 0.8951  dev-other WER 23.07%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+  [ckpt] saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_ep030
+Epoch 31/150
+
+  [epoch 031] dev-other
+    dev loss : 0.5620
+    WER      : 22.95%  best 22.95%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approacd a city i heard bells ringing anditow later i found the streets a stir with throngs of well dress people and family groups winding their way hither and thither
+
+  [train] loss 0.8902  dev-other WER 22.95%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 32/150
+
+  [epoch 032] dev-other
+    dev loss : 0.5784
+    WER      : 22.62%  best 22.62%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells reading and a lle later i found the streets of star with throngs of well dressed people in family groups winding their way hither and thither
+
+  [train] loss 0.8858  dev-other WER 22.62%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 33/150
+
+  [epoch 033] dev-other
+    dev loss : 0.5795
+    WER      : 22.65%  best 22.62%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bellsringy andt later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [train] loss 0.8804  dev-other WER 22.65%  lr 2.0e-03
+Epoch 34/150
+
+  [epoch 034] dev-other
+    dev loss : 0.5681
+    WER      : 22.14%  best 22.14%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bellsringing and atle later i found the streets a stir withrongs of well dress people in family groups winding their way hither and dinither
+
+  [train] loss 0.8764  dev-other WER 22.14%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 35/150
+
+  [epoch 035] dev-other
+    dev loss : 0.5970
+    WER      : 22.22%  best 22.14%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's rinning and at later i found the streets to stir with throngs of well dressed people and family groups winding their way hither in dinner
+
+  [train] loss 0.8701  dev-other WER 22.22%  lr 2.0e-03
+Epoch 36/150
+
+  [epoch 036] dev-other
+    dev loss : 0.5591
+    WER      : 21.53%  best 21.53%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing and a ltowt later i found the streets a stirr with throngs of well dressed people in family groups winding their way hither in diher
+
+  [train] loss 0.8673  dev-other WER 21.53%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 37/150
+
+  [epoch 037] dev-other
+    dev loss : 0.5611
+    WER      : 21.67%  best 21.53%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bellsrading and ltle later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [train] loss 0.8621  dev-other WER 21.67%  lr 2.0e-03
+Epoch 38/150
+
+  [epoch 038] dev-other
+    dev loss : 0.5777
+    WER      : 21.94%  best 21.53%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing and the later i found the streets a stirr with throngs of well dressed people in family groups winding their way hither and thither
+
+  [train] loss 0.8600  dev-other WER 21.94%  lr 2.0e-03
+Epoch 39/150
+
+  [epoch 039] dev-other
+    dev loss : 0.5589
+    WER      : 21.65%  best 21.53%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's reading uile later i found the streets of stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [train] loss 0.8524  dev-other WER 21.65%  lr 2.0e-03
+Epoch 40/150
+
+  [epoch 040] dev-other
+    dev loss : 0.5496
+    WER      : 21.37%  best 21.37%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard the bells reading and lle later i found the streets of stir with throngs of well dressed people and family groups wining their way hither and thither
+
+  [train] loss 0.8510  dev-other WER 21.37%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+  [ckpt] saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_ep040
+Epoch 41/150
+
+  [epoch 041] dev-other
+    dev loss : 0.5377
+    WER      : 20.84%  best 20.84%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's reinging andlle later i found the streets a stir with throngs of well dressed people in family groups wining their way hither and thither
+
+  [train] loss 0.8470  dev-other WER 20.84%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 42/150
+
+  [epoch 042] dev-other
+    dev loss : 0.5544
+    WER      : 21.92%  best 20.84%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's ringing andn atlle later i found the streets a stir with throngs of weldressed people in family groups winding their way hither and thither
+
+  [train] loss 0.8420  dev-other WER 21.92%  lr 2.0e-03
+Epoch 43/150
+
+  [epoch 043] dev-other
+    dev loss : 0.5421
+    WER      : 20.89%  best 20.84%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's reading and ltle later i found the streets a stir with throngs of weld dressed people in family groups winding their way hither and thither
+
+  [train] loss 0.8415  dev-other WER 20.89%  lr 2.0e-03
+Epoch 44/150
+
+  [epoch 044] dev-other
+    dev loss : 0.5391
+    WER      : 20.84%  best 20.84%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard the bells reading and alle later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [train] loss 0.8367  dev-other WER 20.84%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 45/150
+
+  [epoch 045] dev-other
+    dev loss : 0.5439
+    WER      : 21.21%  best 20.84%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's reining and ltow later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [train] loss 0.8386  dev-other WER 21.21%  lr 2.0e-03
+Epoch 46/150
+
+  [epoch 046] dev-other
+    dev loss : 0.5258
+    WER      : 20.59%  best 20.59%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bells reinging and ll the later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [train] loss 0.8325  dev-other WER 20.59%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 47/150
+
+  [epoch 047] dev-other
+    dev loss : 0.5367
+    WER      : 20.64%  best 20.59%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's reading andn lle later i found the streets to stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [train] loss 0.8315  dev-other WER 20.64%  lr 2.0e-03
+Epoch 48/150
+
+  [epoch 048] dev-other
+    dev loss : 0.5338
+    WER      : 20.94%  best 20.59%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's reading untille later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [train] loss 0.8289  dev-other WER 20.94%  lr 2.0e-03
+Epoch 49/150
+
+  [epoch 049] dev-other
+    dev loss : 0.5586
+    WER      : 21.11%  best 20.59%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bellsrady andnttl later i found the street to stir with throngs of well dressed people in family groups winding their way hither and dither
+
+  [train] loss 0.8251  dev-other WER 21.11%  lr 2.0e-03
+Epoch 50/150
+
+  [epoch 050] dev-other
+    dev loss : 0.5363
+    WER      : 20.51%  best 20.51%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard the bells ringing and lle later i found the streets a stir with throngs of well dressed people in family groups winding their way hither and thither
+
+  [train] loss 0.8269  dev-other WER 20.51%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+  [ckpt] saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_ep050
+Epoch 51/150
+
+  [epoch 051] dev-other
+    dev loss : 0.5361
+    WER      : 20.85%  best 20.51%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ringing and lile later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [train] loss 0.8211  dev-other WER 20.85%  lr 2.0e-03
+Epoch 52/150
+
+  [epoch 052] dev-other
+    dev loss : 0.5312
+    WER      : 21.09%  best 20.51%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard the bells rining and a ltle later i found the streets a stir with throngs of well dressed people and family groups winding their way hither in diner
+
+  [train] loss 0.8411  dev-other WER 21.09%  lr 2.0e-03
+Epoch 53/150
+
+  [epoch 053] dev-other
+    dev loss : 0.5143
+    WER      : 20.30%  best 20.30%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached the city i heard bell's rining u alle later i found the streets to star with throngs of well dressed people and family groups wining their way hither and thither
+
+  [train] loss 0.8272  dev-other WER 20.30%  lr 2.0e-03
+  [ckpt] best dev-other WER saved -> outputs/squeezeformer_xs_150ep_scratch/checkpoint_best
+Epoch 54/150
+
+  [epoch 054] dev-other
+    dev loss : 0.5237
+    WER      : 20.45%  best 20.30%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bell's reading a little later i found the streets to stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [train] loss 0.8222  dev-other WER 20.45%  lr 2.0e-03
+Epoch 55/150
+
+  [epoch 055] dev-other
+    dev loss : 0.5233
+    WER      : 20.41%  best 20.30%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard the bell's reingy utile later i found the streets a stir with throngs of well dress people in family groups winding their way hither and thither
+
+  [train] loss 0.8175  dev-other WER 20.41%  lr 2.0e-03
+Epoch 56/150
+
+  [epoch 056] dev-other
+    dev loss : 0.5310
+    WER      : 20.44%  best 20.30%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ready unlo later i found the street to star with throngs of well dressed people and family groups winding their way hither and thither
+
+  [train] loss 0.8174  dev-other WER 20.44%  lr 2.0e-03
+Epoch 57/150
+
+  [epoch 057] dev-other
+    dev loss : 0.5475
+    WER      : 20.65%  best 20.30%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : as i approached a city i heard bells ready untitle later i found the streets a stir with throngs of well dressed people and family groups winding their way hither and thither
+
+  [train] loss 0.8188  dev-other WER 20.65%  lr 2.0e-03
+Epoch 58/150
+[warn] unsafe grad norm 89.46 at epoch 58, batch 618; suppressing parameter update
+[warn] unsafe grad norm 94.91 at epoch 58, batch 636; suppressing parameter update
+[warn] unsafe grad norm 52.62 at epoch 58, batch 638; suppressing parameter update
+[warn] unsafe grad norm 67.21 at epoch 58, batch 676; suppressing parameter update
+[warn] unsafe grad norm 73.51 at epoch 58, batch 684; suppressing parameter update
+[warn] unsafe grad norm 62.97 at epoch 58, batch 690; suppressing parameter update
+[warn] unsafe grad norm 50.14 at epoch 58, batch 692; suppressing parameter update
+[warn] unsafe grad norm 58.50 at epoch 58, batch 694; suppressing parameter update
+[warn] unsafe grad norm 64.25 at epoch 58, batch 696; suppressing parameter update
+[warn] unsafe grad norm 75.51 at epoch 58, batch 698; suppressing parameter update
+[warn] unsafe grad norm 86.83 at epoch 58, batch 708; suppressing parameter update
+[warn] unsafe grad norm 61.16 at epoch 58, batch 710; suppressing parameter update
+[warn] unsafe grad norm 94.51 at epoch 58, batch 712; suppressing parameter update
+[warn] unsafe grad norm 57.35 at epoch 58, batch 714; suppressing parameter update
+[warn] unsafe grad norm 56.04 at epoch 58, batch 716; suppressing parameter update
+[warn] unsafe grad norm 77.96 at epoch 58, batch 718; suppressing parameter update
+[warn] unsafe grad norm 62.73 at epoch 58, batch 720; suppressing parameter update
+[warn] unsafe grad norm 61.40 at epoch 58, batch 724; suppressing parameter update
+[warn] unsafe grad norm 62.88 at epoch 58, batch 726; suppressing parameter update
+[warn] unsafe grad norm 62.16 at epoch 58, batch 728; suppressing parameter update
+[warn] unsafe grad norm 55.76 at epoch 58, batch 730; suppressing parameter update
+[warn] unsafe grad norm 56.77 at epoch 58, batch 732; suppressing parameter update
+[warn] unsafe grad norm 52.54 at epoch 58, batch 734; suppressing parameter update
+[warn] unsafe grad norm 72.47 at epoch 58, batch 736; suppressing parameter update
+[warn] unsafe grad norm 58.68 at epoch 58, batch 738; suppressing parameter update
+[warn] unsafe grad norm 57.92 at epoch 58, batch 742; suppressing parameter update
+[warn] unsafe grad norm 108.78 at epoch 58, batch 746; suppressing parameter update
+[warn] unsafe grad norm 85.81 at epoch 58, batch 748; suppressing parameter update
+[warn] unsafe grad norm 82.50 at epoch 58, batch 754; suppressing parameter update
+[warn] unsafe grad norm 84.05 at epoch 58, batch 760; suppressing parameter update
+[warn] unsafe grad norm 59.14 at epoch 58, batch 762; suppressing parameter update
+[warn] unsafe grad norm 74.88 at epoch 58, batch 764; suppressing parameter update
+[warn] unsafe grad norm 69.89 at epoch 58, batch 766; suppressing parameter update
+[warn] unsafe grad norm 61.69 at epoch 58, batch 768; suppressing parameter update
+[warn] unsafe grad norm 50.62 at epoch 58, batch 770; suppressing parameter update
+[warn] unsafe grad norm 55.89 at epoch 58, batch 774; suppressing parameter update
+[warn] unsafe grad norm 92.55 at epoch 58, batch 776; suppressing parameter update
+[warn] unsafe grad norm 69.59 at epoch 58, batch 778; suppressing parameter update
+[warn] unsafe grad norm 604.86 at epoch 58, batch 780; suppressing parameter update
+[warn] unsafe grad norm 83.87 at epoch 58, batch 782; suppressing parameter update
+[warn] unsafe grad norm 96.32 at epoch 58, batch 784; suppressing parameter update
+[warn] unsafe grad norm 74.03 at epoch 58, batch 786; suppressing parameter update
+[warn] unsafe grad norm 95.67 at epoch 58, batch 788; suppressing parameter update
+[warn] unsafe grad norm 138.41 at epoch 58, batch 790; suppressing parameter update
+[warn] unsafe grad norm 83.86 at epoch 58, batch 792; suppressing parameter update
+[warn] unsafe grad norm 56.82 at epoch 58, batch 794; suppressing parameter update
+[warn] unsafe grad norm 107.85 at epoch 58, batch 796; suppressing parameter update
+[warn] unsafe grad norm 57.84 at epoch 58, batch 800; suppressing parameter update
+[warn] unsafe grad norm 57.53 at epoch 58, batch 802; suppressing parameter update
+[warn] unsafe grad norm 68.47 at epoch 58, batch 804; suppressing parameter update
+[warn] unsafe grad norm 66.66 at epoch 58, batch 806; suppressing parameter update
+[warn] unsafe grad norm 85.85 at epoch 58, batch 808; suppressing parameter update
+[warn] unsafe grad norm 54.88 at epoch 58, batch 810; suppressing parameter update
+[warn] unsafe grad norm 86.55 at epoch 58, batch 812; suppressing parameter update
+[warn] unsafe grad norm 228.51 at epoch 58, batch 816; suppressing parameter update
+[warn] unsafe grad norm 71.73 at epoch 58, batch 818; suppressing parameter update
+[warn] unsafe grad norm 205.73 at epoch 58, batch 820; suppressing parameter update
+[warn] unsafe grad norm 60.85 at epoch 58, batch 822; suppressing parameter update
+[warn] unsafe grad norm 76.81 at epoch 58, batch 824; suppressing parameter update
+[warn] unsafe grad norm 61.82 at epoch 58, batch 826; suppressing parameter update
+[warn] unsafe grad norm 74.88 at epoch 58, batch 828; suppressing parameter update
+[warn] unsafe grad norm 53.14 at epoch 58, batch 830; suppressing parameter update
+[warn] unsafe grad norm 64.99 at epoch 58, batch 832; suppressing parameter update
+[warn] unsafe grad norm 52.90 at epoch 58, batch 834; suppressing parameter update
+[warn] unsafe grad norm 56.92 at epoch 58, batch 836; suppressing parameter update
+[warn] unsafe grad norm 55.05 at epoch 58, batch 838; suppressing parameter update
+[warn] unsafe grad norm 242.19 at epoch 58, batch 840; suppressing parameter update
+[warn] unsafe grad norm 56.41 at epoch 58, batch 842; suppressing parameter update
+[warn] unsafe grad norm 67.89 at epoch 58, batch 846; suppressing parameter update
+[warn] unsafe grad norm 50.68 at epoch 58, batch 848; suppressing parameter update
+[warn] unsafe grad norm 57.61 at epoch 58, batch 850; suppressing parameter update
+[warn] unsafe grad norm 64.40 at epoch 58, batch 852; suppressing parameter update
+[warn] unsafe grad norm 87.72 at epoch 58, batch 854; suppressing parameter update
+[warn] unsafe grad norm 109.25 at epoch 58, batch 860; suppressing parameter update
+[warn] unsafe grad norm 51.61 at epoch 58, batch 864; suppressing parameter update
+[warn] unsafe grad norm 266.01 at epoch 58, batch 872; suppressing parameter update
+[warn] unsafe grad norm 51.60 at epoch 58, batch 878; suppressing parameter update
+[warn] unsafe grad norm 52.28 at epoch 58, batch 880; suppressing parameter update
+[warn] unsafe grad norm 82.82 at epoch 58, batch 884; suppressing parameter update
+[warn] unsafe grad norm 76.22 at epoch 58, batch 886; suppressing parameter update
+[warn] unsafe grad norm 247.87 at epoch 58, batch 888; suppressing parameter update
+[warn] unsafe grad norm 60.64 at epoch 58, batch 892; suppressing parameter update
+[warn] unsafe grad norm 152.75 at epoch 58, batch 894; suppressing parameter update
+[warn] unsafe grad norm 69.08 at epoch 58, batch 898; suppressing parameter update
+[warn] unsafe grad norm 51.87 at epoch 58, batch 900; suppressing parameter update
+[warn] unsafe grad norm 70.54 at epoch 58, batch 902; suppressing parameter update
+[warn] unsafe grad norm 51.01 at epoch 58, batch 904; suppressing parameter update
+[warn] unsafe grad norm 60.33 at epoch 58, batch 906; suppressing parameter update
+[warn] unsafe grad norm 55.77 at epoch 58, batch 908; suppressing parameter update
+[warn] unsafe grad norm 79.10 at epoch 58, batch 910; suppressing parameter update
+[warn] unsafe grad norm 110.01 at epoch 58, batch 912; suppressing parameter update
+[warn] unsafe grad norm 70.44 at epoch 58, batch 914; suppressing parameter update
+[warn] unsafe grad norm 250.30 at epoch 58, batch 916; suppressing parameter update
+[warn] unsafe grad norm 69.00 at epoch 58, batch 918; suppressing parameter update
+[warn] unsafe grad norm 75.14 at epoch 58, batch 920; suppressing parameter update
+[warn] unsafe grad norm 56.38 at epoch 58, batch 922; suppressing parameter update
+[warn] unsafe grad norm 74.16 at epoch 58, batch 924; suppressing parameter update
+[warn] unsafe grad norm 64.97 at epoch 58, batch 926; suppressing parameter update
+[warn] unsafe grad norm 73.43 at epoch 58, batch 928; suppressing parameter update
+[warn] unsafe grad norm 237.26 at epoch 58, batch 930; suppressing parameter update
+[warn] unsafe grad norm 51.37 at epoch 58, batch 932; suppressing parameter update
+[warn] unsafe grad norm 207.56 at epoch 58, batch 934; suppressing parameter update
+[warn] unsafe grad norm 116.29 at epoch 58, batch 936; suppressing parameter update
+[warn] unsafe grad norm 99.45 at epoch 58, batch 938; suppressing parameter update
+[warn] unsafe grad norm 121.13 at epoch 58, batch 942; suppressing parameter update
+[warn] unsafe grad norm 138.16 at epoch 58, batch 944; suppressing parameter update
+[warn] unsafe grad norm 97.36 at epoch 58, batch 946; suppressing parameter update
+[warn] unsafe grad norm 81.06 at epoch 58, batch 948; suppressing parameter update
+[warn] unsafe grad norm 61.82 at epoch 58, batch 950; suppressing parameter update
+[warn] unsafe grad norm 104.58 at epoch 58, batch 952; suppressing parameter update
+[warn] unsafe grad norm 81.81 at epoch 58, batch 954; suppressing parameter update
+[warn] unsafe grad norm 65.67 at epoch 58, batch 956; suppressing parameter update
+[warn] unsafe grad norm 147.52 at epoch 58, batch 958; suppressing parameter update
+[warn] unsafe grad norm 57.73 at epoch 58, batch 960; suppressing parameter update
+[warn] unsafe grad norm 86.15 at epoch 58, batch 962; suppressing parameter update
+[warn] unsafe grad norm 94.04 at epoch 58, batch 964; suppressing parameter update
+[warn] unsafe grad norm 53.33 at epoch 58, batch 966; suppressing parameter update
+[warn] unsafe grad norm 66.38 at epoch 58, batch 968; suppressing parameter update
+[warn] unsafe grad norm 105.83 at epoch 58, batch 970; suppressing parameter update
+[warn] unsafe grad norm 199.31 at epoch 58, batch 972; suppressing parameter update
+[warn] unsafe grad norm 77.03 at epoch 58, batch 974; suppressing parameter update
+[warn] unsafe grad norm 61.91 at epoch 58, batch 976; suppressing parameter update
+[warn] unsafe grad norm 65.99 at epoch 58, batch 978; suppressing parameter update
+[warn] unsafe grad norm 60.87 at epoch 58, batch 980; suppressing parameter update
+[warn] unsafe grad norm 100.34 at epoch 58, batch 986; suppressing parameter update
+[warn] unsafe grad norm 56.79 at epoch 58, batch 990; suppressing parameter update
+[warn] unsafe grad norm 182.78 at epoch 58, batch 992; suppressing parameter update
+[warn] unsafe grad norm 103.96 at epoch 58, batch 994; suppressing parameter update
+[warn] unsafe grad norm 155.46 at epoch 58, batch 1000; suppressing parameter update
+[warn] unsafe grad norm 62.97 at epoch 58, batch 1004; suppressing parameter update
+[warn] unsafe grad norm 346.92 at epoch 58, batch 1008; suppressing parameter update
+[warn] unsafe grad norm 57.35 at epoch 58, batch 1010; suppressing parameter update
+[warn] unsafe grad norm 108.81 at epoch 58, batch 1014; suppressing parameter update
+[warn] unsafe grad norm 60.70 at epoch 58, batch 1032; suppressing parameter update
+[warn] unsafe grad norm 54.38 at epoch 58, batch 1034; suppressing parameter update
+[warn] unsafe grad norm 117.46 at epoch 58, batch 1040; suppressing parameter update
+[warn] unsafe grad norm 245.38 at epoch 58, batch 1042; suppressing parameter update
+[warn] unsafe grad norm 84.65 at epoch 58, batch 1044; suppressing parameter update
+[warn] unsafe grad norm 101.64 at epoch 58, batch 1046; suppressing parameter update
+[warn] unsafe grad norm 82.62 at epoch 58, batch 1048; suppressing parameter update
+[warn] unsafe grad norm 80.32 at epoch 58, batch 1050; suppressing parameter update
+[warn] unsafe grad norm 59.56 at epoch 58, batch 1052; suppressing parameter update
+[warn] unsafe grad norm 120.35 at epoch 58, batch 1054; suppressing parameter update
+[warn] unsafe grad norm 137.40 at epoch 58, batch 1056; suppressing parameter update
+[warn] unsafe grad norm 173.88 at epoch 58, batch 1058; suppressing parameter update
+[warn] unsafe grad norm 78.86 at epoch 58, batch 1060; suppressing parameter update
+[warn] unsafe grad norm 303.82 at epoch 58, batch 1062; suppressing parameter update
+[warn] unsafe grad norm 100.92 at epoch 58, batch 1064; suppressing parameter update
+[warn] unsafe grad norm 181.64 at epoch 58, batch 1068; suppressing parameter update
+[warn] unsafe grad norm 145.06 at epoch 58, batch 1070; suppressing parameter update
+[warn] unsafe grad norm 66.87 at epoch 58, batch 1072; suppressing parameter update
+[warn] unsafe grad norm 56.49 at epoch 58, batch 1074; suppressing parameter update
+[warn] unsafe grad norm 197.10 at epoch 58, batch 1076; suppressing parameter update
+[warn] unsafe grad norm 54.88 at epoch 58, batch 1078; suppressing parameter update
+[warn] unsafe grad norm 176.73 at epoch 58, batch 1080; suppressing parameter update
+[warn] unsafe grad norm 418.57 at epoch 58, batch 1082; suppressing parameter update
+[warn] unsafe grad norm 73.83 at epoch 58, batch 1084; suppressing parameter update
+[warn] unsafe grad norm 129.91 at epoch 58, batch 1086; suppressing parameter update
+[warn] unsafe grad norm 865.01 at epoch 58, batch 1088; suppressing parameter update
+[warn] unsafe grad norm 89.16 at epoch 58, batch 1092; suppressing parameter update
+[warn] unsafe grad norm 58.42 at epoch 58, batch 1094; suppressing parameter update
+[warn] unsafe grad norm 105.15 at epoch 58, batch 1096; suppressing parameter update
+[warn] unsafe grad norm 55.83 at epoch 58, batch 1098; suppressing parameter update
+
+  [epoch 058] dev-other
+    dev loss : 5.2532
+    WER      : 99.99%  best 20.30%
+    REF      : as i approached the city i heard bells ringing and a little later i found the streets astir with throngs of well dressed people in family groups wending their way hither and thither
+    HYP      : 
+
+  [train] loss 2.2805  dev-other WER 99.99%  lr 2.0e-03
+Epoch 59/150
+[warn] unsafe grad norm 90.74 at epoch 59, batch 2; suppressing parameter update
+[warn] unsafe grad norm 95.95 at epoch 59, batch 4; suppressing parameter update
+[warn] unsafe grad norm 188.24 at epoch 59, batch 6; suppressing parameter update
+[warn] unsafe grad norm 69.30 at epoch 59, batch 8; suppressing parameter update
+[warn] unsafe grad norm 89.44 at epoch 59, batch 10; suppressing parameter update
+[warn] unsafe grad norm 115.18 at epoch 59, batch 12; suppressing parameter update
+[warn] unsafe grad norm 89.77 at epoch 59, batch 16; suppressing parameter update
+[warn] unsafe grad norm 60.60 at epoch 59, batch 18; suppressing parameter update
+[warn] unsafe grad norm 111.89 at epoch 59, batch 20; suppressing parameter update
+[warn] unsafe grad norm 142.67 at epoch 59, batch 22; suppressing parameter update
+[warn] unsafe grad norm 87.28 at epoch 59, batch 24; suppressing parameter update
+[warn] unsafe grad norm 205.05 at epoch 59, batch 26; suppressing parameter update
+[warn] unsafe grad norm 101.39 at epoch 59, batch 28; suppressing parameter update
+[warn] unsafe grad norm 96.96 at epoch 59, batch 30; suppressing parameter update
+[warn] unsafe grad norm 63.07 at epoch 59, batch 32; suppressing parameter update
+[warn] unsafe grad norm 73.73 at epoch 59, batch 34; suppressing parameter update
+[warn] unsafe grad norm 112.78 at epoch 59, batch 36; suppressing parameter update
+[warn] unsafe grad norm 230.32 at epoch 59, batch 38; suppressing parameter update
+[warn] unsafe grad norm 137.95 at epoch 59, batch 40; suppressing parameter update
+[warn] unsafe grad norm 135.10 at epoch 59, batch 42; suppressing parameter update
+[warn] unsafe grad norm 64.24 at epoch 59, batch 44; suppressing parameter update
+[warn] unsafe grad norm 54.53 at epoch 59, batch 46; suppressing parameter update

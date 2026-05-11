@@ -1,0 +1,57 @@
+Job 11468 starting at Sat May  9 12:05:18 PM UTC 2026
+Project: /valhalla/projects/bg-eng-01/LoreaEnc
+Python: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/python
+Torchrun: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/torchrun
+GPUs on node: 2
+Master: 127.0.0.1:23468
+PyTorch: 2.8.0
+CUDA available: True
+CUDA devices: 2
+[2026-05-09 12:05:29] [host dgx2] [rank -1] entering setup_distributed
+[2026-05-09 12:05:29] [host dgx2] [rank -1] entering setup_distributed
+[Gloo] Rank [Gloo] Rank 10 is connected to  is connected to 11 peer ranks.  peer ranks. Expected number of connected peer ranks is : Expected number of connected peer ranks is : 11
+
+[2026-05-09 12:05:31] [host dgx2] [rank 1] distributed ready local_rank=1 world_size=2 device=cuda:1 cuda_devices=2
+[2026-05-09 12:05:31] [host dgx2] [rank 0] distributed ready local_rank=0 world_size=2 device=cuda:0 cuda_devices=2
+[2026-05-09 12:05:31] [host dgx2] [rank 1] building tokenizer
+[2026-05-09 12:05:31] [host dgx2] [rank 0] building tokenizer
+[2026-05-09 12:05:31] [host dgx2] [rank 1] building train dataset
+Vocab size: 128 | CTC blank: 0
+[2026-05-09 12:05:31] [host dgx2] [rank 0] building train dataset
+[2026-05-09 12:05:38] [host dgx2] [rank 1] building dev dataset
+Using full dataset: 281241 utterances
+[2026-05-09 12:05:38] [host dgx2] [rank 0] building dev dataset
+[2026-05-09 12:05:38] [host dgx2] [rank 1] building train dataloader
+[2026-05-09 12:05:38] [host dgx2] [rank 0] building train dataloader
+[2026-05-09 12:05:38] [host dgx2] [rank 1] building dev dataloader
+[2026-05-09 12:05:38] [host dgx2] [rank 1] building model
+[2026-05-09 12:05:38] [host dgx2] [rank 0] building dev dataloader
+Validation: dev-other | 2864 utterances
+[2026-05-09 12:05:38] [host dgx2] [rank 0] building model
+SqueezeFormer-XS | 9.0M params | 2 GPU(s) | run: squeezeformer_xs_150ep_scratch
+[2026-05-09 12:05:39] [host dgx2] [rank 1] converting SyncBatchNorm
+LR: extended Noam | peak=0.002 | warmup=20 ep | hold=160 ep | decay=1 | train=150 ep
+Batching: per_gpu_micro=128 | grad_accum=2 | effective_global=512 | optimizer_steps/epoch=549
+[2026-05-09 12:05:39] [host dgx2] [rank 0] converting SyncBatchNorm
+[2026-05-09 12:05:39] [host dgx2] [rank 1] moving model to device
+[2026-05-09 12:05:39] [host dgx2] [rank 0] moving model to device
+[2026-05-09 12:05:40] [host dgx2] [rank 1] wrapping model in DDP
+torch.compile: skipped
+[2026-05-09 12:05:40] [host dgx2] [rank 0] wrapping model in DDP
+NCCL version 2.28.9+cuda12.9
+
+[2026-05-09 12:05:40] dgx2:1145947:1145947 [1] ras/client_support.cc:178 NCCL WARN Call to bind failed: Address already in use
+
+[2026-05-09 12:05:40] dgx2:1145946:1145946 [0] ras/client_support.cc:178 NCCL WARN Call to bind failed: Address already in use
+[2026-05-09 12:05:40] [host dgx2] [rank 0] training loop ready
+[2026-05-09 12:05:40] [host dgx2] [rank 1] training loop ready
+[2026-05-09 12:05:42] [host dgx2] [rank 0] epoch 1 got batch 1
+[2026-05-09 12:05:42] [host dgx2] [rank 1] epoch 1 got batch 1
+[2026-05-09 12:05:43] [host dgx2] [rank 1] epoch 1 got batch 2
+[2026-05-09 12:05:44] [host dgx2] [rank 0] epoch 1 got batch 2
+[train] epoch=1 batch=2/1098 loss=13.7892 grad=18.31 lr=1.821e-07
+[2026-05-09 12:05:44] [host dgx2] [rank 1] epoch 1 got batch 3
+[2026-05-09 12:05:45] [host dgx2] [rank 0] epoch 1 got batch 3
+[train] epoch=1 batch=4/1098 loss=13.7777 grad=18.55 lr=3.643e-07
+[train] epoch=1 batch=50/1098 loss=11.6600 grad=48.00 lr=4.554e-06
+[train] epoch=1 batch=100/1098 loss=6.0627 grad=16.91 lr=9.107e-06

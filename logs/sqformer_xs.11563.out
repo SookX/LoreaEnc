@@ -1,0 +1,17 @@
+Job 11563 starting at Mon May 11 02:04:21 PM UTC 2026
+Project: /valhalla/projects/bg-eng-01/LoreaEnc
+Python: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/python
+Torchrun: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/torchrun
+GPUs on node: 2
+Master: 127.0.0.1:23563
+PyTorch: 2.8.0
+CUDA available: True
+CUDA devices: 2
+Vocab size: 128 | CTC blank: 0
+Using full dataset: 281241 utterances
+Validation: dev-other | 2864 utterances
+SqueezeFormer-XS | 9.0M params | 2 GPU(s) | run: squeezeformer_xs_150ep_scratch
+LR: extended Noam | peak=0.002 | warmup=20 ep | hold=160 ep | decay=1 | train=150 ep
+Batching: per_gpu_micro=128 | grad_accum=2 | effective_global=512 | optimizer_steps/epoch=549
+torch.compile: skipped
+NCCL version 2.28.9+cuda12.9

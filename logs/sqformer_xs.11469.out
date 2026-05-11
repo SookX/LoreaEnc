@@ -1,0 +1,28 @@
+Job 11469 starting at Sat May  9 12:16:19 PM UTC 2026
+Project: /valhalla/projects/bg-eng-01/LoreaEnc
+Python: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/python
+Torchrun: /valhalla/projects/bg-eng-01/conda_envs/torch/bin/torchrun
+GPUs on node: 2
+Master: 127.0.0.1:23469
+PyTorch: 2.8.0
+CUDA available: True
+CUDA devices: 2
+Vocab size: 128 | CTC blank: 0
+Using full dataset: 281241 utterances
+Validation: dev-other | 2864 utterances
+SqueezeFormer-XS | 9.0M params | 2 GPU(s) | run: squeezeformer_xs_150ep_scratch
+LR: extended Noam | peak=0.002 | warmup=20 ep | hold=160 ep | decay=1 | train=150 ep
+Batching: per_gpu_micro=128 | grad_accum=2 | effective_global=512 | optimizer_steps/epoch=549
+torch.compile: skipped
+NCCL version 2.28.9+cuda12.9
+
+[2026-05-09 12:16:37] dgx2:1752601:1752601 [1] ras/client_support.cc:178 NCCL WARN Call to bind failed: Address already in use
+
+[2026-05-09 12:16:37] dgx2:1752600:1752600 [0] ras/client_support.cc:178 NCCL WARN Call to bind failed: Address already in use
+[train] epoch=1 batch=2/1098 loss=13.7888 grad=18.32 lr=1.821e-07
+[train] epoch=1 batch=4/1098 loss=13.7660 grad=18.44 lr=3.643e-07
+[train] epoch=1 batch=50/1098 loss=11.6653 grad=48.07 lr=4.554e-06
+[train] epoch=1 batch=100/1098 loss=6.0751 grad=16.88 lr=9.107e-06
+[train] epoch=1 batch=150/1098 loss=4.8943 grad=1.24 lr=1.366e-05
+[train] epoch=1 batch=200/1098 loss=4.7824 grad=1.27 lr=1.821e-05
+[train] epoch=1 batch=250/1098 loss=4.7380 grad=0.96 lr=2.277e-05
