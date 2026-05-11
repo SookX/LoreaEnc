@@ -95,8 +95,6 @@ def parse_args():
                    help="Override experiment name (used in W&B and checkpoint paths).")
     p.add_argument("--resume",     type=str,   default=None,
                    help="Path to checkpoint directory to resume from.")
-    p.add_argument("--resume-model-only", action="store_true",
-                   help="Load model weights from --resume but reinitialize optimizer and scheduler.")
     p.add_argument("--start-epoch", type=int,  default=None,
                    help="Epoch number to start from after --resume. "
                         "Required for checkpoint names without _epNNN, such as checkpoint_best.")
@@ -134,12 +132,6 @@ def parse_args():
                    choices=["xs", "s", "sm", "m", "ml", "l"])
     p.add_argument("--lr",         type=float, default=LEARNING_RATE,
                    help="Peak learning rate. Defaults to the paper value for the selected variant.")
-    p.add_argument("--warmup-epochs", type=int, default=NUM_WARMUP_EPOCHS,
-                   help="Number of epochs used for linear LR warmup.")
-    p.add_argument("--peak-epochs", type=int, default=NUM_PEAK_EPOCHS,
-                   help="Number of epochs to hold the peak LR after warmup.")
-    p.add_argument("--noam-decay-rate", type=float, default=NOAM_DECAY_RATE,
-                   help="Inverse-power decay rate after warmup + peak hold.")
     p.add_argument("--tokenizer-path", type=str, default=None,
                    help="SentencePiece model path. The paper uses a 128-token SentencePiece vocab.")
     p.add_argument("--no-compile", action="store_true",
@@ -703,14 +695,14 @@ def main_ddp():
     scheduler = build_extended_noam_scheduler(
         optimizer=optimizer,
         steps_per_epoch=steps_per_epoch,
-        warmup_epochs=args.warmup_epochs,
-        peak_epochs=args.peak_epochs,
-        decay_rate=args.noam_decay_rate,
+        warmup_epochs=NUM_WARMUP_EPOCHS,
+        peak_epochs=NUM_PEAK_EPOCHS,
+        decay_rate=NOAM_DECAY_RATE,
     )
     print0(
         rank,
-        f"LR: extended Noam | peak={peak_lr:g} | warmup={args.warmup_epochs} ep | "
-        f"hold={args.peak_epochs} ep | decay={args.noam_decay_rate:g} | train={num_epochs} ep",
+        f"LR: extended Noam | peak={peak_lr:g} | warmup={NUM_WARMUP_EPOCHS} ep | "
+        f"hold={NUM_PEAK_EPOCHS} ep | decay={NOAM_DECAY_RATE:g} | train={num_epochs} ep",
     )
     print0(
         rank,
@@ -724,9 +716,7 @@ def main_ddp():
     start_epoch = 1
     best_wer = float("inf")
     if args.resume is not None:
-        resume_optimizer = None if args.resume_model_only else optimizer
-        resume_scheduler = None if args.resume_model_only else scheduler
-        loaded_epoch, loaded_best_wer = load_checkpoint(args.resume, model, resume_optimizer, resume_scheduler, device=device)
+        loaded_epoch, loaded_best_wer = load_checkpoint(args.resume, model, optimizer, scheduler, device=device)
         if args.start_epoch is not None:
             start_epoch = args.start_epoch
         elif loaded_epoch is not None:
@@ -741,8 +731,7 @@ def main_ddp():
                 ) from exc
         if loaded_best_wer is not None:
             best_wer = loaded_best_wer
-        resume_mode = "model only" if args.resume_model_only else "model+optimizer+scheduler"
-        print0(rank, f"Resumed {resume_mode} from {args.resume} -> starting epoch {start_epoch}")
+        print0(rank, f"Resumed from {args.resume} -> starting epoch {start_epoch}")
 
     debug_print(args.debug_ranks, rank, "moving model to device")
     model.to(device)
@@ -820,13 +809,12 @@ def main_ddp():
                         print0(
                             rank,
                             f"[warn] unsafe grad norm {last_grad_norm:.2f} at epoch {epoch}, "
-                            f"batch {step}; skipping optimizer and scheduler step",
+                            f"batch {step}; suppressing parameter update",
                         )
                         for param in model.parameters():
                             param.grad = None
-                    else:
-                        optimizer.step()
-                        scheduler.step()
+                    optimizer.step()
+                    scheduler.step()
                     optimizer.zero_grad(set_to_none=True)
                     if args.log_every > 0 and is_main_process(rank) and step % args.log_every == 0:
                         tqdm.write(
@@ -843,7 +831,6 @@ def main_ddp():
                     batch_bar.set_postfix(
                         loss=f"{loss_val:.3f}",
                         avg=f"{running_loss / max(n_batches, 1):.3f}",
-                        grad=f"{last_grad_norm:.1f}",
                         lr=f"{scheduler.get_last_lr()[0]:.1e}",
                         refresh=False,
                     )

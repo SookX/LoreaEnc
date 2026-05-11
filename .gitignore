@@ -1,3 +1,6 @@
+# Alignments
+CausalSpecUnit/librispeech_alignments/
+
 # Datasets and audio data
 dataset/datasets/
 dataset/dev-clean/
