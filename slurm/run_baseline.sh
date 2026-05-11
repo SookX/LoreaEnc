@@ -55,7 +55,8 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 # Match the Slurm request above. Keeping this explicit avoids accidentally
 # launching 8 processes when Slurm reports no GPU count variable.
 NUM_PROCESSES=2
-WORKERS=0
+WORKERS=8
+DATALOADER_TIMEOUT=120
 
 echo "Job ${SLURM_JOB_ID} starting at $(date)"
 echo "Project: ${PROJECT_DIR}"
@@ -90,7 +91,7 @@ torchrun \
     --eval-batch-size 128 \
     --workers "${WORKERS}" \
     --log-every 0 \
-    --dataloader-timeout 120 \
+    --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --output-dir "${OUTPUT_DIR}" \
     --run-name squeezeformer_xs_150ep_scratch
 
