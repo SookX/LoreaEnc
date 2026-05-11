@@ -91,7 +91,7 @@ torchrun \
     --peak-epochs 20 \
     --noam-decay-rate 1.0 \
     --max-grad-norm 1.0 \
-    --max-safe-grad-norm 50.0 \
+    --max-safe-grad-norm 200.0 \
     --eval-batch-size 128 \
     --workers "${WORKERS}" \
     --log-every 0 \

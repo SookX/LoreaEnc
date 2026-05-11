@@ -6,12 +6,42 @@ import random
 import joblib
 import numpy as np
 import torch
+import torchaudio
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.decomposition import PCA
 from tqdm import tqdm
 
 from CausalSpecUnit.common import TRAIN_SPLITS
 from CausalSpecUnit.data import LogMelExtractor, apply_cmvn, iter_librispeech_items
+
+
+class MFCCExtractor:
+    """39-dim MFCC extractor (13 coefficients + delta + delta-delta) at 16 kHz."""
+
+    def __init__(self, n_mfcc: int = 13, sample_rate: int = 16000):
+        self.sample_rate = sample_rate
+        self.n_mfcc = n_mfcc
+        self._transform = None  # lazy init so it's created on first call
+
+    def _get_transform(self, device):
+        if self._transform is None:
+            self._transform = torchaudio.transforms.MFCC(
+                sample_rate=self.sample_rate,
+                n_mfcc=self.n_mfcc,
+                melkwargs={"n_fft": 512, "hop_length": 160, "win_length": 400, "n_mels": 80},
+            ).to(device)
+        return self._transform
+
+    def __call__(self, audio_path: str) -> torch.Tensor:
+        wav, sr = torchaudio.load(audio_path)
+        if sr != self.sample_rate:
+            wav = torchaudio.functional.resample(wav, sr, self.sample_rate)
+        wav = wav.mean(0, keepdim=True)
+        transform = self._get_transform(wav.device)
+        mfcc = transform(wav).squeeze(0).T  # [T, n_mfcc]
+        delta1 = torchaudio.functional.compute_deltas(mfcc.T).T
+        delta2 = torchaudio.functional.compute_deltas(delta1.T).T
+        return torch.cat([mfcc, delta1, delta2], dim=-1)  # [T, 3*n_mfcc]
 
 
 def parse_args():
@@ -25,6 +55,8 @@ def parse_args():
     p.add_argument("--k-coarse", type=int, default=100)
     p.add_argument("--k-fine", type=int, default=500)
     p.add_argument("--max-fit-chunks", type=int, default=1_000_000)
+    p.add_argument("--n-mfcc", type=int, default=13,
+                   help="Number of MFCC coefficients (targets use 3x this: coeffs+delta+delta2).")
     p.add_argument("--max-utterances", type=int, default=None)
     p.add_argument("--seed", type=int, default=42)
     return p.parse_args()
@@ -61,16 +93,18 @@ def main():
     if args.max_utterances is not None:
         items = items[:args.max_utterances]
 
-    extractor = LogMelExtractor()
+    mel_extractor = LogMelExtractor()
+    mfcc_extractor = MFCCExtractor(n_mfcc=args.n_mfcc)
+
     cmvn_state = {
         "count": 0,
         "sum": torch.zeros(80),
         "sumsq": torch.zeros(80),
     }
 
-    print(f"Computing global CMVN from {len(items)} utterances")
+    print(f"Computing global CMVN (log-mel) from {len(items)} utterances")
     for item in tqdm(items, desc="cmvn"):
-        mel = extractor(item["audio_path"])
+        mel = mel_extractor(item["audio_path"])
         update_cmvn(mel, cmvn_state)
     mean, std = finalize_cmvn(cmvn_state)
     cmvn_path = os.path.join(args.output_dir, "cmvn.pt")
@@ -78,10 +112,10 @@ def main():
 
     fit_chunks = []
     seen = 0
-    print(f"Collecting up to {args.max_fit_chunks:,} chunks for PCA/k-means")
+    print(f"Collecting up to {args.max_fit_chunks:,} MFCC chunks for PCA/k-means")
     for item in tqdm(items, desc="sample chunks"):
-        mel = apply_cmvn(extractor(item["audio_path"]), mean, std)
-        chunks = chunks_from_mel(mel, args.chunk_size, args.chunk_stride)
+        mfcc = mfcc_extractor(item["audio_path"])
+        chunks = chunks_from_mel(mfcc, args.chunk_size, args.chunk_stride)
         for chunk in chunks:
             seen += 1
             if len(fit_chunks) < args.max_fit_chunks:
@@ -135,10 +169,10 @@ def main():
     targets = {}
     hist100 = np.zeros(args.k_coarse, dtype=np.int64)
     hist500 = np.zeros(args.k_fine, dtype=np.int64)
-    print("Assigning targets for all utterances")
+    print("Assigning targets for all utterances (MFCC features)")
     for item in tqdm(items, desc="assign"):
-        mel = apply_cmvn(extractor(item["audio_path"]), mean, std)
-        chunks = chunks_from_mel(mel, args.chunk_size, args.chunk_stride)
+        mfcc = mfcc_extractor(item["audio_path"])
+        chunks = chunks_from_mel(mfcc, args.chunk_size, args.chunk_stride)
         if chunks.numel() == 0:
             continue
         y = pca.transform(chunks.numpy().astype(np.float32))
@@ -163,6 +197,9 @@ def main():
         "max_fit_chunks": args.max_fit_chunks,
         "max_utterances": args.max_utterances,
         "seed": args.seed,
+        "target_features": "mfcc",
+        "n_mfcc": args.n_mfcc,
+        "mfcc_dim": args.n_mfcc * 3,
         "num_utterances": len(items),
         "num_target_utterances": len(targets),
         "num_fit_chunks": int(fit_chunks.shape[0]),
