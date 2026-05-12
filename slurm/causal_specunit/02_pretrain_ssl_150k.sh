@@ -64,7 +64,9 @@ export PYTHONFAULTHANDLER=1
 export PYTHONFAULTHANDLER_TIMEOUT=300
 export CUDA_LAUNCH_BLOCKING=0
 export TOKENIZERS_PARALLELISM=false
-export OMP_NUM_THREADS=4
+export OMP_NUM_THREADS=2
+export MKL_NUM_THREADS=2
+export OPENBLAS_NUM_THREADS=2
 export TORCH_DISTRIBUTED_DEBUG="${TORCH_DISTRIBUTED_DEBUG:-OFF}"
 export NCCL_DEBUG="${NCCL_DEBUG:-WARN}"
 export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-0}"
@@ -75,8 +77,8 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 # Match the Slurm request above. Keeping this explicit avoids accidentally
 # launching more processes than requested when Slurm reports a broad GPU count.
 NUM_PROCESSES=2
-WORKERS=8
-DATALOADER_TIMEOUT=120
+WORKERS=4
+DATALOADER_TIMEOUT=300
 
 echo "Job ${SLURM_JOB_ID} SSL pretraining starting at $(date)"
 echo "Project: ${PROJECT_DIR}"
@@ -137,7 +139,8 @@ torchrun \
     --max-safe-grad-norm 200.0 \
     --workers "${WORKERS}" \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
-    --log-every 100 \
+    --prefetch-factor 2 \
+    --log-every 10 \
     --save-every 10 \
     --progress on
 

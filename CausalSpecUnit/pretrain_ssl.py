@@ -42,6 +42,8 @@ def parse_args():
     p.add_argument("--grad-accum-steps", type=int, default=1)
     p.add_argument("--workers", type=int, default=8)
     p.add_argument("--dataloader-timeout", type=int, default=120)
+    p.add_argument("--prefetch-factor", type=int, default=2,
+                   help="Number of batches prefetched per DataLoader worker.")
     p.add_argument("--variant", type=str, default="xs", choices=["xs", "s", "sm", "m", "ml", "l"])
     p.add_argument("--chunk-size", type=int, default=4,
                    help="Frames per target chunk. Must match target generation.")
@@ -178,6 +180,10 @@ def corrupt_mel_from_target_mask(mel, masked_positions, chunk_size, chunk_stride
     return corrupted
 
 
+def dataloader_worker_init(_worker_id):
+    torch.set_num_threads(1)
+
+
 def main():
     args = parse_args()
     rank, local_rank, world_size, device = setup_distributed()
@@ -194,7 +200,13 @@ def main():
         cmvn_path=os.path.join(args.targets_dir, "cmvn.pt"),
     )
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True) if world_size > 1 else None
-    worker_kwargs = {"persistent_workers": True, "prefetch_factor": 4} if args.workers > 0 else {}
+    worker_kwargs = {}
+    if args.workers > 0:
+        worker_kwargs = {
+            "persistent_workers": True,
+            "prefetch_factor": max(1, args.prefetch_factor),
+            "worker_init_fn": dataloader_worker_init,
+        }
     dataloader_timeout = args.dataloader_timeout if args.workers > 0 else 0
     loader = DataLoader(
         dataset,
