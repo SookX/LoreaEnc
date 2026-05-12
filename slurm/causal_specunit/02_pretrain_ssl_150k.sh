@@ -58,6 +58,17 @@ if [ ! -f "${TARGETS_DIR}/metadata.json" ]; then
     exit 1
 fi
 
+SOURCE_TARGETS_DIR="${TARGETS_DIR}"
+LOCAL_TARGETS_DIR="${TMPDIR:-/tmp}/${USER}/csu_targets_${SLURM_JOB_ID}"
+mkdir -p "${LOCAL_TARGETS_DIR}"
+echo "Staging target artifacts to node-local storage: ${LOCAL_TARGETS_DIR}"
+cp "${SOURCE_TARGETS_DIR}/metadata.json" "${LOCAL_TARGETS_DIR}/metadata.json"
+cp "${SOURCE_TARGETS_DIR}/cmvn.pt" "${LOCAL_TARGETS_DIR}/cmvn.pt"
+cp "${SOURCE_TARGETS_DIR}/targets.pt" "${LOCAL_TARGETS_DIR}/targets.pt"
+TARGETS_DIR="${LOCAL_TARGETS_DIR}"
+export TARGETS_DIR
+echo "Target staging finished at $(date)"
+
 export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
 export MASTER_PORT="${MASTER_PORT:-$((13000 + SLURM_JOB_ID % 20000))}"
 export PYTHONFAULTHANDLER=1
@@ -87,6 +98,7 @@ echo "Python: $(which python)"
 echo "Torchrun: $(which torchrun)"
 echo "Data root: ${DATA_ROOT}"
 echo "Targets: ${TARGETS_DIR}"
+echo "Source targets: ${SOURCE_TARGETS_DIR}"
 echo "Output: ${OUTPUT_DIR}"
 echo "GPUs on node: ${NUM_PROCESSES}"
 echo "Workers per rank: ${WORKERS}"
@@ -97,7 +109,7 @@ import json
 import os
 import torch
 
-targets_dir = "outputs/causal_specunit/targets_960h"
+targets_dir = os.environ["TARGETS_DIR"]
 metadata_path = os.path.join(targets_dir, "metadata.json")
 print("PyTorch:", torch.__version__)
 print("CUDA available:", torch.cuda.is_available())
