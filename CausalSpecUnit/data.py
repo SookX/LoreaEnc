@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import json
 from collections import defaultdict
 
 import torch
@@ -91,6 +92,32 @@ def apply_cmvn(mel, mean, std):
     return (mel - mean.to(mel.device)) / std.to(mel.device)
 
 
+def load_targets(targets_path):
+    targets_dir = os.path.dirname(targets_path)
+    index_path = os.path.join(targets_dir, "target_index.json")
+    if not os.path.isfile(index_path):
+        start = time.time()
+        dataset_trace(f"monolithic targets load start path={targets_path}")
+        targets = torch.load(targets_path, map_location="cpu")
+        dataset_trace(f"monolithic targets load done entries={len(targets)} seconds={time.time() - start:.1f}")
+        return targets
+
+    start = time.time()
+    dataset_trace(f"target index load start path={index_path}")
+    with open(index_path, encoding="utf-8") as f:
+        index = json.load(f)
+    uid_to_shard = index["uid_to_shard"]
+    shards_dir = os.path.join(targets_dir, index.get("shards_dir", "targets_shards"))
+    targets = {}
+    for shard_name in sorted(set(uid_to_shard.values())):
+        shard_path = os.path.join(shards_dir, shard_name)
+        dataset_trace(f"target shard load start path={shard_path}")
+        shard = torch.load(shard_path, map_location="cpu")
+        targets.update(shard)
+    dataset_trace(f"sharded targets load done entries={len(targets)} seconds={time.time() - start:.1f}")
+    return targets
+
+
 class SpecUnitDataset(Dataset):
     def __init__(self, data_root, splits, targets_path, cmvn_path, max_items=None):
         start = time.time()
@@ -101,7 +128,7 @@ class SpecUnitDataset(Dataset):
             self.items = self.items[:max_items]
         start = time.time()
         dataset_trace(f"targets load start path={targets_path}")
-        self.targets = torch.load(targets_path, map_location="cpu")
+        self.targets = load_targets(targets_path)
         dataset_trace(f"targets load done entries={len(self.targets)} seconds={time.time() - start:.1f}")
         start = time.time()
         dataset_trace(f"cmvn load start path={cmvn_path}")

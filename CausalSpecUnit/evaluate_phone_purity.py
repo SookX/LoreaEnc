@@ -9,6 +9,8 @@ import numpy as np
 import torch
 from sklearn.metrics import normalized_mutual_info_score
 
+from CausalSpecUnit.data import load_targets
+
 
 SILENCE_LABELS = {"", "sil", "sp", "spn", "nsn", "<eps>", "<sil>", "silence"}
 
@@ -18,7 +20,7 @@ REQUIRED_METADATA_KEYS = ("chunk_size", "chunk_stride")
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--targets-dir", type=str, required=True,
-                   help="Directory containing targets.pt and metadata.json from generate_targets.py.")
+                   help="Directory containing metadata.json plus targets.pt or sharded targets.")
     p.add_argument("--textgrid-dir", type=str, required=True,
                    help="Directory containing MFA TextGrid files, searched recursively by UID stem.")
     p.add_argument("--tier", type=str, default="phones",
@@ -245,11 +247,7 @@ def main():
         )
 
     metadata = read_metadata(args.targets_dir)
-    targets = torch.load(
-        os.path.join(args.targets_dir, "targets.pt"),
-        map_location="cpu",
-        weights_only=False,
-    )
+    targets = load_targets(os.path.join(args.targets_dir, "targets.pt"))
     textgrid_index = build_textgrid_index(args.textgrid_dir)
     print(f"Indexed {len(textgrid_index):,} TextGrid files")
 

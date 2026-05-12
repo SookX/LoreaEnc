@@ -19,7 +19,7 @@ module load anaconda3
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 TARGETS_DIR="outputs/causal_specunit/targets_960h"
-TEXTGRID_DIR="${TEXTGRID_DIR:-/path/to/librispeech_textgrids}"
+TEXTGRID_DIR="${TEXTGRID_DIR:-CausalSpecUnit/librispeech_alignments}"
 OUTPUT_PATH="outputs/causal_specunit/phone_purity.npz"
 
 export VIRTUAL_ENV

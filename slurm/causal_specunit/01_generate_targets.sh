@@ -46,6 +46,7 @@ python -m CausalSpecUnit.generate_targets \
     --pca-dim 64 \
     --k-coarse 100 \
     --k-fine 500 \
+    --target-shards 128 \
     --max-fit-chunks 1000000
 
 python -m CausalSpecUnit.visualize_clusters \

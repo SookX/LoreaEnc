@@ -58,13 +58,22 @@ if [ ! -f "${TARGETS_DIR}/metadata.json" ]; then
     exit 1
 fi
 
+if [ ! -f "${TARGETS_DIR}/target_index.json" ]; then
+    echo "Missing sharded target index: ${TARGETS_DIR}/target_index.json"
+    echo "Creating sharded targets from ${TARGETS_DIR}/targets.pt"
+    python -m CausalSpecUnit.shard_targets \
+        --targets-dir "${TARGETS_DIR}" \
+        --num-shards 128
+fi
+
 SOURCE_TARGETS_DIR="${TARGETS_DIR}"
 LOCAL_TARGETS_DIR="${TMPDIR:-/tmp}/${USER}/csu_targets_${SLURM_JOB_ID}"
 mkdir -p "${LOCAL_TARGETS_DIR}"
 echo "Staging target artifacts to node-local storage: ${LOCAL_TARGETS_DIR}"
 cp "${SOURCE_TARGETS_DIR}/metadata.json" "${LOCAL_TARGETS_DIR}/metadata.json"
 cp "${SOURCE_TARGETS_DIR}/cmvn.pt" "${LOCAL_TARGETS_DIR}/cmvn.pt"
-cp "${SOURCE_TARGETS_DIR}/targets.pt" "${LOCAL_TARGETS_DIR}/targets.pt"
+cp "${SOURCE_TARGETS_DIR}/target_index.json" "${LOCAL_TARGETS_DIR}/target_index.json"
+cp -r "${SOURCE_TARGETS_DIR}/targets_shards" "${LOCAL_TARGETS_DIR}/targets_shards"
 TARGETS_DIR="${LOCAL_TARGETS_DIR}"
 export TARGETS_DIR
 echo "Target staging finished at $(date)"
@@ -74,7 +83,6 @@ export MASTER_PORT="${MASTER_PORT:-$((13000 + SLURM_JOB_ID % 20000))}"
 export PYTHONFAULTHANDLER=1
 export PYTHONFAULTHANDLER_TIMEOUT=300
 export PYTHONUNBUFFERED=1
-export CSU_TRACE_DATASET=1
 export CUDA_LAUNCH_BLOCKING=0
 export TOKENIZERS_PARALLELISM=false
 export OMP_NUM_THREADS=2
@@ -154,7 +162,6 @@ torchrun \
     --log-every 10 \
     --save-every 10 \
     --trace-startup \
-    --trace-every 1 \
     --progress on
 
 echo "Job ${SLURM_JOB_ID} SSL pretraining finished at $(date)"

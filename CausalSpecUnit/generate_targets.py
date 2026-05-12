@@ -27,6 +27,8 @@ def parse_args():
     p.add_argument("--k-fine", type=int, default=500)
     p.add_argument("--max-fit-chunks", type=int, default=1_000_000)
     p.add_argument("--max-utterances", type=int, default=None)
+    p.add_argument("--target-shards", type=int, default=64,
+                   help="Also write sharded target files for distributed training startup.")
     p.add_argument("--seed", type=int, default=42)
     return p.parse_args()
 
@@ -161,6 +163,33 @@ def main():
         }
 
     torch.save(targets, os.path.join(args.output_dir, "targets.pt"))
+    if args.target_shards > 0:
+        shards_dir = os.path.join(args.output_dir, "targets_shards")
+        os.makedirs(shards_dir, exist_ok=True)
+        uids = sorted(targets)
+        num_shards = max(1, min(args.target_shards, len(uids)))
+        shard_size = (len(uids) + num_shards - 1) // num_shards
+        uid_to_shard = {}
+        for shard_id in tqdm(range(num_shards), desc="write target shards"):
+            start = shard_id * shard_size
+            end = min(start + shard_size, len(uids))
+            shard_uids = uids[start:end]
+            if not shard_uids:
+                continue
+            shard_name = f"targets_{shard_id:04d}.pt"
+            torch.save({uid: targets[uid] for uid in shard_uids}, os.path.join(shards_dir, shard_name))
+            for uid in shard_uids:
+                uid_to_shard[uid] = shard_name
+        with open(os.path.join(args.output_dir, "target_index.json"), "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "num_targets": len(uid_to_shard),
+                    "num_shards": num_shards,
+                    "shards_dir": "targets_shards",
+                    "uid_to_shard": uid_to_shard,
+                },
+                f,
+            )
     metadata = {
         "data_root": args.data_root,
         "splits": args.splits,
@@ -176,6 +205,7 @@ def main():
         "feature_dim": 80,
         "num_utterances": len(items),
         "num_target_utterances": len(targets),
+        "target_shards": args.target_shards,
         "num_fit_chunks": int(fit_chunks.shape[0]),
     }
     with open(os.path.join(args.output_dir, "metadata.json"), "w", encoding="utf-8") as f:
