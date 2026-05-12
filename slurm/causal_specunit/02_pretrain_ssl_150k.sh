@@ -70,7 +70,7 @@ echo "[$(date)] Data root OK"
 echo "[$(date)] Pre-flight checks passed."
 
 # --- Environment ---
-export MASTER_ADDR="${MASTER_ADDR:-$(hostname -s)}"
+export MASTER_ADDR="${MASTER_ADDR:-$(scontrol show hostnames "$SLURM_NODELIST" | head -n1)}"
 export MASTER_PORT="${MASTER_PORT:-$((13000 + SLURM_JOB_ID % 20000))}"
 export PYTHONFAULTHANDLER=1
 export CUDA_LAUNCH_BLOCKING=0
@@ -108,11 +108,8 @@ PY
 echo "[$(date)] Starting torchrun..."
 
 torchrun \
+    --standalone \
     --nproc_per_node="${NUM_PROCESSES}" \
-    --master_addr="${MASTER_ADDR}" \
-    --master_port="${MASTER_PORT}" \
-    --rdzv-backend=c10d \
-    --rdzv-endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
     -m CausalSpecUnit.pretrain_ssl \
     --data-root "${DATA_ROOT}" \
     --targets-dir "${TARGETS_DIR}" \
