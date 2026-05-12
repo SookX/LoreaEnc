@@ -235,7 +235,6 @@ def main():
                 lengths = lengths.to(device, non_blocking=True)
                 z100 = z100.to(device, non_blocking=True)
                 z500 = z500.to(device, non_blocking=True)
-                target_lengths = target_lengths.to(device, non_blocking=True)
 
                 masked_positions = make_hubert_mask(
                     target_lengths=target_lengths,
@@ -244,6 +243,7 @@ def main():
                     mask_length=args.mask_length,
                     device=device,
                 )
+                target_lengths = target_lengths.to(device, non_blocking=True)
                 corrupted_mel = corrupt_mel_from_target_mask(
                     mel=mel,
                     masked_positions=masked_positions,
