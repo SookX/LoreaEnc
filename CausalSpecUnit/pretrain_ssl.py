@@ -128,19 +128,20 @@ def align_ssl_tensors(coarse_logits, fine_logits, z100, z500, masked_positions):
 
 
 def make_hubert_mask(target_lengths, max_targets, mask_prob, mask_length, device):
-    """Vectorized HuBERT-style target mask with per-sample span sampling."""
-    mask = torch.zeros(target_lengths.size(0), max_targets, dtype=torch.bool, device=device)
-    offsets = torch.arange(max(mask_length, 1), device=device)
+    """HuBERT-style target mask. Built on CPU to avoid CUDA sync issues, then moved to device."""
+    B = target_lengths.size(0)
+    mask = torch.zeros(B, max_targets, dtype=torch.bool)
+    offsets = torch.arange(max(mask_length, 1))
     for b, length in enumerate(target_lengths.tolist()):
         if length <= 0:
             continue
         n_spans = max(1, int(round(mask_prob * length / max(mask_length, 1))))
         max_start = max(1, length - mask_length + 1)
-        starts = torch.randint(0, max_start, (n_spans,), device=device)
-        positions = starts[:, None] + offsets[None, :]
+        starts = torch.randint(0, max_start, (n_spans,))
+        positions = (starts[:, None] + offsets[None, :]).reshape(-1)
         positions = positions[positions < length]
         mask[b].scatter_(0, positions, True)
-    return mask
+    return mask.to(device)
 
 
 def corrupt_mel_from_target_mask(mel, masked_positions, chunk_size, chunk_stride, mask_value):
