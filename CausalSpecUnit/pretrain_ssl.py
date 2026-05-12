@@ -72,6 +72,8 @@ def parse_args():
     p.add_argument("--progress", choices=["on", "off"], default="on")
     p.add_argument("--trace-startup", action="store_true",
                    help="Print rank-aware startup traces to locate hangs before/at the first batch.")
+    p.add_argument("--trace-every", type=int, default=0,
+                   help="Print rank-aware batch traces every N steps. Use 0 to disable.")
     return p.parse_args()
 
 
@@ -191,14 +193,18 @@ def main():
     if device.type == "cuda":
         torch.set_float32_matmul_precision("high")
         torch.backends.cudnn.benchmark = True
+    trace(args.trace_startup, rank, "validating target metadata")
     metadata = validate_target_metadata(args.targets_dir, args)
+    trace(args.trace_startup, rank, "target metadata validated")
 
+    trace(args.trace_startup, rank, "building dataset; this loads targets.pt on each rank")
     dataset = SpecUnitDataset(
         data_root=args.data_root,
         splits=args.splits if args.splits else TRAIN_SPLITS,
         targets_path=os.path.join(args.targets_dir, "targets.pt"),
         cmvn_path=os.path.join(args.targets_dir, "cmvn.pt"),
     )
+    trace(args.trace_startup, rank, f"dataset built with {len(dataset)} items")
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True) if world_size > 1 else None
     worker_kwargs = {}
     if args.workers > 0:
@@ -220,10 +226,13 @@ def main():
         timeout=dataloader_timeout,
         **worker_kwargs,
     )
+    trace(args.trace_startup, rank, f"dataloader built with {len(loader)} batches")
 
     model = CausalSpecUnitSSL(variant=args.variant).to(device)
+    trace(args.trace_startup, rank, "model moved to device")
     if world_size > 1:
         model = DDP(model, device_ids=[local_rank], output_device=local_rank)
+        trace(args.trace_startup, rank, "DDP wrapper built")
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.98), eps=1e-9, weight_decay=args.weight_decay)
     steps_per_epoch = math.ceil(len(loader) / max(1, args.grad_accum_steps))
@@ -257,6 +266,8 @@ def main():
             bar = tqdm(loader, desc=f"SSL {epoch:03d}", leave=False, disable=not show)
 
             for step, batch in enumerate(bar, start=1):
+                if args.trace_every > 0 and step % args.trace_every == 0:
+                    trace(True, rank, f"epoch={epoch} step={step} batch received")
                 if args.max_train_batches is not None and step > args.max_train_batches:
                     break
                 mel, lengths, z100, z500, target_lengths = batch
@@ -288,6 +299,8 @@ def main():
                 sync_context = model.no_sync if isinstance(model, DDP) and not sync_step else contextlib.nullcontext
 
                 with sync_context():
+                    if args.trace_every > 0 and step % args.trace_every == 0:
+                        trace(True, rank, f"epoch={epoch} step={step} forward start")
                     coarse_logits, fine_logits, _ = model(corrupted_mel, lengths)
                     coarse_logits, fine_logits, z100_aligned, z500_aligned, masked_aligned = align_ssl_tensors(
                         coarse_logits,
@@ -299,9 +312,13 @@ def main():
                     loss100 = masked_unit_ce(coarse_logits, z100_aligned, masked_aligned)
                     loss500 = masked_unit_ce(fine_logits, z500_aligned, masked_aligned)
                     loss = (loss100 + loss500) / actual_accum_steps
+                    if args.trace_every > 0 and step % args.trace_every == 0:
+                        trace(True, rank, f"epoch={epoch} step={step} backward start")
                     loss.backward()
 
                 if sync_step:
+                    if args.trace_every > 0 and step % args.trace_every == 0:
+                        trace(True, rank, f"epoch={epoch} step={step} optimizer start")
                     grad_norm = nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                     grad_norm_value = float(grad_norm.detach().item() if isinstance(grad_norm, torch.Tensor) else grad_norm)
                     grad_is_safe = (
@@ -335,8 +352,10 @@ def main():
 
             avg = total_loss / max(n_batches, 1)
             print0(rank, f"[ssl] epoch={epoch:03d} opt_step={optimizer_steps} loss={avg:.4f} c100={total_c100/max(n_batches,1):.4f} c500={total_c500/max(n_batches,1):.4f} masked={total_masked_frac/max(n_batches,1):.2%}")
+            trace(args.trace_startup or args.trace_every > 0, rank, f"epoch={epoch} entering barrier")
             barrier()
             if is_main_process(rank) and (epoch % args.save_every == 0 or (args.max_steps is not None and optimizer_steps >= args.max_steps)):
+                trace(args.trace_startup or args.trace_every > 0, rank, f"epoch={epoch} saving checkpoint step={optimizer_steps}")
                 save_checkpoint(
                     os.path.join(args.output_dir, f"checkpoint_step{optimizer_steps:06d}"),
                     model,
@@ -346,6 +365,7 @@ def main():
                     extra={"ssl_loss": avg, "optimizer_steps": optimizer_steps},
                 )
                 cleanup_checkpoints(args.output_dir, args.keep_checkpoints)
+            trace(args.trace_startup or args.trace_every > 0, rank, f"epoch={epoch} leaving checkpoint barrier")
             barrier()
     finally:
         cleanup_distributed()

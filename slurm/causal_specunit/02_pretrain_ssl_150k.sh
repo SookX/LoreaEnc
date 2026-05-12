@@ -62,6 +62,7 @@ export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
 export MASTER_PORT="${MASTER_PORT:-$((13000 + SLURM_JOB_ID % 20000))}"
 export PYTHONFAULTHANDLER=1
 export PYTHONFAULTHANDLER_TIMEOUT=300
+export PYTHONUNBUFFERED=1
 export CUDA_LAUNCH_BLOCKING=0
 export TOKENIZERS_PARALLELISM=false
 export OMP_NUM_THREADS=2
@@ -141,6 +142,7 @@ torchrun \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --log-every 10 \
     --save-every 10 \
+    --trace-startup \
     --progress on
 
 echo "Job ${SLURM_JOB_ID} SSL pretraining finished at $(date)"
