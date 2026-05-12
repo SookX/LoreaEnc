@@ -6,7 +6,7 @@
 #SBATCH --time=120:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=48
+#SBATCH --cpus-per-task=40
 #SBATCH --mem=256G
 #SBATCH --gres=gpu:2
 #SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl150k.%j.out
