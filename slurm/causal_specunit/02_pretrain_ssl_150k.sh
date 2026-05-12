@@ -113,8 +113,6 @@ import torch
 targets_dir = os.environ["TARGETS_DIR"]
 metadata_path = os.path.join(targets_dir, "metadata.json")
 print("PyTorch:", torch.__version__)
-print("CUDA available:", torch.cuda.is_available())
-print("CUDA devices:", torch.cuda.device_count())
 with open(metadata_path, encoding="utf-8") as f:
     metadata = json.load(f)
 print("Target metadata:", {
