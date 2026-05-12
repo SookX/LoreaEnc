@@ -1,4 +1,7 @@
 import argparse
+import socket
+import sys
+import time
 import contextlib
 import json
 import math
@@ -32,6 +35,8 @@ def parse_args():
     p.add_argument("--data-root", type=str, default="dataset/datasets/librispeech/LibriSpeech")
     p.add_argument("--targets-dir", type=str, default="outputs/causal_specunit/targets")
     p.add_argument("--output-dir", type=str, default="outputs/causal_specunit/pretrain")
+    p.add_argument("--splits", nargs="+", default=None,
+                   help="Override training splits (default: TRAIN_SPLITS constant).")
     p.add_argument("--epochs", type=int, default=100)
     p.add_argument("--batch-size", type=int, default=128)
     p.add_argument("--grad-accum-steps", type=int, default=1)
@@ -63,7 +68,17 @@ def parse_args():
                    help="Stop after this many optimizer steps.")
     p.add_argument("--max-train-batches", type=int, default=None)
     p.add_argument("--progress", choices=["on", "off"], default="on")
+    p.add_argument("--trace-startup", action="store_true",
+                   help="Print rank-aware startup traces to locate hangs before/at the first batch.")
     return p.parse_args()
+
+
+def trace(enabled, rank, message):
+    if not enabled:
+        return
+    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    host = socket.gethostname()
+    print(f"[trace {now}] host={host} rank={rank} {message}", file=sys.stderr, flush=True)
 
 
 def validate_target_metadata(targets_dir, args):
@@ -174,12 +189,13 @@ def main():
 
     dataset = SpecUnitDataset(
         data_root=args.data_root,
-        splits=TRAIN_SPLITS,
+        splits=args.splits if args.splits else TRAIN_SPLITS,
         targets_path=os.path.join(args.targets_dir, "targets.pt"),
         cmvn_path=os.path.join(args.targets_dir, "cmvn.pt"),
     )
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True) if world_size > 1 else None
     worker_kwargs = {"persistent_workers": True, "prefetch_factor": 4} if args.workers > 0 else {}
+    dataloader_timeout = args.dataloader_timeout if args.workers > 0 else 0
     loader = DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -189,7 +205,7 @@ def main():
         collate_fn=collate_ssl,
         pin_memory=True,
         drop_last=True,
-        timeout=args.dataloader_timeout,
+        timeout=dataloader_timeout,
         **worker_kwargs,
     )
 

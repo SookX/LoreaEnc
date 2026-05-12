@@ -61,6 +61,7 @@ fi
 export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
 export MASTER_PORT="${MASTER_PORT:-$((13000 + SLURM_JOB_ID % 20000))}"
 export PYTHONFAULTHANDLER=1
+export PYTHONFAULTHANDLER_TIMEOUT=300
 export CUDA_LAUNCH_BLOCKING=0
 export TOKENIZERS_PARALLELISM=false
 export OMP_NUM_THREADS=4
@@ -126,8 +127,6 @@ torchrun \
     --grad-accum-steps 1 \
     --mask-prob 0.35 \
     --mask-length 10 \
-    --freq-mask-count 2 \
-    --freq-mask-width 12 \
     --chunk-size 4 \
     --chunk-stride 4 \
     --lr 1e-3 \
