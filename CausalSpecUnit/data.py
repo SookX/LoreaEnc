@@ -1,4 +1,6 @@
 import os
+import sys
+import time
 from collections import defaultdict
 
 import torch
@@ -6,6 +8,14 @@ import torch.nn as nn
 import torchaudio
 import torchaudio.transforms as T
 from torch.utils.data import Dataset
+
+
+def dataset_trace(message):
+    if os.environ.get("CSU_TRACE_DATASET", "0") != "1":
+        return
+    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    rank = os.environ.get("RANK", "?")
+    print(f"[data-trace {now}] rank={rank} {message}", file=sys.stderr, flush=True)
 
 
 def iter_librispeech_items(data_root, splits):
@@ -83,13 +93,25 @@ def apply_cmvn(mel, mean, std):
 
 class SpecUnitDataset(Dataset):
     def __init__(self, data_root, splits, targets_path, cmvn_path, max_items=None):
+        start = time.time()
+        dataset_trace(f"scan start data_root={data_root} splits={splits}")
         self.items = list(iter_librispeech_items(data_root, splits))
+        dataset_trace(f"scan done items={len(self.items)} seconds={time.time() - start:.1f}")
         if max_items is not None:
             self.items = self.items[:max_items]
+        start = time.time()
+        dataset_trace(f"targets load start path={targets_path}")
         self.targets = torch.load(targets_path, map_location="cpu")
+        dataset_trace(f"targets load done entries={len(self.targets)} seconds={time.time() - start:.1f}")
+        start = time.time()
+        dataset_trace(f"cmvn load start path={cmvn_path}")
         self.mean, self.std = load_cmvn(cmvn_path)
+        dataset_trace(f"cmvn load done seconds={time.time() - start:.1f}")
         self.extractor = LogMelExtractor()
+        start = time.time()
+        dataset_trace("filter start")
         self.items = [item for item in self.items if item["uid"] in self.targets]
+        dataset_trace(f"filter done items={len(self.items)} seconds={time.time() - start:.1f}")
 
     def __len__(self):
         return len(self.items)
@@ -156,4 +178,3 @@ def collate_eval(batch):
     mel, lengths, labels, label_lengths = collate_ctc(batch)
     transcripts = [b["transcript"] for b in batch]
     return mel, lengths, labels, label_lengths, transcripts
-
