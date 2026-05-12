@@ -155,6 +155,7 @@ torchrun \
     --log-every 10 \
     --save-every 10 \
     --trace-startup \
+    --trace-every 1 \
     --progress on
 
 echo "Job ${SLURM_JOB_ID} SSL pretraining finished at $(date)"
