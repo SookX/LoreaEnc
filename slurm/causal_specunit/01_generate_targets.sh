@@ -8,6 +8,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=192G
+#SBATCH --gres=gpu:1
 #SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_targets.%j.out
 #SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_targets.%j.err
 
