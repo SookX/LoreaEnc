@@ -206,6 +206,30 @@ The most important result:
 SSL should help most in low-label ASR fine-tuning.
 ```
 
+### Ablation 1: K-means Cluster Count
+
+Effect of vocabulary size on downstream ASR (dev-other WER ↓):
+
+| k   | 10h dev-other | 100h dev-other |
+|-----|---------------|----------------|
+| 128 | X.X           | X.X            |
+| 256 | X.X           | X.X            |
+| 512 | X.X           | X.X            |
+
+All rows: chunk-size=4, stride=4, PCA-64, mask_prob=0.065, mask_length=10, 150k SSL steps.
+
+### Ablation 2: Masking Strategy
+
+Effect of mask span configuration on 10h dev-other WER ↓:
+
+| mask_prob | mask_length | 10h dev-other |
+|-----------|-------------|---------------|
+| 0.065     | 10          | X.X           |
+| 0.065     | 5           | X.X           |
+| 0.50      | 10          | X.X           |
+
+All rows: k=100+500, chunk-size=4, stride=4, PCA-64, 150k SSL steps.
+
 ## Failure Modes
 
 Targets are too low-level:

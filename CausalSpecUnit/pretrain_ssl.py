@@ -104,34 +104,6 @@ def cleanup_checkpoints(output_dir, keep):
         shutil.rmtree(os.path.join(output_dir, name), ignore_errors=True)
 
 
-def make_hubert_mask(target_lengths, max_targets, mask_prob, mask_length, device):
-    """Return [B, T_targets] bool mask over target positions."""
-    mask = torch.zeros(target_lengths.size(0), max_targets, dtype=torch.bool, device=device)
-    for b, length in enumerate(target_lengths.tolist()):
-        if length <= 0:
-            continue
-        n_spans = max(1, int(round(mask_prob * length / max(mask_length, 1))))
-        max_start = max(1, length - mask_length + 1)
-        starts = torch.randint(0, max_start, (n_spans,), device=device)
-        for start in starts.tolist():
-            end = min(length, start + mask_length)
-            mask[b, start:end] = True
-    return mask
-
-
-def corrupt_mel_from_target_mask(mel, masked_positions, chunk_size, chunk_stride, mask_value):
-    """Mask clean spectrogram frames corresponding to masked target chunks."""
-    corrupted = mel.clone()
-    bsz, num_targets = masked_positions.shape
-    time_steps = mel.size(1)
-    for b in range(bsz):
-        starts = torch.nonzero(masked_positions[b], as_tuple=False).flatten() * chunk_stride
-        for start in starts.tolist():
-            end = min(time_steps, start + chunk_size)
-            corrupted[b, start:end, :] = mask_value
-    return corrupted
-
-
 def masked_unit_ce(logits, targets, masked_positions):
     """CE over only masked positions. Pads use target=-100 and are ignored."""
     t = min(logits.size(1), targets.size(1), masked_positions.size(1))
@@ -153,6 +125,40 @@ def align_ssl_tensors(coarse_logits, fine_logits, z100, z500, masked_positions):
         z500[:, :t],
         masked_positions[:, :t],
     )
+
+
+def make_hubert_mask(target_lengths, max_targets, mask_prob, mask_length, device):
+    """Vectorized HuBERT-style target mask with per-sample span sampling."""
+    mask = torch.zeros(target_lengths.size(0), max_targets, dtype=torch.bool, device=device)
+    offsets = torch.arange(max(mask_length, 1), device=device)
+    for b, length in enumerate(target_lengths.tolist()):
+        if length <= 0:
+            continue
+        n_spans = max(1, int(round(mask_prob * length / max(mask_length, 1))))
+        max_start = max(1, length - mask_length + 1)
+        starts = torch.randint(0, max_start, (n_spans,), device=device)
+        positions = starts[:, None] + offsets[None, :]
+        positions = positions[positions < length]
+        mask[b].scatter_(0, positions, True)
+    return mask
+
+
+def corrupt_mel_from_target_mask(mel, masked_positions, chunk_size, chunk_stride, mask_value):
+    """Vectorized frame corruption from masked target positions."""
+    bsz, num_targets = masked_positions.shape
+    time_steps = mel.size(1)
+    corrupted = mel.clone()
+    masked = masked_positions.nonzero(as_tuple=False)
+    if masked.numel() == 0:
+        return corrupted
+    offsets = torch.arange(chunk_size, device=mel.device)
+    frames = masked[:, 1:2] * chunk_stride + offsets[None, :]
+    valid = frames < time_steps
+    batch_idx = masked[:, 0:1].expand_as(frames)
+    frame_mask = torch.zeros(bsz, time_steps, dtype=torch.bool, device=mel.device)
+    frame_mask[batch_idx[valid], frames[valid]] = True
+    corrupted[frame_mask] = mask_value
+    return corrupted
 
 
 def main():
