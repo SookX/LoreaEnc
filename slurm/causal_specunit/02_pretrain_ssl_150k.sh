@@ -97,6 +97,6 @@ torchrun \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --log-every 500 \
     --save-every 5 \
-    --progress off
+    --progress on
 
 echo "Job ${SLURM_JOB_ID} SSL pretraining finished at $(date)"
