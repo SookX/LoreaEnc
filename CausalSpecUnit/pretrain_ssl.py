@@ -35,6 +35,8 @@ def parse_args():
     p.add_argument("--data-root", type=str, default="dataset/datasets/librispeech/LibriSpeech")
     p.add_argument("--targets-dir", type=str, default="outputs/causal_specunit/targets")
     p.add_argument("--output-dir", type=str, default="outputs/causal_specunit/pretrain")
+    p.add_argument("--mel-cache-dir", type=str, default=None,
+                   help="Optional directory of precomputed CMVN log-mel tensors.")
     p.add_argument("--splits", nargs="+", default=None,
                    help="Override training splits (default: TRAIN_SPLITS constant).")
     p.add_argument("--epochs", type=int, default=100)
@@ -203,6 +205,7 @@ def main():
         splits=args.splits if args.splits else TRAIN_SPLITS,
         targets_path=os.path.join(args.targets_dir, "targets.pt"),
         cmvn_path=os.path.join(args.targets_dir, "cmvn.pt"),
+        mel_cache_dir=args.mel_cache_dir,
     )
     trace(args.trace_startup, rank, f"dataset built with {len(dataset)} items")
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True) if world_size > 1 else None

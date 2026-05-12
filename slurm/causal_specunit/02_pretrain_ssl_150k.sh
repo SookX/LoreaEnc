@@ -23,6 +23,7 @@ VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
 TARGETS_DIR="outputs/causal_specunit/targets_960h"
 OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_150k"
+MEL_CACHE_DIR="outputs/causal_specunit/mel_cache_960h"
 
 if [ ! -d "${VIRTUAL_ENV}" ]; then
     echo "Missing venv: ${VIRTUAL_ENV}"
@@ -55,6 +56,12 @@ fi
 if [ ! -f "${TARGETS_DIR}/metadata.json" ]; then
     echo "Missing metadata: ${TARGETS_DIR}/metadata.json"
     echo "Run slurm/causal_specunit/01_generate_targets.sh first."
+    exit 1
+fi
+
+if [ ! -f "${MEL_CACHE_DIR}/metadata.json" ]; then
+    echo "Missing mel cache: ${MEL_CACHE_DIR}/metadata.json"
+    echo "Run slurm/causal_specunit/01c_cache_mels.sh first to avoid GPU idle time."
     exit 1
 fi
 
@@ -98,7 +105,7 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 # Match the Slurm request above. Keeping this explicit avoids accidentally
 # launching more processes than requested when Slurm reports a broad GPU count.
 NUM_PROCESSES=2
-WORKERS=0
+WORKERS=2
 DATALOADER_TIMEOUT=300
 
 echo "Job ${SLURM_JOB_ID} SSL pretraining starting at $(date)"
@@ -109,6 +116,7 @@ echo "Data root: ${DATA_ROOT}"
 echo "Targets: ${TARGETS_DIR}"
 echo "Source targets: ${SOURCE_TARGETS_DIR}"
 echo "Output: ${OUTPUT_DIR}"
+echo "Mel cache: ${MEL_CACHE_DIR}"
 echo "GPUs on node: ${NUM_PROCESSES}"
 echo "Workers per rank: ${WORKERS}"
 echo "Master: ${MASTER_ADDR}:${MASTER_PORT}"
@@ -142,6 +150,7 @@ torchrun \
     --data-root "${DATA_ROOT}" \
     --targets-dir "${TARGETS_DIR}" \
     --output-dir "${OUTPUT_DIR}" \
+    --mel-cache-dir "${MEL_CACHE_DIR}" \
     --variant xs \
     --epochs 1000 \
     --max-steps 100000 \
@@ -159,6 +168,7 @@ torchrun \
     --max-safe-grad-norm 200.0 \
     --workers "${WORKERS}" \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
+    --prefetch-factor 2 \
     --log-every 10 \
     --save-every 10 \
     --trace-startup \

@@ -119,7 +119,7 @@ def load_targets(targets_path):
 
 
 class SpecUnitDataset(Dataset):
-    def __init__(self, data_root, splits, targets_path, cmvn_path, max_items=None):
+    def __init__(self, data_root, splits, targets_path, cmvn_path, max_items=None, mel_cache_dir=None):
         start = time.time()
         dataset_trace(f"scan start data_root={data_root} splits={splits}")
         self.items = list(iter_librispeech_items(data_root, splits))
@@ -135,9 +135,15 @@ class SpecUnitDataset(Dataset):
         self.mean, self.std = load_cmvn(cmvn_path)
         dataset_trace(f"cmvn load done seconds={time.time() - start:.1f}")
         self.extractor = LogMelExtractor()
+        self.mel_cache_dir = mel_cache_dir
         start = time.time()
         dataset_trace("filter start")
         self.items = [item for item in self.items if item["uid"] in self.targets]
+        if self.mel_cache_dir:
+            self.items = [
+                item for item in self.items
+                if os.path.isfile(os.path.join(self.mel_cache_dir, item["split"], item["uid"] + ".pt"))
+            ]
         dataset_trace(f"filter done items={len(self.items)} seconds={time.time() - start:.1f}")
 
     def __len__(self):
@@ -145,7 +151,13 @@ class SpecUnitDataset(Dataset):
 
     def __getitem__(self, idx):
         item = self.items[idx]
-        mel = apply_cmvn(self.extractor(item["audio_path"]), self.mean, self.std)
+        if self.mel_cache_dir:
+            mel = torch.load(
+                os.path.join(self.mel_cache_dir, item["split"], item["uid"] + ".pt"),
+                map_location="cpu",
+            ).float()
+        else:
+            mel = apply_cmvn(self.extractor(item["audio_path"]), self.mean, self.std)
         target = self.targets[item["uid"]]
         return {
             "uid": item["uid"],
