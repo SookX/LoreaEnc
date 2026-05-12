@@ -6,7 +6,7 @@
 #SBATCH --time=120:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=40
+#SBATCH --cpus-per-task=48
 #SBATCH --mem=256G
 #SBATCH --gres=gpu:2
 #SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl150k.%j.out
@@ -77,7 +77,7 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 # Match the Slurm request above. Keeping this explicit avoids accidentally
 # launching more processes than requested when Slurm reports a broad GPU count.
 NUM_PROCESSES=2
-WORKERS=4
+WORKERS=2
 DATALOADER_TIMEOUT=300
 
 echo "Job ${SLURM_JOB_ID} SSL pretraining starting at $(date)"
@@ -124,7 +124,7 @@ torchrun \
     --output-dir "${OUTPUT_DIR}" \
     --variant xs \
     --epochs 1000 \
-    --max-steps 150000 \
+    --max-steps 100000 \
     --batch-size 128 \
     --grad-accum-steps 1 \
     --mask-prob 0.35 \
