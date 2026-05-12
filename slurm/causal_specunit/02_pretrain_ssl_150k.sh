@@ -14,9 +14,14 @@
 
 set -euo pipefail
 
+echo "[$(date)] Job ${SLURM_JOB_ID} started on $(hostname)"
+echo "[$(date)] Loading modules..."
+
 module purge
 module load anaconda3
 module load nvidia/cuda/12
+
+echo "[$(date)] Modules loaded."
 
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
@@ -27,15 +32,44 @@ OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_150k"
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
+echo "[$(date)] PROJECT_DIR=${PROJECT_DIR}"
+echo "[$(date)] Python: $(which python)"
+echo "[$(date)] Torchrun: $(which torchrun)"
+
 cd "${PROJECT_DIR}"
 mkdir -p logs "${OUTPUT_DIR}"
 
+# --- Pre-flight checks ---
+echo "[$(date)] Running pre-flight checks..."
+
 if [ ! -f "${TARGETS_DIR}/targets.pt" ]; then
-    echo "Missing targets: ${TARGETS_DIR}/targets.pt"
-    echo "Run slurm/causal_specunit/01_generate_targets.sh first."
+    echo "[ERROR] Missing targets: ${TARGETS_DIR}/targets.pt"
+    echo "[ERROR] Run slurm/causal_specunit/01_generate_targets.sh first."
     exit 1
 fi
+echo "[$(date)] targets.pt OK ($(du -sh ${TARGETS_DIR}/targets.pt | cut -f1))"
 
+if [ ! -f "${TARGETS_DIR}/cmvn.pt" ]; then
+    echo "[ERROR] Missing CMVN: ${TARGETS_DIR}/cmvn.pt"
+    exit 1
+fi
+echo "[$(date)] cmvn.pt OK"
+
+if [ ! -f "${TARGETS_DIR}/metadata.json" ]; then
+    echo "[ERROR] Missing metadata: ${TARGETS_DIR}/metadata.json"
+    exit 1
+fi
+echo "[$(date)] metadata.json OK: $(cat ${TARGETS_DIR}/metadata.json)"
+
+if [ ! -d "${DATA_ROOT}" ]; then
+    echo "[ERROR] Missing data root: ${DATA_ROOT}"
+    exit 1
+fi
+echo "[$(date)] Data root OK"
+
+echo "[$(date)] Pre-flight checks passed."
+
+# --- Environment ---
 export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
 export MASTER_PORT="${MASTER_PORT:-$((13000 + SLURM_JOB_ID % 20000))}"
 export PYTHONFAULTHANDLER=1
@@ -51,25 +85,27 @@ export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-0}"
 export NCCL_SOCKET_IFNAME="${NCCL_SOCKET_IFNAME:-^lo,docker}"
 export NCCL_RAS_ENABLE=0
 export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
-export NCCL_TIMEOUT=60
 
 NUM_PROCESSES=2
 WORKERS=12
 DATALOADER_TIMEOUT=120
 
-echo "Job ${SLURM_JOB_ID} SSL pretraining starting at $(date)"
-echo "Python: $(which python)"
-echo "Torchrun: $(which torchrun)"
-echo "Targets: ${TARGETS_DIR}"
-echo "Output: ${OUTPUT_DIR}"
-echo "Master: ${MASTER_ADDR}:${MASTER_PORT}"
+echo "[$(date)] Master: ${MASTER_ADDR}:${MASTER_PORT}"
+echo "[$(date)] Processes: ${NUM_PROCESSES}  Workers: ${WORKERS}"
 
+# --- CUDA / PyTorch check ---
 python - <<'PY'
-import torch
-print("PyTorch:", torch.__version__)
-print("CUDA available:", torch.cuda.is_available())
-print("CUDA devices:", torch.cuda.device_count())
+import sys, torch
+print(f"Python: {sys.version}")
+print(f"PyTorch: {torch.__version__}")
+print(f"CUDA available: {torch.cuda.is_available()}")
+print(f"CUDA devices: {torch.cuda.device_count()}")
+for i in range(torch.cuda.device_count()):
+    p = torch.cuda.get_device_properties(i)
+    print(f"  GPU {i}: {p.name}  {p.total_memory // 1024**3}GB")
 PY
+
+echo "[$(date)] Starting torchrun..."
 
 torchrun \
     --nproc_per_node="${NUM_PROCESSES}" \
@@ -100,4 +136,4 @@ torchrun \
     --save-every 5 \
     --progress on
 
-echo "Job ${SLURM_JOB_ID} SSL pretraining finished at $(date)"
+echo "[$(date)] Job ${SLURM_JOB_ID} SSL pretraining finished successfully."
