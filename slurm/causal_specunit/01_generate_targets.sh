@@ -19,8 +19,8 @@ module load anaconda3
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
-TARGETS_DIR="outputs/causal_specunit/targets"
-FIGURES_DIR="outputs/causal_specunit/figures"
+TARGETS_DIR="outputs/causal_specunit/targets_960h"
+FIGURES_DIR="outputs/causal_specunit/figures_960h"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
@@ -38,6 +38,7 @@ echo "Data root: ${DATA_ROOT}"
 
 python -m CausalSpecUnit.generate_targets \
     --data-root "${DATA_ROOT}" \
+    --splits train-clean-100 train-clean-360 train-other-500 \
     --output-dir "${TARGETS_DIR}" \
     --chunk-size 4 \
     --chunk-stride 4 \
@@ -52,4 +53,3 @@ python -m CausalSpecUnit.visualize_clusters \
     --top-n 24
 
 echo "Job ${SLURM_JOB_ID} target generation finished at $(date)"
-

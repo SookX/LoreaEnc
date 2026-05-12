@@ -21,8 +21,8 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
-TARGETS_DIR="outputs/causal_specunit/targets"
-SSL_CHECKPOINT="outputs/causal_specunit/pretrain_ssl_50k/checkpoint_step050000/checkpoint.pt"
+TARGETS_DIR="outputs/causal_specunit/targets_960h"
+SSL_CHECKPOINT="outputs/causal_specunit/pretrain_ssl_150k/checkpoint_step150000/checkpoint.pt"
 TOKENIZER_PATH="dataset/bpe128.model"
 OUTPUT_DIR="outputs/causal_specunit/ctc_ssl_150ep"
 
@@ -34,7 +34,7 @@ mkdir -p logs "${OUTPUT_DIR}"
 
 if [ ! -f "${SSL_CHECKPOINT}" ]; then
     echo "Missing SSL checkpoint: ${SSL_CHECKPOINT}"
-    echo "Run slurm/causal_specunit/02_pretrain_ssl_50k.sh first."
+    echo "Run slurm/causal_specunit/02_pretrain_ssl_150k.sh first."
     exit 1
 fi
 
@@ -106,4 +106,3 @@ torchrun \
     --progress on
 
 echo "Job ${SLURM_JOB_ID} CTC fine-tuning finished at $(date)"
-

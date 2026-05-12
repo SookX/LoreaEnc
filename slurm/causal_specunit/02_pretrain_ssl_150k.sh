@@ -2,15 +2,15 @@
 #SBATCH --partition=common
 #SBATCH --qos=bg-eng-01
 #SBATCH --account=bg-eng-01
-#SBATCH --job-name=csu_ssl50k
-#SBATCH --time=48:00:00
+#SBATCH --job-name=csu_ssl150k
+#SBATCH --time=120:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
 #SBATCH --mem=256G
 #SBATCH --gres=gpu:2
-#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl50k.%j.out
-#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl50k.%j.err
+#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl150k.%j.out
+#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl150k.%j.err
 
 set -euo pipefail
 
@@ -21,8 +21,8 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
-TARGETS_DIR="outputs/causal_specunit/targets"
-OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_50k"
+TARGETS_DIR="outputs/causal_specunit/targets_960h"
+OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_150k"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
@@ -77,15 +77,19 @@ torchrun \
     --output-dir "${OUTPUT_DIR}" \
     --variant xs \
     --epochs 1000 \
-    --max-steps 50000 \
+    --max-steps 150000 \
     --batch-size 128 \
     --grad-accum-steps 1 \
     --mask-prob 0.065 \
     --mask-length 10 \
     --chunk-size 4 \
     --chunk-stride 4 \
-    --lr 2e-3 \
+    --lr 1e-3 \
+    --warmup-epochs 20 \
+    --peak-epochs 20 \
+    --noam-decay-rate 1.0 \
     --max-grad-norm 1.0 \
+    --max-safe-grad-norm 200.0 \
     --workers "${WORKERS}" \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --log-every 100 \
@@ -93,4 +97,3 @@ torchrun \
     --progress on
 
 echo "Job ${SLURM_JOB_ID} SSL pretraining finished at $(date)"
-

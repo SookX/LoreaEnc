@@ -18,7 +18,7 @@ module load anaconda3
 
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
-TARGETS_DIR="outputs/causal_specunit/targets"
+TARGETS_DIR="outputs/causal_specunit/targets_960h"
 TEXTGRID_DIR="${TEXTGRID_DIR:-/path/to/librispeech_textgrids}"
 OUTPUT_PATH="outputs/causal_specunit/phone_purity.npz"
 
@@ -53,4 +53,3 @@ python -m CausalSpecUnit.evaluate_phone_purity \
     --tier phones \
     --exclude-silence \
     --output "outputs/causal_specunit/phone_purity_no_silence.npz"
-

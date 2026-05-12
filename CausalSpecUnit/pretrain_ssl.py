@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import json
 import math
 import os
@@ -46,9 +47,14 @@ def parse_args():
                    help="HuBERT-style mask span length in target steps.")
     p.add_argument("--mask-value", type=float, default=0.0,
                    help="Value used to replace masked CMVN-normalized spectrogram frames.")
-    p.add_argument("--lr", type=float, default=2e-3)
+    p.add_argument("--lr", type=float, default=1e-3)
+    p.add_argument("--warmup-epochs", type=int, default=20)
+    p.add_argument("--peak-epochs", type=int, default=20)
+    p.add_argument("--noam-decay-rate", type=float, default=1.0)
     p.add_argument("--weight-decay", type=float, default=5e-4)
     p.add_argument("--max-grad-norm", type=float, default=1.0)
+    p.add_argument("--max-safe-grad-norm", type=float, default=200.0,
+                   help="Skip optimizer/scheduler step if the pre-clipping grad norm exceeds this value. Use 0 to disable.")
     p.add_argument("--log-every", type=int, default=0)
     p.add_argument("--save-every", type=int, default=10)
     p.add_argument("--keep-checkpoints", type=int, default=5)
@@ -185,12 +191,19 @@ def main():
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.98), eps=1e-9, weight_decay=args.weight_decay)
     steps_per_epoch = math.ceil(len(loader) / max(1, args.grad_accum_steps))
-    scheduler = build_extended_noam_scheduler(optimizer, steps_per_epoch, warmup_epochs=20, peak_epochs=160, decay_rate=1.0)
+    scheduler = build_extended_noam_scheduler(
+        optimizer,
+        steps_per_epoch,
+        warmup_epochs=args.warmup_epochs,
+        peak_epochs=args.peak_epochs,
+        decay_rate=args.noam_decay_rate,
+    )
     print0(
         rank,
         f"CausalSpecUnit SSL | train={len(dataset)} utt | world={world_size} | "
         f"effective_batch={args.batch_size * world_size * args.grad_accum_steps} | "
-        f"chunk={metadata['chunk_size']} stride={metadata['chunk_stride']}",
+        f"chunk={metadata['chunk_size']} stride={metadata['chunk_stride']} | "
+        f"lr={args.lr:g} warmup={args.warmup_epochs} hold={args.peak_epochs}",
     )
     optimizer_steps = 0
 
@@ -232,26 +245,44 @@ def main():
                     mask_value=args.mask_value,
                 )
 
-                coarse_logits, fine_logits, _ = model(corrupted_mel, lengths)
-                coarse_logits, fine_logits, z100_aligned, z500_aligned, masked_aligned = align_ssl_tensors(
-                    coarse_logits,
-                    fine_logits,
-                    z100,
-                    z500,
-                    masked_positions,
-                )
-                loss100 = masked_unit_ce(coarse_logits, z100_aligned, masked_aligned)
-                loss500 = masked_unit_ce(fine_logits, z500_aligned, masked_aligned)
-                loss = (loss100 + loss500) / max(1, args.grad_accum_steps)
-                loss.backward()
-
                 sync_step = step % max(1, args.grad_accum_steps) == 0 or step == len(loader)
+                window_start = ((step - 1) // max(1, args.grad_accum_steps)) * max(1, args.grad_accum_steps) + 1
+                window_end = min(window_start + max(1, args.grad_accum_steps) - 1, len(loader))
+                actual_accum_steps = window_end - window_start + 1
+                sync_context = model.no_sync if isinstance(model, DDP) and not sync_step else contextlib.nullcontext
+
+                with sync_context():
+                    coarse_logits, fine_logits, _ = model(corrupted_mel, lengths)
+                    coarse_logits, fine_logits, z100_aligned, z500_aligned, masked_aligned = align_ssl_tensors(
+                        coarse_logits,
+                        fine_logits,
+                        z100,
+                        z500,
+                        masked_positions,
+                    )
+                    loss100 = masked_unit_ce(coarse_logits, z100_aligned, masked_aligned)
+                    loss500 = masked_unit_ce(fine_logits, z500_aligned, masked_aligned)
+                    loss = (loss100 + loss500) / actual_accum_steps
+                    loss.backward()
+
                 if sync_step:
-                    nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-                    optimizer.step()
-                    scheduler.step()
+                    grad_norm = nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                    grad_norm_value = float(grad_norm.detach().item() if isinstance(grad_norm, torch.Tensor) else grad_norm)
+                    grad_is_safe = (
+                        math.isfinite(grad_norm_value)
+                        and (args.max_safe_grad_norm <= 0.0 or grad_norm_value <= args.max_safe_grad_norm)
+                    )
+                    if grad_is_safe:
+                        optimizer.step()
+                        scheduler.step()
+                        optimizer_steps += 1
+                    else:
+                        print0(
+                            rank,
+                            f"[ssl warn] unsafe grad norm {grad_norm_value:.2f} at epoch {epoch}, "
+                            f"batch {step}; skipping optimizer and scheduler step",
+                        )
                     optimizer.zero_grad(set_to_none=True)
-                    optimizer_steps += 1
 
                 loss_val = (loss100 + loss500).detach().float().item()
                 total_loss += loss_val
