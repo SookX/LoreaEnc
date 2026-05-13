@@ -23,7 +23,6 @@ VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
 TARGETS_DIR="outputs/causal_specunit/targets_960h_c2"
 OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_150k_c2"
-MEL_CACHE_DIR="outputs/causal_specunit/mel_cache_960h"
 
 if [ ! -d "${VIRTUAL_ENV}" ]; then
     echo "Missing venv: ${VIRTUAL_ENV}"
@@ -59,11 +58,6 @@ if [ ! -f "${TARGETS_DIR}/metadata.json" ]; then
     exit 1
 fi
 
-if [ ! -f "${MEL_CACHE_DIR}/metadata.json" ]; then
-    echo "Missing mel cache: ${MEL_CACHE_DIR}/metadata.json"
-    echo "Run slurm/causal_specunit/01c_cache_mels.sh first to avoid GPU idle time."
-    exit 1
-fi
 
 if [ ! -f "${TARGETS_DIR}/target_index.json" ]; then
     echo "Missing sharded target index: ${TARGETS_DIR}/target_index.json"
@@ -73,17 +67,7 @@ if [ ! -f "${TARGETS_DIR}/target_index.json" ]; then
         --num-shards 128
 fi
 
-SOURCE_TARGETS_DIR="${TARGETS_DIR}"
-LOCAL_TARGETS_DIR="${TMPDIR:-/tmp}/${USER}/csu_targets_${SLURM_JOB_ID}"
-mkdir -p "${LOCAL_TARGETS_DIR}"
-echo "Staging target artifacts to node-local storage: ${LOCAL_TARGETS_DIR}"
-cp "${SOURCE_TARGETS_DIR}/metadata.json" "${LOCAL_TARGETS_DIR}/metadata.json"
-cp "${SOURCE_TARGETS_DIR}/cmvn.pt" "${LOCAL_TARGETS_DIR}/cmvn.pt"
-cp "${SOURCE_TARGETS_DIR}/target_index.json" "${LOCAL_TARGETS_DIR}/target_index.json"
-cp -r "${SOURCE_TARGETS_DIR}/targets_shards" "${LOCAL_TARGETS_DIR}/targets_shards"
-TARGETS_DIR="${LOCAL_TARGETS_DIR}"
 export TARGETS_DIR
-echo "Target staging finished at $(date)"
 
 export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
 export MASTER_PORT="${MASTER_PORT:-$((13000 + SLURM_JOB_ID % 20000))}"
@@ -92,9 +76,9 @@ export PYTHONFAULTHANDLER_TIMEOUT=300
 export PYTHONUNBUFFERED=1
 export CUDA_LAUNCH_BLOCKING=0
 export TOKENIZERS_PARALLELISM=false
-export OMP_NUM_THREADS=2
-export MKL_NUM_THREADS=2
-export OPENBLAS_NUM_THREADS=2
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
 export TORCH_DISTRIBUTED_DEBUG="${TORCH_DISTRIBUTED_DEBUG:-OFF}"
 export NCCL_DEBUG="${NCCL_DEBUG:-WARN}"
 export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-0}"
@@ -105,7 +89,7 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 # Match the Slurm request above. Keeping this explicit avoids accidentally
 # launching more processes than requested when Slurm reports a broad GPU count.
 NUM_PROCESSES=2
-WORKERS=8
+WORKERS=12
 DATALOADER_TIMEOUT=300
 
 echo "Job ${SLURM_JOB_ID} SSL pretraining starting at $(date)"
@@ -114,9 +98,7 @@ echo "Python: $(which python)"
 echo "Torchrun: $(which torchrun)"
 echo "Data root: ${DATA_ROOT}"
 echo "Targets: ${TARGETS_DIR}"
-echo "Source targets: ${SOURCE_TARGETS_DIR}"
 echo "Output: ${OUTPUT_DIR}"
-echo "Mel cache: ${MEL_CACHE_DIR}"
 echo "GPUs on node: ${NUM_PROCESSES}"
 echo "Workers per rank: ${WORKERS}"
 echo "Master: ${MASTER_ADDR}:${MASTER_PORT}"
@@ -145,13 +127,11 @@ PY
 # Set RESUME_CKPT to the checkpoint directory path to resume training, e.g.:
 #   RESUME_CKPT="${OUTPUT_DIR}/checkpoint_step050000"
 RESUME_CKPT="${RESUME_CKPT:-}"
-RESUME_ARG=""
 if [ -n "${RESUME_CKPT}" ]; then
     if [ ! -f "${RESUME_CKPT}/checkpoint.pt" ]; then
         echo "RESUME_CKPT set but checkpoint.pt not found: ${RESUME_CKPT}"
         exit 1
     fi
-    RESUME_ARG="--resume ${RESUME_CKPT}"
     echo "Resuming from checkpoint: ${RESUME_CKPT}"
 fi
 
@@ -163,8 +143,6 @@ torchrun \
     --data-root "${DATA_ROOT}" \
     --targets-dir "${TARGETS_DIR}" \
     --output-dir "${OUTPUT_DIR}" \
-    --mel-cache-dir "${MEL_CACHE_DIR}" \
-    ${RESUME_ARG} \
     --variant xs \
     --epochs 1000 \
     --max-steps 100000 \
@@ -188,6 +166,7 @@ torchrun \
     --bucket-sampler \
     --compile \
     --trace-startup \
-    --progress on
+    --progress on \
+    $( [ -n "${RESUME_CKPT}" ] && echo "--resume ${RESUME_CKPT}" || true )
 
 echo "Job ${SLURM_JOB_ID} SSL pretraining finished at $(date)"
