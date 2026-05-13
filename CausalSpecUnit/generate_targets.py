@@ -30,6 +30,10 @@ def parse_args():
     p.add_argument("--target-shards", type=int, default=64,
                    help="Also write sharded target files for distributed training startup.")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--reuse-artifacts", type=str, default=None,
+                   help="Path to an existing targets dir. Reuses its cluster_artifacts.joblib and cmvn.pt, "
+                        "skipping CMVN computation and PCA/k-means fitting. Only re-assigns targets with "
+                        "the new chunk-size/stride.")
     return p.parse_args()
 
 
@@ -66,80 +70,99 @@ def main():
 
     mel_extractor = LogMelExtractor()
 
-    cmvn_state = {
-        "count": 0,
-        "sum": torch.zeros(80),
-        "sumsq": torch.zeros(80),
-    }
-
-    print(f"Computing global CMVN (log-mel) from {len(items)} utterances")
-    for item in tqdm(items, desc="cmvn"):
-        mel = mel_extractor(item["audio_path"])
-        update_cmvn(mel, cmvn_state)
-    mean, std = finalize_cmvn(cmvn_state)
-    cmvn_path = os.path.join(args.output_dir, "cmvn.pt")
-    torch.save({"mean": mean, "std": std}, cmvn_path)
-
-    fit_chunks = []
-    seen = 0
-    print(f"Collecting up to {args.max_fit_chunks:,} clean log-mel chunks for PCA/k-means")
-    for item in tqdm(items, desc="sample chunks"):
-        mel = apply_cmvn(mel_extractor(item["audio_path"]), mean, std)
-        chunks = chunks_from_mel(mel, args.chunk_size, args.chunk_stride)
-        for chunk in chunks:
-            seen += 1
-            if len(fit_chunks) < args.max_fit_chunks:
-                fit_chunks.append(chunk.numpy())
-            else:
-                j = random.randrange(seen)
-                if j < args.max_fit_chunks:
-                    fit_chunks[j] = chunk.numpy()
-
-    fit_chunks = np.asarray(fit_chunks, dtype=np.float32)
-    if args.pca_dim > 0:
-        print(f"Fitting PCA ({fit_chunks.shape[1]} -> {args.pca_dim} dims) on {fit_chunks.shape[0]:,} chunks")
-        pca = PCA(n_components=args.pca_dim, whiten=True, random_state=args.seed)
-        reduced = pca.fit_transform(fit_chunks)
+    if args.reuse_artifacts:
+        print(f"Reusing CMVN and cluster artifacts from {args.reuse_artifacts}")
+        artifacts_path = os.path.join(args.reuse_artifacts, "cluster_artifacts.joblib")
+        cmvn_src = os.path.join(args.reuse_artifacts, "cmvn.pt")
+        if not os.path.isfile(artifacts_path):
+            raise FileNotFoundError(f"Missing cluster_artifacts.joblib in {args.reuse_artifacts}")
+        if not os.path.isfile(cmvn_src):
+            raise FileNotFoundError(f"Missing cmvn.pt in {args.reuse_artifacts}")
+        artifacts = joblib.load(artifacts_path)
+        pca = artifacts["pca"]
+        km_coarse = artifacts["kmeans_coarse"]
+        km_fine = artifacts["kmeans_fine"]
+        cmvn = torch.load(cmvn_src, map_location="cpu")
+        mean, std = cmvn["mean"].float(), cmvn["std"].float()
+        cmvn_path = os.path.join(args.output_dir, "cmvn.pt")
+        torch.save({"mean": mean, "std": std}, cmvn_path)
+        print(f"Loaded PCA ({artifacts.get('pca_dim')}d) + KMeans "
+              f"(k_coarse={artifacts.get('k_coarse')}, k_fine={artifacts.get('k_fine')})")
+        print(f"Re-assigning with chunk_size={args.chunk_size}, chunk_stride={args.chunk_stride}")
     else:
-        print(f"Skipping PCA — clustering directly on {fit_chunks.shape[1]}-dim features")
-        pca = None
-        reduced = fit_chunks
+        cmvn_state = {
+            "count": 0,
+            "sum": torch.zeros(80),
+            "sumsq": torch.zeros(80),
+        }
+        print(f"Computing global CMVN (log-mel) from {len(items)} utterances")
+        for item in tqdm(items, desc="cmvn"):
+            mel = mel_extractor(item["audio_path"])
+            update_cmvn(mel, cmvn_state)
+        mean, std = finalize_cmvn(cmvn_state)
+        cmvn_path = os.path.join(args.output_dir, "cmvn.pt")
+        torch.save({"mean": mean, "std": std}, cmvn_path)
 
-    print(f"Fitting MiniBatchKMeans K={args.k_coarse}")
-    km_coarse = MiniBatchKMeans(
-        n_clusters=args.k_coarse,
-        batch_size=8192,
-        n_init="auto",
-        max_iter=300,
-        random_state=args.seed,
-        verbose=0,
-    )
-    km_coarse.fit(reduced)
+        fit_chunks = []
+        seen = 0
+        print(f"Collecting up to {args.max_fit_chunks:,} clean log-mel chunks for PCA/k-means")
+        for item in tqdm(items, desc="sample chunks"):
+            mel = apply_cmvn(mel_extractor(item["audio_path"]), mean, std)
+            chunks = chunks_from_mel(mel, args.chunk_size, args.chunk_stride)
+            for chunk in chunks:
+                seen += 1
+                if len(fit_chunks) < args.max_fit_chunks:
+                    fit_chunks.append(chunk.numpy())
+                else:
+                    j = random.randrange(seen)
+                    if j < args.max_fit_chunks:
+                        fit_chunks[j] = chunk.numpy()
 
-    print(f"Fitting MiniBatchKMeans K={args.k_fine}")
-    km_fine = MiniBatchKMeans(
-        n_clusters=args.k_fine,
-        batch_size=8192,
-        n_init="auto",
-        max_iter=300,
-        random_state=args.seed + 1,
-        verbose=0,
-    )
-    km_fine.fit(reduced)
+        fit_chunks = np.asarray(fit_chunks, dtype=np.float32)
+        if args.pca_dim > 0:
+            print(f"Fitting PCA ({fit_chunks.shape[1]} -> {args.pca_dim} dims) on {fit_chunks.shape[0]:,} chunks")
+            pca = PCA(n_components=args.pca_dim, whiten=True, random_state=args.seed)
+            reduced = pca.fit_transform(fit_chunks)
+        else:
+            print(f"Skipping PCA — clustering directly on {fit_chunks.shape[1]}-dim features")
+            pca = None
+            reduced = fit_chunks
 
-    joblib.dump(
-        {
-            "pca": pca,
-            "kmeans_coarse": km_coarse,
-            "kmeans_fine": km_fine,
-            "chunk_size": args.chunk_size,
-            "chunk_stride": args.chunk_stride,
-            "pca_dim": args.pca_dim,
-            "k_coarse": args.k_coarse,
-            "k_fine": args.k_fine,
-        },
-        os.path.join(args.output_dir, "cluster_artifacts.joblib"),
-    )
+        print(f"Fitting MiniBatchKMeans K={args.k_coarse}")
+        km_coarse = MiniBatchKMeans(
+            n_clusters=args.k_coarse,
+            batch_size=8192,
+            n_init="auto",
+            max_iter=300,
+            random_state=args.seed,
+            verbose=0,
+        )
+        km_coarse.fit(reduced)
+
+        print(f"Fitting MiniBatchKMeans K={args.k_fine}")
+        km_fine = MiniBatchKMeans(
+            n_clusters=args.k_fine,
+            batch_size=8192,
+            n_init="auto",
+            max_iter=300,
+            random_state=args.seed + 1,
+            verbose=0,
+        )
+        km_fine.fit(reduced)
+
+        joblib.dump(
+            {
+                "pca": pca,
+                "kmeans_coarse": km_coarse,
+                "kmeans_fine": km_fine,
+                "chunk_size": args.chunk_size,
+                "chunk_stride": args.chunk_stride,
+                "pca_dim": args.pca_dim,
+                "k_coarse": args.k_coarse,
+                "k_fine": args.k_fine,
+            },
+            os.path.join(args.output_dir, "cluster_artifacts.joblib"),
+        )
 
     targets = {}
     hist100 = np.zeros(args.k_coarse, dtype=np.int64)

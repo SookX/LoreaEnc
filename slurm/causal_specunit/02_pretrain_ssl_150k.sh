@@ -21,8 +21,8 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
-TARGETS_DIR="outputs/causal_specunit/targets_960h"
-OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_150k"
+TARGETS_DIR="outputs/causal_specunit/targets_960h_c2"
+OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_150k_c2"
 MEL_CACHE_DIR="outputs/causal_specunit/mel_cache_960h"
 
 if [ ! -d "${VIRTUAL_ENV}" ]; then
@@ -172,7 +172,7 @@ torchrun \
     --grad-accum-steps 1 \
     --mask-prob 0.40 \
     --mask-length 12 \
-    --chunk-size 4 \
+    --chunk-size 2 \
     --chunk-stride 4 \
     --lr 1e-3 \
     --warmup-epochs 20 \
@@ -185,6 +185,8 @@ torchrun \
     --prefetch-factor 4 \
     --log-every 10 \
     --save-every 10 \
+    --bucket-sampler \
+    --compile \
     --trace-startup \
     --progress on
 

@@ -11,7 +11,7 @@ import shutil
 import torch
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Sampler
 from torch.utils.data.distributed import DistributedSampler
 from torch.distributed.elastic.multiprocessing.errors import record
 from tqdm import tqdm
@@ -76,6 +76,10 @@ def parse_args():
                    help="Stop after this many optimizer steps.")
     p.add_argument("--max-train-batches", type=int, default=None)
     p.add_argument("--progress", choices=["on", "off"], default="on")
+    p.add_argument("--bucket-sampler", action="store_true",
+                   help="Sort batches by sequence length to reduce padding waste.")
+    p.add_argument("--compile", action="store_true",
+                   help="Apply torch.compile to the model for faster training.")
     p.add_argument("--trace-startup", action="store_true",
                    help="Print rank-aware startup traces to locate hangs before/at the first batch.")
     p.add_argument("--trace-every", type=int, default=0,
@@ -177,19 +181,32 @@ def align_ssl_tensors(coarse_logits, fine_logits, z100, z500, masked_positions):
 
 
 def make_hubert_mask(target_lengths, max_targets, mask_prob, mask_length, device):
-    """HuBERT-style target mask. Built on CPU to avoid CUDA sync issues, then moved to device."""
+    """HuBERT-style target mask, fully vectorized (no Python loop over batch items)."""
     B = target_lengths.size(0)
+    mask_length = max(mask_length, 1)
+    if max_targets == 0:
+        return torch.zeros(B, 0, dtype=torch.bool, device=device)
+
+    n_spans = (mask_prob * target_lengths.float() / mask_length).round().long().clamp(min=1)
+    max_spans = int(n_spans.max().item())
+    max_starts = (target_lengths - mask_length + 1).clamp(min=1)
+
+    # Sample start positions: (B, max_spans)
+    starts = (torch.rand(B, max_spans) * max_starts.float().unsqueeze(1)).long()
+
+    # Expand each span to mask_length positions: (B, max_spans * mask_length)
+    offsets = torch.arange(mask_length).view(1, 1, mask_length)
+    positions = (starts.unsqueeze(2) + offsets).reshape(B, max_spans * mask_length)
+
+    # Valid = span index < n_spans AND position < sequence length
+    span_valid = (torch.arange(max_spans).unsqueeze(0) < n_spans.unsqueeze(1))  # (B, max_spans)
+    span_valid = span_valid.unsqueeze(2).expand(-1, -1, mask_length).reshape(B, max_spans * mask_length)
+    pos_valid = positions < target_lengths.unsqueeze(1)
+    valid = span_valid & pos_valid
+
+    positions_clamped = positions.clamp(0, max_targets - 1)
     mask = torch.zeros(B, max_targets, dtype=torch.bool)
-    offsets = torch.arange(max(mask_length, 1))
-    for b, length in enumerate(target_lengths.tolist()):
-        if length <= 0:
-            continue
-        n_spans = max(1, int(round(mask_prob * length / max(mask_length, 1))))
-        max_start = max(1, length - mask_length + 1)
-        starts = torch.randint(0, max_start, (n_spans,))
-        positions = (starts[:, None] + offsets[None, :]).reshape(-1)
-        positions = positions[positions < length]
-        mask[b].scatter_(0, positions, True)
+    mask.scatter_(1, positions_clamped, valid)
     return mask.to(device)
 
 
@@ -209,6 +226,47 @@ def corrupt_mel_from_target_mask(mel, masked_positions, chunk_size, chunk_stride
     frame_mask[batch_idx[valid], frames[valid]] = True
     corrupted[frame_mask] = mask_value
     return corrupted
+
+
+class BucketDistributedSampler(Sampler):
+    """
+    Groups items by sequence length into buckets, then shuffles buckets and
+    distributes across DDP ranks. Reduces padding waste on variable-length data.
+    """
+
+    def __init__(self, lengths, batch_size, num_replicas, rank, bucket_size_multiplier=100, seed=0, epoch=0):
+        self.lengths = lengths
+        self.batch_size = batch_size
+        self.num_replicas = num_replicas
+        self.rank = rank
+        self.bucket_size = batch_size * bucket_size_multiplier
+        self.seed = seed
+        self.epoch = epoch
+
+    def set_epoch(self, epoch):
+        self.epoch = epoch
+
+    def __iter__(self):
+        g = torch.Generator()
+        g.manual_seed(self.seed + self.epoch)
+        indices = torch.argsort(torch.tensor(self.lengths)).tolist()
+        # Split sorted indices into buckets and shuffle within each bucket
+        buckets = [indices[i:i + self.bucket_size] for i in range(0, len(indices), self.bucket_size)]
+        for bucket in buckets:
+            perm = torch.randperm(len(bucket), generator=g).tolist()
+            bucket[:] = [bucket[p] for p in perm]
+        # Shuffle bucket order
+        bucket_order = torch.randperm(len(buckets), generator=g).tolist()
+        flat = [idx for b in bucket_order for idx in buckets[b]]
+        # Trim to divisible by num_replicas
+        total = (len(flat) // self.num_replicas) * self.num_replicas
+        flat = flat[:total]
+        # Assign this rank's slice
+        flat = flat[self.rank:total:self.num_replicas]
+        return iter(flat)
+
+    def __len__(self):
+        return len(self.lengths) // self.num_replicas
 
 
 def dataloader_worker_init(_worker_id):
@@ -235,7 +293,18 @@ def main():
         mel_cache_dir=args.mel_cache_dir,
     )
     trace(args.trace_startup, rank, f"dataset built with {len(dataset)} items")
-    sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True) if world_size > 1 else None
+    if args.bucket_sampler:
+        lengths = [dataset.targets[it["uid"]]["z100"].numel() for it in dataset.items]
+        sampler = BucketDistributedSampler(
+            lengths=lengths,
+            batch_size=args.batch_size,
+            num_replicas=world_size,
+            rank=rank,
+        )
+    elif world_size > 1:
+        sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True)
+    else:
+        sampler = None
     worker_kwargs = {}
     if args.workers > 0:
         worker_kwargs = {
@@ -259,6 +328,9 @@ def main():
     trace(args.trace_startup, rank, f"dataloader built with {len(loader)} batches")
 
     model = CausalSpecUnitSSL(variant=args.variant).to(device)
+    if args.compile:
+        model = torch.compile(model)
+        trace(args.trace_startup, rank, "model compiled with torch.compile")
     trace(args.trace_startup, rank, "model moved to device")
     if world_size > 1:
         model = DDP(model, device_ids=[local_rank], output_device=local_rank)
@@ -309,7 +381,7 @@ def main():
         for epoch in range(start_epoch, args.epochs + 1):
             if args.max_steps is not None and optimizer_steps >= args.max_steps:
                 break
-            if sampler is not None:
+            if hasattr(sampler, "set_epoch"):
                 sampler.set_epoch(epoch)
             model.train()
             optimizer.zero_grad(set_to_none=True)

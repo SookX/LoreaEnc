@@ -114,6 +114,5 @@ class Transpose(nn.Module):
 
 
 def recover_resolution(inputs: Tensor) -> Tensor:
-    """Double sequence length by duplicating each timestep."""
-    outputs = [inputs[:, idx // 2, :] for idx in range(inputs.size(1) * 2)]
-    return torch.stack(outputs, dim=1)
+    """Double sequence length by duplicating each timestep (nearest-neighbor ×2 upsample)."""
+    return inputs.repeat_interleave(2, dim=1)
