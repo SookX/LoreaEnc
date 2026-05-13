@@ -163,8 +163,6 @@ torchrun \
     --prefetch-factor 4 \
     --log-every 10 \
     --save-every 10 \
-    --bucket-sampler \
-    --compile \
     --trace-startup \
     --progress on \
     $( [ -n "${RESUME_CKPT}" ] && echo "--resume ${RESUME_CKPT}" || true )

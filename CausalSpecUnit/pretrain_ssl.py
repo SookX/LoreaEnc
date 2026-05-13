@@ -310,7 +310,6 @@ def main():
         worker_kwargs = {
             "persistent_workers": True,
             "prefetch_factor": max(1, args.prefetch_factor),
-            "worker_init_fn": dataloader_worker_init,
         }
     dataloader_timeout = args.dataloader_timeout if args.workers > 0 else 0
     loader = DataLoader(
