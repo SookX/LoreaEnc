@@ -329,8 +329,13 @@ def main():
 
     model = CausalSpecUnitSSL(variant=args.variant).to(device)
     if args.compile:
-        model = torch.compile(model)
-        trace(args.trace_startup, rank, "model compiled with torch.compile")
+        try:
+            import triton  # noqa: F401
+            model = torch.compile(model)
+            trace(args.trace_startup, rank, "model compiled with torch.compile")
+        except ImportError:
+            print0(rank, "[ssl warn] triton not available; skipping torch.compile")
+            args.compile = False
     trace(args.trace_startup, rank, "model moved to device")
     if world_size > 1:
         model = DDP(model, device_ids=[local_rank], output_device=local_rank)
@@ -369,7 +374,7 @@ def main():
     job_start = time.time()
 
     def fmt_eta(remaining_steps):
-        if not step_times or remaining_steps <= 0:
+        if not step_times or remaining_steps is None or remaining_steps <= 0:
             return "?"
         sps = len(step_times) / max(sum(step_times), 1e-9)
         eta_sec = remaining_steps / sps
