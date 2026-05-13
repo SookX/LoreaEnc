@@ -105,7 +105,7 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 # Match the Slurm request above. Keeping this explicit avoids accidentally
 # launching more processes than requested when Slurm reports a broad GPU count.
 NUM_PROCESSES=2
-WORKERS=2
+WORKERS=8
 DATALOADER_TIMEOUT=300
 
 echo "Job ${SLURM_JOB_ID} SSL pretraining starting at $(date)"
@@ -170,8 +170,8 @@ torchrun \
     --max-steps 100000 \
     --batch-size 128 \
     --grad-accum-steps 1 \
-    --mask-prob 0.35 \
-    --mask-length 10 \
+    --mask-prob 0.40 \
+    --mask-length 12 \
     --chunk-size 4 \
     --chunk-stride 4 \
     --lr 1e-3 \
@@ -182,7 +182,7 @@ torchrun \
     --max-safe-grad-norm 200.0 \
     --workers "${WORKERS}" \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
-    --prefetch-factor 2 \
+    --prefetch-factor 4 \
     --log-every 10 \
     --save-every 10 \
     --trace-startup \
