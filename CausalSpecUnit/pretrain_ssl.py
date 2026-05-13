@@ -22,9 +22,11 @@ from CausalSpecUnit.common import (
     build_extended_noam_scheduler,
     cleanup_distributed,
     is_main_process,
+    load_checkpoint,
     print0,
     save_checkpoint,
     setup_distributed,
+    unwrap_model,
 )
 from CausalSpecUnit.data import SpecUnitDataset, collate_ssl
 from CausalSpecUnit.model import CausalSpecUnitSSL
@@ -39,6 +41,8 @@ def parse_args():
                    help="Optional directory of precomputed CMVN log-mel tensors.")
     p.add_argument("--splits", nargs="+", default=None,
                    help="Override training splits (default: TRAIN_SPLITS constant).")
+    p.add_argument("--resume", type=str, default=None,
+                   help="Path to a checkpoint directory to resume from.")
     p.add_argument("--epochs", type=int, default=100)
     p.add_argument("--batch-size", type=int, default=128)
     p.add_argument("--grad-accum-steps", type=int, default=1)
@@ -126,20 +130,43 @@ def cleanup_checkpoints(output_dir, keep):
         shutil.rmtree(os.path.join(output_dir, name), ignore_errors=True)
 
 
+_warned_empty_mask = False
+
+
 def masked_unit_ce(logits, targets, masked_positions):
     """CE over only masked positions. Pads use target=-100 and are ignored."""
+    global _warned_empty_mask
     t = min(logits.size(1), targets.size(1), masked_positions.size(1))
     logits = logits[:, :t]
     targets = targets[:, :t]
     masked_positions = masked_positions[:, :t] & targets.ne(-100)
     if not masked_positions.any():
+        if not _warned_empty_mask:
+            print("[ssl warn] masked_unit_ce: no masked positions in batch — loss is zero; check mask_prob/mask_length", flush=True)
+            _warned_empty_mask = True
         return logits.sum() * 0.0
     return nn.functional.cross_entropy(logits[masked_positions], targets[masked_positions])
 
 
+_warned_align_crop = False
+
+
 def align_ssl_tensors(coarse_logits, fine_logits, z100, z500, masked_positions):
     """Crop model outputs, clean labels, and mask to one shared target length."""
-    t = min(coarse_logits.size(1), fine_logits.size(1), z100.size(1), z500.size(1), masked_positions.size(1))
+    global _warned_align_crop
+    lengths = {
+        "coarse_logits": coarse_logits.size(1),
+        "fine_logits": fine_logits.size(1),
+        "z100": z100.size(1),
+        "z500": z500.size(1),
+        "mask": masked_positions.size(1),
+    }
+    t = min(lengths.values())
+    tmax = max(lengths.values())
+    if tmax - t > 4 and not _warned_align_crop:
+        print(f"[ssl warn] align_ssl_tensors: cropping {tmax - t} frames (lengths={lengths}); "
+              "check chunk_size/chunk_stride vs model downsampling", flush=True)
+        _warned_align_crop = True
     return (
         coarse_logits[:, :t],
         fine_logits[:, :t],
@@ -199,7 +226,7 @@ def main():
     metadata = validate_target_metadata(args.targets_dir, args)
     trace(args.trace_startup, rank, "target metadata validated")
 
-    trace(args.trace_startup, rank, "building dataset; this loads targets.pt on each rank")
+    trace(args.trace_startup, rank, "building dataset; loading targets on each rank")
     dataset = SpecUnitDataset(
         data_root=args.data_root,
         splits=args.splits if args.splits else TRAIN_SPLITS,
@@ -246,6 +273,16 @@ def main():
         peak_epochs=args.peak_epochs,
         decay_rate=args.noam_decay_rate,
     )
+    optimizer_steps = 0
+    start_epoch = 1
+
+    if args.resume:
+        trace(args.trace_startup, rank, f"loading checkpoint from {args.resume}")
+        ckpt = load_checkpoint(args.resume, unwrap_model(model), optimizer, scheduler, device=device)
+        optimizer_steps = int(ckpt.get("optimizer_steps", 0))
+        start_epoch = int(ckpt.get("epoch", 1)) + 1
+        print0(rank, f"[ssl] resumed from {args.resume} | opt_step={optimizer_steps} start_epoch={start_epoch}")
+
     print0(
         rank,
         f"CausalSpecUnit SSL | train={len(dataset)} utt | world={world_size} | "
@@ -253,10 +290,23 @@ def main():
         f"chunk={metadata['chunk_size']} stride={metadata['chunk_stride']} | "
         f"lr={args.lr:g} warmup={args.warmup_epochs} hold={args.peak_epochs}",
     )
-    optimizer_steps = 0
+    if args.max_steps is not None:
+        print0(rank, f"[ssl] target={args.max_steps} steps | remaining={max(0, args.max_steps - optimizer_steps)}")
+
+    step_times = []
+    job_start = time.time()
+
+    def fmt_eta(remaining_steps):
+        if not step_times or remaining_steps <= 0:
+            return "?"
+        sps = len(step_times) / max(sum(step_times), 1e-9)
+        eta_sec = remaining_steps / sps
+        h, m = divmod(int(eta_sec), 3600)
+        m, s = divmod(m, 60)
+        return f"{h}h{m:02d}m" if h else f"{m}m{s:02d}s"
 
     try:
-        for epoch in range(1, args.epochs + 1):
+        for epoch in range(start_epoch, args.epochs + 1):
             if args.max_steps is not None and optimizer_steps >= args.max_steps:
                 break
             if sampler is not None:
@@ -265,6 +315,7 @@ def main():
             optimizer.zero_grad(set_to_none=True)
             total_loss = total_c100 = total_c500 = total_masked_frac = 0.0
             n_batches = 0
+            skipped_steps = 0
             show = args.progress == "on" and is_main_process(rank)
             bar = tqdm(loader, desc=f"SSL {epoch:03d}", leave=False, disable=not show)
 
@@ -322,6 +373,7 @@ def main():
                 if sync_step:
                     if args.trace_every > 0 and step % args.trace_every == 0:
                         trace(True, rank, f"epoch={epoch} step={step} optimizer start")
+                    t0 = time.time()
                     grad_norm = nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                     grad_norm_value = float(grad_norm.detach().item() if isinstance(grad_norm, torch.Tensor) else grad_norm)
                     grad_is_safe = (
@@ -332,7 +384,11 @@ def main():
                         optimizer.step()
                         scheduler.step()
                         optimizer_steps += 1
+                        step_times.append(time.time() - t0)
+                        if len(step_times) > 200:
+                            step_times.pop(0)
                     else:
+                        skipped_steps += 1
                         print0(
                             rank,
                             f"[ssl warn] unsafe grad norm {grad_norm_value:.2f} at epoch {epoch}, "
@@ -347,14 +403,40 @@ def main():
                 total_masked_frac += masked_aligned.float().mean().detach().item()
                 n_batches += 1
                 if show:
-                    bar.set_postfix(loss=f"{loss_val:.3f}", c100=f"{loss100.item():.3f}", c500=f"{loss500.item():.3f}", mask=f"{masked_aligned.float().mean().item():.2%}", lr=f"{scheduler.get_last_lr()[0]:.1e}", refresh=False)
+                    remaining = (args.max_steps - optimizer_steps) if args.max_steps else None
+                    postfix = dict(
+                        loss=f"{loss_val:.3f}",
+                        c100=f"{loss100.item():.3f}",
+                        c500=f"{loss500.item():.3f}",
+                        mask=f"{masked_aligned.float().mean().item():.2%}",
+                        lr=f"{scheduler.get_last_lr()[0]:.1e}",
+                        step=f"{optimizer_steps}/{args.max_steps or '?'}",
+                        eta=fmt_eta(remaining) if remaining is not None else "?",
+                    )
+                    bar.set_postfix(**postfix, refresh=False)
                 if args.log_every > 0 and is_main_process(rank) and step % args.log_every == 0:
-                    tqdm.write(f"[ssl] epoch={epoch} batch={step}/{len(loader)} opt_step={optimizer_steps} loss={loss_val:.4f}")
+                    remaining = (args.max_steps - optimizer_steps) if args.max_steps else None
+                    elapsed = time.time() - job_start
+                    tqdm.write(
+                        f"[ssl] epoch={epoch} batch={step}/{len(loader)} opt_step={optimizer_steps} "
+                        f"loss={loss_val:.4f} elapsed={elapsed/3600:.2f}h eta={fmt_eta(remaining)}"
+                    )
                 if args.max_steps is not None and optimizer_steps >= args.max_steps:
                     break
 
             avg = total_loss / max(n_batches, 1)
-            print0(rank, f"[ssl] epoch={epoch:03d} opt_step={optimizer_steps} loss={avg:.4f} c100={total_c100/max(n_batches,1):.4f} c500={total_c500/max(n_batches,1):.4f} masked={total_masked_frac/max(n_batches,1):.2%}")
+            elapsed = time.time() - job_start
+            remaining = (args.max_steps - optimizer_steps) if args.max_steps else None
+            skipped_note = f" skipped={skipped_steps}" if skipped_steps else ""
+            print0(
+                rank,
+                f"[ssl] epoch={epoch:03d} opt_step={optimizer_steps} loss={avg:.4f} "
+                f"c100={total_c100/max(n_batches,1):.4f} c500={total_c500/max(n_batches,1):.4f} "
+                f"masked={total_masked_frac/max(n_batches,1):.2%}{skipped_note} "
+                f"elapsed={elapsed/3600:.2f}h eta={fmt_eta(remaining)}",
+            )
+            if total_masked_frac / max(n_batches, 1) < 0.01 and is_main_process(rank):
+                print(f"[ssl warn] epoch {epoch}: average masked fraction is <1% — check mask_prob/mask_length settings", flush=True)
             trace(args.trace_startup or args.trace_every > 0, rank, f"epoch={epoch} entering barrier")
             barrier()
             if is_main_process(rank) and (epoch % args.save_every == 0 or (args.max_steps is not None and optimizer_steps >= args.max_steps)):

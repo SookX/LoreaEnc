@@ -142,6 +142,19 @@ print("Target metadata:", {
 })
 PY
 
+# Set RESUME_CKPT to the checkpoint directory path to resume training, e.g.:
+#   RESUME_CKPT="${OUTPUT_DIR}/checkpoint_step050000"
+RESUME_CKPT="${RESUME_CKPT:-}"
+RESUME_ARG=""
+if [ -n "${RESUME_CKPT}" ]; then
+    if [ ! -f "${RESUME_CKPT}/checkpoint.pt" ]; then
+        echo "RESUME_CKPT set but checkpoint.pt not found: ${RESUME_CKPT}"
+        exit 1
+    fi
+    RESUME_ARG="--resume ${RESUME_CKPT}"
+    echo "Resuming from checkpoint: ${RESUME_CKPT}"
+fi
+
 torchrun \
     --nproc_per_node="${NUM_PROCESSES}" \
     --master_addr="${MASTER_ADDR}" \
@@ -151,6 +164,7 @@ torchrun \
     --targets-dir "${TARGETS_DIR}" \
     --output-dir "${OUTPUT_DIR}" \
     --mel-cache-dir "${MEL_CACHE_DIR}" \
+    ${RESUME_ARG} \
     --variant xs \
     --epochs 1000 \
     --max-steps 100000 \
