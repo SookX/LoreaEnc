@@ -373,9 +373,12 @@ def main():
     job_start = time.time()
 
     def fmt_eta(remaining_steps):
-        if not step_times or remaining_steps is None or remaining_steps <= 0:
+        if remaining_steps is None or remaining_steps <= 0:
             return "?"
-        sps = len(step_times) / max(sum(step_times), 1e-9)
+        elapsed = time.time() - job_start
+        if optimizer_steps <= 0 or elapsed <= 0:
+            return "?"
+        sps = optimizer_steps / elapsed
         eta_sec = remaining_steps / sps
         h, m = divmod(int(eta_sec), 3600)
         m, s = divmod(m, 60)

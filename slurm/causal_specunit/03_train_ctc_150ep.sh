@@ -21,10 +21,10 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
-TARGETS_DIR="outputs/causal_specunit/targets_960h"
-SSL_CHECKPOINT="outputs/causal_specunit/pretrain_ssl_150k/checkpoint_step150000/checkpoint.pt"
+TARGETS_DIR="outputs/causal_specunit/targets_960h_c2"
+SSL_CHECKPOINT="outputs/causal_specunit/pretrain_ssl_150k_c2/checkpoint_step100000/checkpoint.pt"
 TOKENIZER_PATH="dataset/bpe128.model"
-OUTPUT_DIR="outputs/causal_specunit/ctc_ssl_150ep"
+OUTPUT_DIR="outputs/causal_specunit/ctc_ssl_150ep_c2"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
