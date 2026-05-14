@@ -211,14 +211,21 @@ def make_hubert_mask(target_lengths, max_targets, mask_prob, mask_length, device
 
 
 def corrupt_mel_from_target_mask(mel, masked_positions, chunk_size, chunk_stride, mask_value):
-    """Vectorized frame corruption from masked target positions."""
+    """Mask the full chunk_stride window of mel frames per masked target.
+
+    A masked target at position t covers mel frames [t*stride, t*stride+stride),
+    not [t*stride, t*stride+chunk_size). When chunk_size < chunk_stride, masking
+    only the chunk_size frames leaves mel frames in the same encoder-downsample
+    window unmasked, leaking context to the encoder.
+    """
     bsz, num_targets = masked_positions.shape
     time_steps = mel.size(1)
     corrupted = mel.clone()
     masked = masked_positions.nonzero(as_tuple=False)
     if masked.numel() == 0:
         return corrupted
-    offsets = torch.arange(chunk_size, device=mel.device)
+    span = max(chunk_stride, chunk_size)
+    offsets = torch.arange(span, device=mel.device)
     frames = masked[:, 1:2] * chunk_stride + offsets[None, :]
     valid = frames < time_steps
     batch_idx = masked[:, 0:1].expand_as(frames)
