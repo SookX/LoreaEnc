@@ -1,16 +1,23 @@
 #!/bin/bash
+# Quick 50k-step SSL pretrain to validate the bug-fixed pipeline before
+# committing to a full 100k run. Identical to 02_pretrain_ssl_150k.sh
+# except for max-steps, output dir, job name, and shorter wall time.
+#
+# Also reduces warmup/peak proportionally (10/10 instead of 20/20) so the
+# scheduler doesn't spend 40% of the run in warmup.
+
 #SBATCH --partition=common
 #SBATCH --qos=bg-eng-01
 #SBATCH --account=bg-eng-01
-#SBATCH --job-name=csu_ssl150k
-#SBATCH --time=120:00:00
+#SBATCH --job-name=csu_ssl50k
+#SBATCH --time=24:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
 #SBATCH --mem=256G
 #SBATCH --gres=gpu:2
-#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl150k.%j.out
-#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl150k.%j.err
+#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl50k.%j.out
+#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl50k.%j.err
 
 set -euo pipefail
 
@@ -22,7 +29,7 @@ PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
 TARGETS_DIR="outputs/causal_specunit/targets_960h_c2"
-OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_150k_c2_v2"
+OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_50k_c2_v2"
 
 if [ ! -d "${VIRTUAL_ENV}" ]; then
     echo "Missing venv: ${VIRTUAL_ENV}"
@@ -48,16 +55,13 @@ fi
 
 if [ ! -f "${TARGETS_DIR}/cmvn.pt" ]; then
     echo "Missing CMVN: ${TARGETS_DIR}/cmvn.pt"
-    echo "Run slurm/causal_specunit/01_generate_targets.sh first."
     exit 1
 fi
 
 if [ ! -f "${TARGETS_DIR}/metadata.json" ]; then
     echo "Missing metadata: ${TARGETS_DIR}/metadata.json"
-    echo "Run slurm/causal_specunit/01_generate_targets.sh first."
     exit 1
 fi
-
 
 if [ ! -f "${TARGETS_DIR}/target_index.json" ]; then
     echo "Missing sharded target index: ${TARGETS_DIR}/target_index.json"
@@ -70,7 +74,7 @@ fi
 export TARGETS_DIR
 
 export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
-export MASTER_PORT="${MASTER_PORT:-$((13000 + SLURM_JOB_ID % 20000))}"
+export MASTER_PORT="${MASTER_PORT:-$((19000 + SLURM_JOB_ID % 20000))}"
 export PYTHONFAULTHANDLER=1
 export PYTHONFAULTHANDLER_TIMEOUT=300
 export PYTHONUNBUFFERED=1
@@ -86,13 +90,11 @@ export NCCL_SOCKET_IFNAME="${NCCL_SOCKET_IFNAME:-^lo,docker}"
 export NCCL_RAS_ENABLE=0
 export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 
-# Match the Slurm request above. Keeping this explicit avoids accidentally
-# launching more processes than requested when Slurm reports a broad GPU count.
 NUM_PROCESSES=2
 WORKERS=12
 DATALOADER_TIMEOUT=300
 
-echo "Job ${SLURM_JOB_ID} SSL pretraining starting at $(date)"
+echo "Job ${SLURM_JOB_ID} SSL pretraining (50k validation run) starting at $(date)"
 echo "Project: ${PROJECT_DIR}"
 echo "Python: $(which python)"
 echo "Torchrun: $(which torchrun)"
@@ -124,8 +126,8 @@ print("Target metadata:", {
 })
 PY
 
-# Set RESUME_CKPT to the checkpoint directory path to resume training, e.g.:
-#   RESUME_CKPT="${OUTPUT_DIR}/checkpoint_step050000"
+# Set RESUME_CKPT to resume from a previous checkpoint, e.g.:
+#   RESUME_CKPT="${OUTPUT_DIR}/checkpoint_step025000"
 RESUME_CKPT="${RESUME_CKPT:-}"
 if [ -n "${RESUME_CKPT}" ]; then
     if [ ! -f "${RESUME_CKPT}/checkpoint.pt" ]; then
@@ -145,7 +147,7 @@ torchrun \
     --output-dir "${OUTPUT_DIR}" \
     --variant xs \
     --epochs 1000 \
-    --max-steps 100000 \
+    --max-steps 50000 \
     --batch-size 128 \
     --grad-accum-steps 1 \
     --mask-prob 0.08 \
@@ -153,8 +155,8 @@ torchrun \
     --chunk-size 2 \
     --chunk-stride 4 \
     --lr 1e-3 \
-    --warmup-epochs 20 \
-    --peak-epochs 20 \
+    --warmup-epochs 10 \
+    --peak-epochs 10 \
     --noam-decay-rate 1.0 \
     --max-grad-norm 1.0 \
     --max-safe-grad-norm 200.0 \
@@ -162,9 +164,9 @@ torchrun \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --prefetch-factor 4 \
     --log-every 10 \
-    --save-every 10 \
+    --save-every 5 \
     --trace-startup \
     --progress on \
     $( [ -n "${RESUME_CKPT}" ] && echo "--resume ${RESUME_CKPT}" || true )
 
-echo "Job ${SLURM_JOB_ID} SSL pretraining finished at $(date)"
+echo "Job ${SLURM_JOB_ID} SSL pretraining (50k) finished at $(date)"

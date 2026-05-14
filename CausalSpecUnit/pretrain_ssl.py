@@ -206,24 +206,31 @@ def make_hubert_mask(target_lengths, max_targets, mask_prob, mask_length, device
 
     positions_clamped = positions.clamp(0, max_targets - 1)
     mask = torch.zeros(B, max_targets, dtype=torch.bool)
-    mask.scatter_(1, positions_clamped, valid)
+    # Set ONLY True positions via boolean indexing. scatter_ would also
+    # write the False entries from `valid`, which can overwrite True positions
+    # from other spans in the same row when max_spans varies across the batch.
+    batch_idx = torch.arange(B).unsqueeze(1).expand_as(valid)
+    mask[batch_idx[valid], positions_clamped[valid]] = True
     return mask.to(device)
 
 
 def corrupt_mel_from_target_mask(mel, masked_positions, chunk_size, chunk_stride, mask_value):
-    """Mask the full chunk_stride window of mel frames per masked target.
+    """Replace mel frames covered by masked targets with mask_value.
 
     A masked target at position t covers mel frames [t*stride, t*stride+stride),
     not [t*stride, t*stride+chunk_size). When chunk_size < chunk_stride, masking
-    only the chunk_size frames leaves mel frames in the same encoder-downsample
-    window unmasked, leaking context to the encoder.
+    only the chunk_size frames leaves the rest of the encoder-downsample window
+    unmasked and leaks context.
+
+    mask_value can be a scalar (0.0) or a learnable 1-D tensor of size n_mels;
+    the tensor case implements the HuBERT-style learnable mask token and lets
+    the encoder distinguish masked frames from zero-padded ones.
     """
     bsz, num_targets = masked_positions.shape
     time_steps = mel.size(1)
-    corrupted = mel.clone()
     masked = masked_positions.nonzero(as_tuple=False)
     if masked.numel() == 0:
-        return corrupted
+        return mel
     span = max(chunk_stride, chunk_size)
     offsets = torch.arange(span, device=mel.device)
     frames = masked[:, 1:2] * chunk_stride + offsets[None, :]
@@ -231,8 +238,13 @@ def corrupt_mel_from_target_mask(mel, masked_positions, chunk_size, chunk_stride
     batch_idx = masked[:, 0:1].expand_as(frames)
     frame_mask = torch.zeros(bsz, time_steps, dtype=torch.bool, device=mel.device)
     frame_mask[batch_idx[valid], frames[valid]] = True
-    corrupted[frame_mask] = mask_value
-    return corrupted
+    # Build the replacement tensor explicitly via torch.where so gradients
+    # flow back to a learnable mask token if one is provided.
+    if isinstance(mask_value, torch.Tensor) and mask_value.dim() == 1:
+        replacement = mask_value.to(mel.dtype).view(1, 1, -1).expand_as(mel)
+    else:
+        replacement = torch.full_like(mel, float(mask_value))
+    return torch.where(frame_mask.unsqueeze(-1), replacement, mel)
 
 
 class BucketDistributedSampler(Sampler):
@@ -424,12 +436,15 @@ def main():
                     device=device,
                 )
                 target_lengths = target_lengths.to(device, non_blocking=True)
+                # Use the model's learnable mask embedding when available
+                # (HuBERT-style); otherwise fall back to scalar mask_value.
+                mask_token = getattr(unwrap_model(model), "mask_emb", None)
                 corrupted_mel = corrupt_mel_from_target_mask(
                     mel=mel,
                     masked_positions=masked_positions,
                     chunk_size=args.chunk_size,
                     chunk_stride=args.chunk_stride,
-                    mask_value=args.mask_value,
+                    mask_value=mask_token if mask_token is not None else args.mask_value,
                 )
 
                 sync_step = step % max(1, args.grad_accum_steps) == 0 or step == len(loader)

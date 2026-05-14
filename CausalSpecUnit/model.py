@@ -31,11 +31,12 @@ class CausalSpecUnitSSL(nn.Module):
     """
     SSL wrapper around a copied SqueezeFormer encoder.
 
-    The architecture lives in CausalSpecUnit/squeezeformer_baseline, copied from
-    the repo baseline so experiments can diverge without editing SqueezeFormer/.
+    Includes a learnable mask token (n_mels-dim vector) to mark masked
+    spectrogram frames during pretraining, distinguishable from both real
+    spectral values and the zero-padded tail.
     """
 
-    def __init__(self, variant="xs", k_coarse=100, k_fine=500):
+    def __init__(self, variant="xs", k_coarse=100, k_fine=500, n_mels=80):
         super().__init__()
         cfg = get_config(variant)
         backbone = build_copied_squeezeformer(variant, num_classes=k_fine)
@@ -44,6 +45,9 @@ class CausalSpecUnitSSL(nn.Module):
         self.encoder = backbone.encoder
         self.head_coarse = nn.Linear(cfg.encoder_dim, k_coarse)
         self.head_fine = nn.Linear(cfg.encoder_dim, k_fine)
+        # Learnable mask vector applied to masked mel frames during SSL.
+        # Initialized small so early gradients flow naturally.
+        self.mask_emb = nn.Parameter(torch.empty(n_mels).normal_(mean=0.0, std=0.1))
 
     def forward(self, mel, lengths):
         encoded, out_lengths = self.encoder(mel, lengths)
