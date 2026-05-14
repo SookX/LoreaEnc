@@ -100,6 +100,9 @@ def parse_args():
     p.add_argument("--start-epoch", type=int,  default=None,
                    help="Epoch number to start from after --resume. "
                         "Required for checkpoint names without _epNNN, such as checkpoint_best.")
+    p.add_argument("--ssl-init",   type=str,   default=None,
+                   help="Path to SSL pretraining checkpoint (.pt or dir). Loads encoder weights only "
+                        "(strict=False), ignoring SSL prediction heads. Mutually exclusive with --resume.")
     p.add_argument("--data-root",  type=str,   default=DATA_ROOT,
                    help="Root directory of LibriSpeech.")
     p.add_argument("--epochs",     type=int,   default=NUM_EPOCHS)
@@ -723,6 +726,24 @@ def main_ddp():
 
     start_epoch = 1
     best_wer = float("inf")
+    if args.ssl_init is not None and args.resume is not None:
+        raise ValueError("--ssl-init and --resume are mutually exclusive.")
+    if args.ssl_init is not None:
+        ssl_path = os.path.join(args.ssl_init, "checkpoint.pt") if os.path.isdir(args.ssl_init) else args.ssl_init
+        ssl_state = torch.load(ssl_path, map_location="cpu")
+        ssl_model_state = ssl_state["model"] if "model" in ssl_state else ssl_state
+        encoder_state = {}
+        for key, value in ssl_model_state.items():
+            stripped = key
+            for prefix in ("module.", "_orig_mod."):
+                if stripped.startswith(prefix):
+                    stripped = stripped[len(prefix):]
+            if stripped.startswith("encoder."):
+                encoder_state[stripped[len("encoder."):]] = value
+        target = model.module if hasattr(model, "module") else model
+        missing, unexpected = target.encoder.load_state_dict(encoder_state, strict=False)
+        print0(rank, f"SSL init from {ssl_path} | encoder keys loaded={len(encoder_state)} "
+                     f"missing={len(missing)} unexpected={len(unexpected)}")
     if args.resume is not None:
         resume_optimizer = None if args.resume_model_only else optimizer
         resume_scheduler = None if args.resume_model_only else scheduler
