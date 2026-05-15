@@ -86,8 +86,8 @@ torchrun \
     --tokenizer-path "${TOKENIZER_PATH}" \
     --batch-size 128 \
     --grad-accum-steps 2 \
-    --lr 1e-3 \
-    --warmup-epochs 20 \
+    --lr 5e-4 \
+    --warmup-epochs 15 \
     --peak-epochs 20 \
     --noam-decay-rate 1.0 \
     --max-grad-norm 1.0 \

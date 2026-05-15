@@ -34,8 +34,8 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 TOKENIZER_PATH="dataset/bpe128.model"
-SSL_CHECKPOINT="outputs/causal_specunit/pretrain_ssl_150k_c2/checkpoint_step100000/checkpoint.pt"
-OUTPUT_DIR="outputs/squeezeformer_xs_150ep_ssl_lowlr"
+SSL_CHECKPOINT="outputs/causal_specunit/pretrain_ssl_50k_c2_v2/checkpoint_step050000/checkpoint.pt"
+OUTPUT_DIR="outputs/squeezeformer_xs_150ep_ssl_lowlr_v2"
 
 if [ ! -d "${VIRTUAL_ENV}" ]; then
     echo "Missing venv: ${VIRTUAL_ENV}"
@@ -82,7 +82,7 @@ echo "Torchrun: $(which torchrun)"
 echo "SSL checkpoint: ${SSL_CHECKPOINT}"
 echo "GPUs on node: ${NUM_PROCESSES}"
 echo "Master: ${MASTER_ADDR}:${MASTER_PORT}"
-echo "Recipe tweaks vs baseline: lr=5e-4 (was 1e-3), warmup=5 (was 20)"
+echo "Recipe tweaks vs baseline: lr=2e-4 (was 1e-3), warmup=15 (was 20), freeze-encoder=5"
 
 python - <<'PY'
 import torch
@@ -105,12 +105,13 @@ torchrun \
     --tokenizer-path "${TOKENIZER_PATH}" \
     --batch-size 128 \
     --grad-accum-steps 2 \
-    --lr 5e-4 \
-    --warmup-epochs 5 \
+    --lr 2e-4 \
+    --warmup-epochs 15 \
     --peak-epochs 20 \
     --noam-decay-rate 1.0 \
     --max-grad-norm 1.0 \
     --max-safe-grad-norm 200.0 \
+    --freeze-encoder-epochs 5 \
     --eval-batch-size 128 \
     --workers "${WORKERS}" \
     --log-every 0 \
@@ -119,6 +120,6 @@ torchrun \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --output-dir "${OUTPUT_DIR}" \
     --ssl-init "${SSL_CHECKPOINT}" \
-    --run-name squeezeformer_xs_150ep_ssl_lowlr
+    --run-name squeezeformer_xs_150ep_ssl_lowlr_v2
 
 echo "Job ${SLURM_JOB_ID} finished at $(date)"

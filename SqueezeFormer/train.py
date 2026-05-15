@@ -103,6 +103,10 @@ def parse_args():
     p.add_argument("--ssl-init",   type=str,   default=None,
                    help="Path to SSL pretraining checkpoint (.pt or dir). Loads encoder weights only "
                         "(strict=False), ignoring SSL prediction heads. Mutually exclusive with --resume.")
+    p.add_argument("--freeze-encoder-epochs", type=int, default=0,
+                   help="Freeze encoder parameters for the first N epochs of fine-tuning, "
+                        "training only the CTC head. Useful when --ssl-init is set to protect "
+                        "pretrained features from random head gradients.")
     p.add_argument("--data-root",  type=str,   default=DATA_ROOT,
                    help="Root directory of LibriSpeech.")
     p.add_argument("--epochs",     type=int,   default=NUM_EPOCHS)
@@ -782,9 +786,24 @@ def main_ddp():
 
     last_grad_norm = float("nan")
 
+    def set_encoder_frozen(frozen: bool):
+        target = model.module if hasattr(model, "module") else model
+        for p in target.encoder.parameters():
+            p.requires_grad = not frozen
+
+    encoder_currently_frozen = False
+    if args.freeze_encoder_epochs > 0:
+        set_encoder_frozen(True)
+        encoder_currently_frozen = True
+        print0(rank, f"[freeze] encoder frozen for first {args.freeze_encoder_epochs} epoch(s)")
+
     try:
         for epoch in range(start_epoch, num_epochs + 1):
             tqdm_write0(rank, f"Epoch {epoch}/{num_epochs}")
+            if encoder_currently_frozen and epoch > args.freeze_encoder_epochs:
+                set_encoder_frozen(False)
+                encoder_currently_frozen = False
+                print0(rank, f"[freeze] encoder unfrozen at epoch {epoch}")
             if train_sampler is not None:
                 train_sampler.set_epoch(epoch)
             model.train()
