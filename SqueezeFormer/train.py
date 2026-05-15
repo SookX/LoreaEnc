@@ -802,6 +802,11 @@ def main_ddp():
         encoder_currently_frozen = True
         print0(rank, f"[freeze] encoder frozen for first {args.freeze_encoder_epochs} epoch(s)")
 
+    metrics_path = os.path.join(output_dir, "metrics.csv")
+    if is_main_process(rank) and not os.path.isfile(metrics_path):
+        with open(metrics_path, "w", encoding="utf-8") as f:
+            f.write("epoch,train_loss,dev_loss,dev_wer,best_wer,lr,encoder_frozen\n")
+
     try:
         for epoch in range(start_epoch, num_epochs + 1):
             tqdm_write0(rank, f"Epoch {epoch}/{num_epochs}")
@@ -953,6 +958,13 @@ def main_ddp():
                     )
                 tqdm_write0(rank, f"  [train] {postfix}")
 
+                with open(metrics_path, "a", encoding="utf-8") as f:
+                    f.write(f"{epoch},{avg_loss:.6f},{dev_loss:.6f},{wer:.6f},"
+                            f"{best_wer:.6f},{scheduler.get_last_lr()[0]:.6e},"
+                            f"{int(encoder_currently_frozen)}\n")
+                    f.flush()
+                    os.fsync(f.fileno())
+
                 if improved:
                     ckpt_dir = os.path.join(output_dir, "checkpoint_best")
                     save_checkpoint(ckpt_dir, model, optimizer, scheduler, epoch, best_wer)
@@ -962,6 +974,13 @@ def main_ddp():
                 if n_ter_batches > 0:
                     postfix = f"loss {avg_loss:.4f}  avg-TER {avg_ter:.2%}  lr {scheduler.get_last_lr()[0]:.1e}"
                 tqdm_write0(rank, f"  [train] {postfix}")
+
+                with open(metrics_path, "a", encoding="utf-8") as f:
+                    f.write(f"{epoch},{avg_loss:.6f},,,{best_wer:.6f},"
+                            f"{scheduler.get_last_lr()[0]:.6e},"
+                            f"{int(encoder_currently_frozen)}\n")
+                    f.flush()
+                    os.fsync(f.fileno())
             barrier()
 
             if epoch % SAVE_EVERY == 0:
