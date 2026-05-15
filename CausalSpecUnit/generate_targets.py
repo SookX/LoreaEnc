@@ -70,6 +70,9 @@ def main():
 
     mel_extractor = LogMelExtractor()
 
+    cmvn_path = os.path.join(args.output_dir, "cmvn.pt")
+    fit_chunk_count = None
+
     if args.reuse_artifacts:
         print(f"Reusing CMVN and cluster artifacts from {args.reuse_artifacts}")
         artifacts_path = os.path.join(args.reuse_artifacts, "cluster_artifacts.joblib")
@@ -84,24 +87,28 @@ def main():
         km_fine = artifacts["kmeans_fine"]
         cmvn = torch.load(cmvn_src, map_location="cpu")
         mean, std = cmvn["mean"].float(), cmvn["std"].float()
-        cmvn_path = os.path.join(args.output_dir, "cmvn.pt")
         torch.save({"mean": mean, "std": std}, cmvn_path)
+        fit_chunk_count = int(artifacts.get("num_fit_chunks", 0))
         print(f"Loaded PCA ({artifacts.get('pca_dim')}d) + KMeans "
               f"(k_coarse={artifacts.get('k_coarse')}, k_fine={artifacts.get('k_fine')})")
         print(f"Re-assigning with chunk_size={args.chunk_size}, chunk_stride={args.chunk_stride}")
     else:
-        cmvn_state = {
-            "count": 0,
-            "sum": torch.zeros(80),
-            "sumsq": torch.zeros(80),
-        }
-        print(f"Computing global CMVN (log-mel) from {len(items)} utterances")
-        for item in tqdm(items, desc="cmvn"):
-            mel = mel_extractor(item["audio_path"])
-            update_cmvn(mel, cmvn_state)
-        mean, std = finalize_cmvn(cmvn_state)
-        cmvn_path = os.path.join(args.output_dir, "cmvn.pt")
-        torch.save({"mean": mean, "std": std}, cmvn_path)
+        if os.path.isfile(cmvn_path):
+            print(f"Found existing CMVN, resuming from {cmvn_path}")
+            cmvn = torch.load(cmvn_path, map_location="cpu")
+            mean, std = cmvn["mean"].float(), cmvn["std"].float().clamp_min(1e-5)
+        else:
+            cmvn_state = {
+                "count": 0,
+                "sum": torch.zeros(80),
+                "sumsq": torch.zeros(80),
+            }
+            print(f"Computing global CMVN (log-mel) from {len(items)} utterances")
+            for item in tqdm(items, desc="cmvn"):
+                mel = mel_extractor(item["audio_path"])
+                update_cmvn(mel, cmvn_state)
+            mean, std = finalize_cmvn(cmvn_state)
+            torch.save({"mean": mean, "std": std}, cmvn_path)
 
         fit_chunks = []
         seen = 0
@@ -119,6 +126,7 @@ def main():
                         fit_chunks[j] = chunk.numpy()
 
         fit_chunks = np.asarray(fit_chunks, dtype=np.float32)
+        fit_chunk_count = int(fit_chunks.shape[0])
         if args.pca_dim > 0:
             print(f"Fitting PCA ({fit_chunks.shape[1]} -> {args.pca_dim} dims) on {fit_chunks.shape[0]:,} chunks")
             pca = PCA(n_components=args.pca_dim, whiten=True, random_state=args.seed)
@@ -160,6 +168,7 @@ def main():
                 "pca_dim": args.pca_dim,
                 "k_coarse": args.k_coarse,
                 "k_fine": args.k_fine,
+                "num_fit_chunks": fit_chunk_count,
             },
             os.path.join(args.output_dir, "cluster_artifacts.joblib"),
         )
@@ -229,7 +238,7 @@ def main():
         "num_utterances": len(items),
         "num_target_utterances": len(targets),
         "target_shards": args.target_shards,
-        "num_fit_chunks": int(fit_chunks.shape[0]),
+        "num_fit_chunks": int(fit_chunk_count or 0),
     }
     with open(os.path.join(args.output_dir, "metadata.json"), "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
