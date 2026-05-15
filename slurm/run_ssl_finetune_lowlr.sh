@@ -1,6 +1,7 @@
 #!/bin/bash
-# SSL fine-tune fallback: same code path and data as run_baseline.sh,
-# but with SSL-friendly hyperparameters (lower LR, shorter warmup).
+# SSL fine-tune salvage run for the existing 50k c2 checkpoint.
+# This is not the recommended main paper run; use it to test whether the
+# old checkpoint becomes useful once the fine-tune frontend matches SSL CMVN.
 #
 # Rationale: the default fine-tune recipe (lr=1e-3, warmup=20 epochs) was
 # tuned for from-scratch training. SSL features have inertia and can be
@@ -8,9 +9,8 @@
 # so the CTC head reaches its operating LR quickly without destroying
 # the pretrained encoder.
 #
-# Apples-to-apples claim: identical model, data, optimizer family, batch
-# size, loss, and decoding. The SSL-recipe row in the paper should be
-# labeled as "SSL-pretrained, SSL-tuned recipe" to be transparent.
+# Apples-to-apples claim for this salvage row: compare only against a scratch
+# run using the same CMVN frontend and SqueezeFormer/train.py code path.
 
 #SBATCH --partition=common
 #SBATCH --qos=bg-eng-01
@@ -34,8 +34,9 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 TOKENIZER_PATH="dataset/bpe128.model"
+TARGETS_DIR="outputs/causal_specunit/targets_960h_c2"
 SSL_CHECKPOINT="outputs/causal_specunit/pretrain_ssl_50k_c2_v2/checkpoint_step050000/checkpoint.pt"
-OUTPUT_DIR="outputs/squeezeformer_xs_150ep_ssl_lowlr_v2"
+OUTPUT_DIR="outputs/squeezeformer_xs_150ep_ssl_50k_c2_cmvn_salvage"
 
 if [ ! -d "${VIRTUAL_ENV}" ]; then
     echo "Missing venv: ${VIRTUAL_ENV}"
@@ -55,6 +56,11 @@ fi
 
 if [ ! -f "${SSL_CHECKPOINT}" ]; then
     echo "Missing SSL checkpoint: ${SSL_CHECKPOINT}"
+    exit 1
+fi
+
+if [ ! -f "${TARGETS_DIR}/cmvn.pt" ]; then
+    echo "Missing CMVN: ${TARGETS_DIR}/cmvn.pt"
     exit 1
 fi
 
@@ -80,9 +86,10 @@ echo "Project: ${PROJECT_DIR}"
 echo "Python: $(which python)"
 echo "Torchrun: $(which torchrun)"
 echo "SSL checkpoint: ${SSL_CHECKPOINT}"
+echo "CMVN: ${TARGETS_DIR}/cmvn.pt"
 echo "GPUs on node: ${NUM_PROCESSES}"
 echo "Master: ${MASTER_ADDR}:${MASTER_PORT}"
-echo "Recipe tweaks vs baseline: lr=2e-4 (was 1e-3), warmup=15 (was 20), freeze-encoder=5"
+echo "Recipe: salvage old c2 SSL, CMVN-matched frontend, no freeze, encoder/head LR split"
 
 python - <<'PY'
 import torch
@@ -97,6 +104,7 @@ torchrun \
     --master_port="${MASTER_PORT}" \
     SqueezeFormer/train.py \
     --data-root dataset/datasets/librispeech/LibriSpeech \
+    --cmvn-path "${TARGETS_DIR}/cmvn.pt" \
     --epochs 150 \
     --variant xs \
     --eval-split dev-other \
@@ -105,13 +113,14 @@ torchrun \
     --tokenizer-path "${TOKENIZER_PATH}" \
     --batch-size 128 \
     --grad-accum-steps 2 \
-    --lr 2e-4 \
-    --warmup-epochs 15 \
+    --lr 1e-3 \
+    --encoder-lr 2e-4 \
+    --head-lr 1e-3 \
+    --warmup-epochs 5 \
     --peak-epochs 20 \
     --noam-decay-rate 1.0 \
     --max-grad-norm 1.0 \
     --max-safe-grad-norm 200.0 \
-    --freeze-encoder-epochs 5 \
     --eval-batch-size 128 \
     --workers "${WORKERS}" \
     --log-every 0 \
@@ -120,6 +129,6 @@ torchrun \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --output-dir "${OUTPUT_DIR}" \
     --ssl-init "${SSL_CHECKPOINT}" \
-    --run-name squeezeformer_xs_150ep_ssl_lowlr_v2
+    --run-name squeezeformer_xs_150ep_ssl_50k_c2_cmvn_salvage
 
 echo "Job ${SLURM_JOB_ID} finished at $(date)"

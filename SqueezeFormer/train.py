@@ -109,6 +109,9 @@ def parse_args():
                         "pretrained features from random head gradients.")
     p.add_argument("--data-root",  type=str,   default=DATA_ROOT,
                    help="Root directory of LibriSpeech.")
+    p.add_argument("--cmvn-path", type=str, default=None,
+                   help="Optional global per-mel CMVN stats from CausalSpecUnit target generation. "
+                        "Use this when fine-tuning an SSL checkpoint trained with the same frontend.")
     p.add_argument("--epochs",     type=int,   default=NUM_EPOCHS)
     p.add_argument("--batch-size", type=int,   default=PER_GPU_BATCH_SIZE)
     p.add_argument("--grad-accum-steps", type=int, default=GRADIENT_ACCUMULATION,
@@ -141,6 +144,10 @@ def parse_args():
                    choices=["xs", "s", "sm", "m", "ml", "l"])
     p.add_argument("--lr",         type=float, default=LEARNING_RATE,
                    help="Peak learning rate. Defaults to the paper value for the selected variant.")
+    p.add_argument("--encoder-lr", type=float, default=None,
+                   help="Optional peak LR for encoder parameters. Useful for SSL fine-tuning.")
+    p.add_argument("--head-lr", type=float, default=None,
+                   help="Optional peak LR for non-encoder parameters, including the CTC head.")
     p.add_argument("--warmup-epochs", type=int, default=NUM_WARMUP_EPOCHS,
                    help="Number of epochs used for linear LR warmup.")
     p.add_argument("--peak-epochs", type=int, default=NUM_PEAK_EPOCHS,
@@ -602,6 +609,8 @@ def main_ddp():
             "Tokenizer: facebook/wav2vec2-base fallback. For paper-faithful training, "
             "pass --tokenizer-path to a 128-token SentencePiece model.",
         )
+    if args.cmvn_path is not None:
+        print0(rank, f"Frontend CMVN: {args.cmvn_path}")
 
     debug_print(args.debug_ranks, rank, "building train dataset")
     full_train = LibriSpeechDataset(
@@ -612,6 +621,7 @@ def main_ddp():
         apply_spec_augment=True,
         mode="mel",
         spec_augment_num_time_masks=paper_specaugment_time_masks(args.variant),
+        cmvn_path=args.cmvn_path,
     )
 
     if hours is not None:
@@ -630,6 +640,7 @@ def main_ddp():
         train_split=False,
         apply_spec_augment=False,
         mode="mel",
+        cmvn_path=args.cmvn_path,
     )
 
     train_sampler = None
@@ -697,13 +708,30 @@ def main_ddp():
     )
 
     peak_lr = args.lr if args.lr is not None else paper_peak_lr(args.variant)
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=peak_lr,
-        betas=(ADAM_BETA1, ADAM_BETA2),
-        eps=ADAM_EPSILON,
-        weight_decay=WEIGHT_DECAY,
-    )
+    if args.encoder_lr is not None or args.head_lr is not None:
+        encoder_lr = args.encoder_lr if args.encoder_lr is not None else peak_lr
+        head_lr = args.head_lr if args.head_lr is not None else peak_lr
+        encoder_param_ids = {id(p) for p in model.encoder.parameters()}
+        head_params = [p for p in model.parameters() if id(p) not in encoder_param_ids]
+        optimizer = torch.optim.AdamW(
+            [
+                {"params": model.encoder.parameters(), "lr": encoder_lr, "name": "encoder"},
+                {"params": head_params, "lr": head_lr, "name": "head"},
+            ],
+            lr=peak_lr,
+            betas=(ADAM_BETA1, ADAM_BETA2),
+            eps=ADAM_EPSILON,
+            weight_decay=WEIGHT_DECAY,
+        )
+        print0(rank, f"LR groups: encoder={encoder_lr:g} | head={head_lr:g}")
+    else:
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=peak_lr,
+            betas=(ADAM_BETA1, ADAM_BETA2),
+            eps=ADAM_EPSILON,
+            weight_decay=WEIGHT_DECAY,
+        )
 
     num_epochs = args.epochs
     steps_per_epoch = math.ceil(len(train_loader) / grad_accum_steps)

@@ -2,15 +2,15 @@
 #SBATCH --partition=common
 #SBATCH --qos=bg-eng-01
 #SBATCH --account=bg-eng-01
-#SBATCH --job-name=csu_ssl150k
+#SBATCH --job-name=csu_ssl100k_c8
 #SBATCH --time=120:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
 #SBATCH --mem=256G
 #SBATCH --gres=gpu:2
-#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl150k.%j.out
-#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl150k.%j.err
+#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl100k_c8.%j.out
+#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ssl100k_c8.%j.err
 
 set -euo pipefail
 
@@ -21,8 +21,8 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
-TARGETS_DIR="outputs/causal_specunit/targets_960h_c2"
-OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_150k_c2_v2"
+TARGETS_DIR="outputs/causal_specunit/targets_960h_c8"
+OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_100k_c8"
 
 if [ ! -d "${VIRTUAL_ENV}" ]; then
     echo "Missing venv: ${VIRTUAL_ENV}"
@@ -148,9 +148,9 @@ torchrun \
     --max-steps 100000 \
     --batch-size 128 \
     --grad-accum-steps 1 \
-    --mask-prob 0.08 \
+    --mask-prob 0.30 \
     --mask-length 10 \
-    --chunk-size 2 \
+    --chunk-size 8 \
     --chunk-stride 4 \
     --lr 1e-3 \
     --warmup-epochs 20 \

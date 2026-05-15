@@ -21,7 +21,8 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 TOKENIZER_PATH="dataset/bpe128.model"
-OUTPUT_DIR="outputs/squeezeformer_xs_150ep_scratch"
+TARGETS_DIR="outputs/causal_specunit/targets_960h_c8"
+OUTPUT_DIR="outputs/squeezeformer_xs_150ep_scratch_cmvn_c8"
 
 if [ ! -d "${VIRTUAL_ENV}" ]; then
     echo "Missing venv: ${VIRTUAL_ENV}"
@@ -36,6 +37,12 @@ mkdir -p logs "${OUTPUT_DIR}"
 
 if [ ! -f "${TOKENIZER_PATH}" ]; then
     echo "Missing tokenizer: ${TOKENIZER_PATH}"
+    exit 1
+fi
+
+if [ ! -f "${TARGETS_DIR}/cmvn.pt" ]; then
+    echo "Missing CMVN: ${TARGETS_DIR}/cmvn.pt"
+    echo "Run slurm/causal_specunit/01_generate_targets.sh first."
     exit 1
 fi
 
@@ -64,6 +71,7 @@ echo "Python: $(which python)"
 echo "Torchrun: $(which torchrun)"
 echo "GPUs on node: ${NUM_PROCESSES}"
 echo "Master: ${MASTER_ADDR}:${MASTER_PORT}"
+echo "CMVN: ${TARGETS_DIR}/cmvn.pt"
 
 python - <<'PY'
 import torch
@@ -78,6 +86,7 @@ torchrun \
     --master_port="${MASTER_PORT}" \
     SqueezeFormer/train.py \
     --data-root dataset/datasets/librispeech/LibriSpeech \
+    --cmvn-path "${TARGETS_DIR}/cmvn.pt" \
     --epochs 150 \
     --variant xs \
     --eval-split dev-other \

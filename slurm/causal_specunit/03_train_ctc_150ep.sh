@@ -21,10 +21,10 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
-TARGETS_DIR="outputs/causal_specunit/targets_960h_c2"
-SSL_CHECKPOINT="outputs/causal_specunit/pretrain_ssl_150k_c2/checkpoint_step100000/checkpoint.pt"
+TARGETS_DIR="outputs/causal_specunit/targets_960h_c8"
+SSL_CHECKPOINT="outputs/causal_specunit/pretrain_ssl_100k_c8/checkpoint_step100000/checkpoint.pt"
 TOKENIZER_PATH="dataset/bpe128.model"
-OUTPUT_DIR="outputs/causal_specunit/ctc_ssl_150ep_c2"
+OUTPUT_DIR="outputs/causal_specunit/ctc_ssl_150ep_c8"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
@@ -34,7 +34,7 @@ mkdir -p logs "${OUTPUT_DIR}"
 
 if [ ! -f "${SSL_CHECKPOINT}" ]; then
     echo "Missing SSL checkpoint: ${SSL_CHECKPOINT}"
-    echo "Run slurm/causal_specunit/02_pretrain_ssl_150k.sh first."
+    echo "Run slurm/causal_specunit/02_pretrain_ssl_100k_c8.sh first."
     exit 1
 fi
 
@@ -97,7 +97,9 @@ torchrun \
     --eval-batch-size 128 \
     --eval-split dev-other \
     --eval-every 1 \
-    --lr 2e-3 \
+    --lr 1e-3 \
+    --encoder-lr 3e-4 \
+    --head-lr 1e-3 \
     --max-grad-norm 1.0 \
     --workers "${WORKERS}" \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \

@@ -21,9 +21,9 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
-TARGETS_DIR="outputs/causal_specunit/targets_960h_c2"
+TARGETS_DIR="outputs/causal_specunit/targets_960h_c8"
 TOKENIZER_PATH="dataset/bpe128.model"
-OUTPUT_DIR="outputs/causal_specunit/ctc_scratch_150ep_c2"
+OUTPUT_DIR="outputs/causal_specunit/ctc_scratch_150ep_c8"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"

@@ -85,6 +85,7 @@ class LibriSpeechDataset(Dataset):
         apply_audio_augment: bool = True,
         mode: str = "mel",
         spec_augment_num_time_masks: int = 5,
+        cmvn_path: Optional[str] = None,
     ):
         if manifest_path is not None and include_splits is not None:
             raise ValueError("Provide either manifest_path or include_splits, not both.")
@@ -102,6 +103,12 @@ class LibriSpeechDataset(Dataset):
         self.apply_audio_augment = apply_audio_augment
         self.mode = mode
         self.spec_augment = ConformerSpecAugment(num_time_masks=spec_augment_num_time_masks)
+        self.cmvn_mean = None
+        self.cmvn_std = None
+        if cmvn_path is not None:
+            cmvn = torch.load(cmvn_path, map_location="cpu")
+            self.cmvn_mean = cmvn["mean"].float()
+            self.cmvn_std = cmvn["std"].float().clamp_min(1e-5)
 
         # ── Load utterance list ───────────────────────────────────────────
         if manifest_path is not None:
@@ -182,7 +189,12 @@ class LibriSpeechDataset(Dataset):
         audio = torch.cat([audio[:, :1], audio[:, 1:] - 0.97 * audio[:, :-1]], dim=-1)
         mel = self.audio2mels(audio)
         mel = self.amp2db(mel)
-        mel = (mel - mel.mean()) / torch.sqrt(mel.var(unbiased=False) + 1e-9)
+        if self.cmvn_mean is not None:
+            mean = self.cmvn_mean.to(mel.device).view(1, -1, 1)
+            std = self.cmvn_std.to(mel.device).view(1, -1, 1)
+            mel = (mel - mean) / std
+        else:
+            mel = (mel - mel.mean()) / torch.sqrt(mel.var(unbiased=False) + 1e-9)
         if self.train_split and self.apply_spec_augment:
             mel = self.spec_augment(mel)
 

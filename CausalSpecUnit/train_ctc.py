@@ -41,6 +41,10 @@ def parse_args():
     p.add_argument("--dataloader-timeout", type=int, default=120)
     p.add_argument("--variant", type=str, default="xs", choices=["xs", "s", "sm", "m", "ml", "l"])
     p.add_argument("--lr", type=float, default=2e-3)
+    p.add_argument("--encoder-lr", type=float, default=None,
+                   help="Optional peak LR for encoder parameters, useful for SSL fine-tuning.")
+    p.add_argument("--head-lr", type=float, default=None,
+                   help="Optional peak LR for non-encoder parameters, including the CTC head.")
     p.add_argument("--weight-decay", type=float, default=5e-4)
     p.add_argument("--max-grad-norm", type=float, default=1.0)
     p.add_argument("--eval-split", type=str, default=DEV_SPLIT)
@@ -177,7 +181,31 @@ def main():
     if world_size > 1:
         model = DDP(model, device_ids=[local_rank], output_device=local_rank)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.98), eps=1e-9, weight_decay=args.weight_decay)
+    opt_model = model.module if hasattr(model, "module") else model
+    if args.encoder_lr is not None or args.head_lr is not None:
+        encoder_lr = args.encoder_lr if args.encoder_lr is not None else args.lr
+        head_lr = args.head_lr if args.head_lr is not None else args.lr
+        encoder_param_ids = {id(p) for p in opt_model.encoder.parameters()}
+        head_params = [p for p in opt_model.parameters() if id(p) not in encoder_param_ids]
+        optimizer = torch.optim.AdamW(
+            [
+                {"params": opt_model.encoder.parameters(), "lr": encoder_lr, "name": "encoder"},
+                {"params": head_params, "lr": head_lr, "name": "head"},
+            ],
+            lr=args.lr,
+            betas=(0.9, 0.98),
+            eps=1e-9,
+            weight_decay=args.weight_decay,
+        )
+        print0(rank, f"LR groups: encoder={encoder_lr:g} | head={head_lr:g}")
+    else:
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=args.lr,
+            betas=(0.9, 0.98),
+            eps=1e-9,
+            weight_decay=args.weight_decay,
+        )
     steps_per_epoch = math.ceil(len(train_loader) / max(1, args.grad_accum_steps))
     scheduler = build_extended_noam_scheduler(optimizer, steps_per_epoch, warmup_epochs=20, peak_epochs=160, decay_rate=1.0)
     ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)

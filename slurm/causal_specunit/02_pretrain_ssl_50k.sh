@@ -1,6 +1,6 @@
 #!/bin/bash
-# Quick 50k-step SSL pretrain to validate the bug-fixed pipeline before
-# committing to a full 100k run. Identical to 02_pretrain_ssl_150k.sh
+# Quick 50k-step SSL pretrain to validate the c8 pipeline before
+# committing to a full 100k run. Identical to 02_pretrain_ssl_100k_c8.sh
 # except for max-steps, output dir, job name, and shorter wall time.
 #
 # Also reduces warmup/peak proportionally (10/10 instead of 20/20) so the
@@ -28,8 +28,8 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
-TARGETS_DIR="outputs/causal_specunit/targets_960h_c2"
-OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_50k_c2_v2"
+TARGETS_DIR="outputs/causal_specunit/targets_960h_c8"
+OUTPUT_DIR="outputs/causal_specunit/pretrain_ssl_50k_c8"
 
 if [ ! -d "${VIRTUAL_ENV}" ]; then
     echo "Missing venv: ${VIRTUAL_ENV}"
@@ -150,9 +150,9 @@ torchrun \
     --max-steps 50000 \
     --batch-size 128 \
     --grad-accum-steps 1 \
-    --mask-prob 0.08 \
+    --mask-prob 0.30 \
     --mask-length 10 \
-    --chunk-size 2 \
+    --chunk-size 8 \
     --chunk-stride 4 \
     --lr 1e-3 \
     --warmup-epochs 10 \

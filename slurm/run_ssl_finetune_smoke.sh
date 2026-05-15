@@ -3,7 +3,7 @@
 # Mirrors run_ssl_finetune.sh exactly, but caps at 2 epochs of 20 batches
 # so it finishes quickly. Verifies:
 #   - SSL checkpoint loads (--ssl-init)
-#   - Encoder freeze logic works
+#   - CMVN-matched frontend works
 #   - DDP + find_unused_parameters works on 2 GPUs
 #   - metrics.csv gets written and flushed per epoch
 #
@@ -32,8 +32,9 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 TOKENIZER_PATH="dataset/bpe128.model"
-SSL_CHECKPOINT="outputs/causal_specunit/pretrain_ssl_50k_c2_v2/checkpoint_step050000/checkpoint.pt"
-OUTPUT_DIR="outputs/squeezeformer_xs_ssl_smoke"
+TARGETS_DIR="${TARGETS_DIR:-outputs/causal_specunit/targets_960h_c8}"
+SSL_CHECKPOINT="${SSL_CHECKPOINT:-outputs/causal_specunit/pretrain_ssl_100k_c8/checkpoint_step100000/checkpoint.pt}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/squeezeformer_xs_ssl_cmvn_c8_smoke}"
 
 if [ ! -d "${VIRTUAL_ENV}" ]; then
     echo "Missing venv: ${VIRTUAL_ENV}"
@@ -58,6 +59,11 @@ if [ ! -f "${SSL_CHECKPOINT}" ]; then
     exit 1
 fi
 
+if [ ! -f "${TARGETS_DIR}/cmvn.pt" ]; then
+    echo "Missing CMVN: ${TARGETS_DIR}/cmvn.pt"
+    exit 1
+fi
+
 export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
 export MASTER_PORT="${MASTER_PORT:-$((20000 + SLURM_JOB_ID % 20000))}"
 export PYTHONFAULTHANDLER=1
@@ -77,6 +83,7 @@ DATALOADER_TIMEOUT=120
 
 echo "Job ${SLURM_JOB_ID} SMOKE TEST starting at $(date)"
 echo "SSL checkpoint: ${SSL_CHECKPOINT}"
+echo "CMVN: ${TARGETS_DIR}/cmvn.pt"
 echo "Output: ${OUTPUT_DIR}"
 
 python - <<'PY'
@@ -92,6 +99,7 @@ torchrun \
     --master_port="${MASTER_PORT}" \
     SqueezeFormer/train.py \
     --data-root dataset/datasets/librispeech/LibriSpeech \
+    --cmvn-path "${TARGETS_DIR}/cmvn.pt" \
     --epochs 2 \
     --max-train-batches 20 \
     --variant xs \
@@ -101,13 +109,14 @@ torchrun \
     --tokenizer-path "${TOKENIZER_PATH}" \
     --batch-size 64 \
     --grad-accum-steps 1 \
-    --lr 5e-4 \
+    --lr 1e-3 \
+    --encoder-lr 3e-4 \
+    --head-lr 1e-3 \
     --warmup-epochs 1 \
     --peak-epochs 1 \
     --noam-decay-rate 1.0 \
     --max-grad-norm 1.0 \
     --max-safe-grad-norm 200.0 \
-    --freeze-encoder-epochs 1 \
     --eval-batch-size 64 \
     --workers "${WORKERS}" \
     --log-every 5 \
@@ -116,7 +125,7 @@ torchrun \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --output-dir "${OUTPUT_DIR}" \
     --ssl-init "${SSL_CHECKPOINT}" \
-    --run-name squeezeformer_xs_ssl_smoke
+    --run-name squeezeformer_xs_ssl_cmvn_c8_smoke
 
 echo "Job ${SLURM_JOB_ID} SMOKE TEST finished at $(date)"
 echo ""
