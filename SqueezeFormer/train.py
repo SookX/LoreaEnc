@@ -780,7 +780,12 @@ def main_ddp():
 
     if world_size > 1:
         debug_print(args.debug_ranks, rank, "wrapping model in DDP")
-        model = DDP(model, device_ids=[local_rank], output_device=local_rank)
+        # find_unused_parameters is required when --freeze-encoder-epochs > 0,
+        # because frozen encoder params produce no gradients and DDP otherwise
+        # raises "Expected to have finished reduction" on each backward pass.
+        ddp_find_unused = args.freeze_encoder_epochs > 0
+        model = DDP(model, device_ids=[local_rank], output_device=local_rank,
+                    find_unused_parameters=ddp_find_unused)
     debug_print(args.debug_ranks, rank, "training loop ready")
     show_progress = should_show_progress(args.progress, rank)
 
