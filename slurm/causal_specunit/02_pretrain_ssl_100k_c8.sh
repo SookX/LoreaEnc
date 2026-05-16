@@ -3,7 +3,7 @@
 #SBATCH --qos=bg-eng-01
 #SBATCH --account=bg-eng-01
 #SBATCH --job-name=csu_ssl100k_c8
-#SBATCH --time=120:00:00
+#SBATCH --time=24:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
