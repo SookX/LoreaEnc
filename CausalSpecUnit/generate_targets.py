@@ -110,22 +110,33 @@ def main():
             mean, std = finalize_cmvn(cmvn_state)
             torch.save({"mean": mean, "std": std}, cmvn_path)
 
-        fit_chunks = []
+        if args.max_fit_chunks <= 0:
+            raise ValueError("--max-fit-chunks must be positive")
+
+        feature_dim = args.chunk_size * int(mean.numel())
+        fit_chunks = np.empty((args.max_fit_chunks, feature_dim), dtype=np.float32)
+        fit_count = 0
         seen = 0
         print(f"Collecting up to {args.max_fit_chunks:,} clean log-mel chunks for PCA/k-means")
         for item in tqdm(items, desc="sample chunks"):
             mel = apply_cmvn(mel_extractor(item["audio_path"]), mean, std)
             chunks = chunks_from_mel(mel, args.chunk_size, args.chunk_stride)
-            for chunk in chunks:
+            if chunks.numel() == 0:
+                continue
+            chunk_rows = chunks.numpy().astype(np.float32, copy=False)
+            for chunk in chunk_rows:
                 seen += 1
-                if len(fit_chunks) < args.max_fit_chunks:
-                    fit_chunks.append(chunk.numpy())
+                if fit_count < args.max_fit_chunks:
+                    fit_chunks[fit_count] = chunk
+                    fit_count += 1
                 else:
                     j = random.randrange(seen)
                     if j < args.max_fit_chunks:
-                        fit_chunks[j] = chunk.numpy()
+                        fit_chunks[j] = chunk
 
-        fit_chunks = np.asarray(fit_chunks, dtype=np.float32)
+        if fit_count == 0:
+            raise RuntimeError("No chunks were collected for PCA/k-means fitting")
+        fit_chunks = fit_chunks[:fit_count]
         fit_chunk_count = int(fit_chunks.shape[0])
         if args.pca_dim > 0:
             print(f"Fitting PCA ({fit_chunks.shape[1]} -> {args.pca_dim} dims) on {fit_chunks.shape[0]:,} chunks")
