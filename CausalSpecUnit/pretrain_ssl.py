@@ -32,6 +32,27 @@ from CausalSpecUnit.data import SpecUnitDataset, collate_ssl
 from CausalSpecUnit.model import CausalSpecUnitSSL
 
 
+def append_jsonl(path, record):
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def scalar_mean(value, device):
+    # Keep per-batch telemetry cheap. Rank 0 logs its local stream, which is
+    # enough for trend analysis without adding four distributed reductions per
+    # training batch.
+    return float(value)
+
+
+def count_parameters(model):
+    model = unwrap_model(model)
+    total = sum(p.numel() for p in model.parameters())
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    encoder = sum(p.numel() for p in model.encoder.parameters())
+    return {"total": total, "trainable": trainable, "encoder": encoder}
+
+
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data-root", type=str, default="dataset/datasets/librispeech/LibriSpeech")
@@ -359,6 +380,29 @@ def main():
         model = DDP(model, device_ids=[local_rank], output_device=local_rank)
         trace(args.trace_startup, rank, "DDP wrapper built")
 
+    metrics_path = os.path.join(args.output_dir, "ssl_metrics.jsonl")
+    run_info_path = os.path.join(args.output_dir, "ssl_run_info.json")
+    if is_main_process(rank):
+        param_counts = count_parameters(model)
+        run_info = {
+            "argv": sys.argv,
+            "args": vars(args),
+            "metadata": metadata,
+            "parameter_counts": param_counts,
+            "world_size": world_size,
+            "device": str(device),
+            "hostname": socket.gethostname(),
+            "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "random_baseline_ce": {
+                "k100_ln": math.log(100),
+                "k500_ln": math.log(500),
+                "combined_ln": math.log(100) + math.log(500),
+            },
+        }
+        with open(run_info_path, "w", encoding="utf-8") as f:
+            json.dump(run_info, f, indent=2, sort_keys=True)
+        append_jsonl(metrics_path, {"event": "run_start", **run_info})
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.98), eps=1e-9, weight_decay=args.weight_decay)
     steps_per_epoch = math.ceil(len(loader) / max(1, args.grad_accum_steps))
     scheduler = build_extended_noam_scheduler(
@@ -452,6 +496,8 @@ def main():
                 window_end = min(window_start + max(1, args.grad_accum_steps) - 1, len(loader))
                 actual_accum_steps = window_end - window_start + 1
                 sync_context = model.no_sync if isinstance(model, DDP) and not sync_step else contextlib.nullcontext
+                grad_norm_value = None
+                grad_is_safe = None
 
                 with sync_context():
                     if args.trace_every > 0 and step % args.trace_every == 0:
@@ -498,10 +544,17 @@ def main():
                     optimizer.zero_grad(set_to_none=True)
 
                 loss_val = (loss100 + loss500).detach().float().item()
-                total_loss += loss_val
-                total_c100 += loss100.detach().float().item()
-                total_c500 += loss500.detach().float().item()
-                total_masked_frac += masked_aligned.float().mean().detach().item()
+                c100_val = loss100.detach().float().item()
+                c500_val = loss500.detach().float().item()
+                masked_frac_val = masked_aligned.float().mean().detach().item()
+                loss_mean = scalar_mean(loss_val, device)
+                c100_mean = scalar_mean(c100_val, device)
+                c500_mean = scalar_mean(c500_val, device)
+                masked_frac_mean = scalar_mean(masked_frac_val, device)
+                total_loss += loss_mean
+                total_c100 += c100_mean
+                total_c500 += c500_mean
+                total_masked_frac += masked_frac_mean
                 n_batches += 1
                 if show:
                     remaining = (args.max_steps - optimizer_steps) if args.max_steps else None
@@ -518,25 +571,61 @@ def main():
                 if args.log_every > 0 and is_main_process(rank) and step % args.log_every == 0:
                     remaining = (args.max_steps - optimizer_steps) if args.max_steps else None
                     elapsed = time.time() - job_start
+                    record = {
+                        "event": "train_step",
+                        "epoch": epoch,
+                        "batch": step,
+                        "batches_per_epoch": len(loader),
+                        "optimizer_step": optimizer_steps,
+                        "loss": loss_mean,
+                        "c100": c100_mean,
+                        "c500": c500_mean,
+                        "masked_fraction": masked_frac_mean,
+                        "lr": scheduler.get_last_lr()[0],
+                        "grad_norm": grad_norm_value,
+                        "grad_is_safe": grad_is_safe,
+                        "skipped_steps_epoch": skipped_steps,
+                        "elapsed_hours": elapsed / 3600,
+                        "eta": fmt_eta(remaining),
+                    }
+                    append_jsonl(metrics_path, record)
                     tqdm.write(
                         f"[ssl] epoch={epoch} batch={step}/{len(loader)} opt_step={optimizer_steps} "
-                        f"loss={loss_val:.4f} elapsed={elapsed/3600:.2f}h eta={fmt_eta(remaining)}"
+                        f"loss={loss_mean:.4f} c100={c100_mean:.4f} c500={c500_mean:.4f} "
+                        f"mask={masked_frac_mean:.2%} elapsed={elapsed/3600:.2f}h eta={fmt_eta(remaining)}"
                     )
                 if args.max_steps is not None and optimizer_steps >= args.max_steps:
                     break
 
             avg = total_loss / max(n_batches, 1)
+            avg_c100 = total_c100 / max(n_batches, 1)
+            avg_c500 = total_c500 / max(n_batches, 1)
+            avg_masked = total_masked_frac / max(n_batches, 1)
             elapsed = time.time() - job_start
             remaining = (args.max_steps - optimizer_steps) if args.max_steps else None
             skipped_note = f" skipped={skipped_steps}" if skipped_steps else ""
             print0(
                 rank,
                 f"[ssl] epoch={epoch:03d} opt_step={optimizer_steps} loss={avg:.4f} "
-                f"c100={total_c100/max(n_batches,1):.4f} c500={total_c500/max(n_batches,1):.4f} "
-                f"masked={total_masked_frac/max(n_batches,1):.2%}{skipped_note} "
+                f"c100={avg_c100:.4f} c500={avg_c500:.4f} "
+                f"masked={avg_masked:.2%}{skipped_note} "
                 f"elapsed={elapsed/3600:.2f}h eta={fmt_eta(remaining)}",
             )
-            if total_masked_frac / max(n_batches, 1) < 0.01 and is_main_process(rank):
+            if is_main_process(rank):
+                append_jsonl(metrics_path, {
+                    "event": "epoch_end",
+                    "epoch": epoch,
+                    "optimizer_step": optimizer_steps,
+                    "loss": avg,
+                    "c100": avg_c100,
+                    "c500": avg_c500,
+                    "masked_fraction": avg_masked,
+                    "lr": scheduler.get_last_lr()[0],
+                    "skipped_steps_epoch": skipped_steps,
+                    "elapsed_hours": elapsed / 3600,
+                    "eta": fmt_eta(remaining),
+                })
+            if avg_masked < 0.01 and is_main_process(rank):
                 print(f"[ssl warn] epoch {epoch}: average masked fraction is <1% — check mask_prob/mask_length settings", flush=True)
             trace(args.trace_startup or args.trace_every > 0, rank, f"epoch={epoch} entering barrier")
             barrier()
@@ -548,7 +637,13 @@ def main():
                     optimizer,
                     scheduler,
                     epoch,
-                    extra={"ssl_loss": avg, "optimizer_steps": optimizer_steps},
+                    extra={
+                        "ssl_loss": avg,
+                        "ssl_c100": avg_c100,
+                        "ssl_c500": avg_c500,
+                        "ssl_masked_fraction": avg_masked,
+                        "optimizer_steps": optimizer_steps,
+                    },
                 )
                 cleanup_checkpoints(args.output_dir, args.keep_checkpoints)
             trace(args.trace_startup or args.trace_every > 0, rank, f"epoch={epoch} leaving checkpoint barrier")
