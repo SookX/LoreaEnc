@@ -26,12 +26,14 @@ TOKENIZER_PATH="${TOKENIZER_PATH:-dataset/bpe128.model}"
 SSL_CHECKPOINT="${SSL_CHECKPOINT:-outputs/causal_specunit/pretrain_ssl_100k_c8/checkpoint_step100000/checkpoint.pt}"
 
 # 100h tuning reference. Defaults are intentionally SSL-finetune specific:
-# shorter warmup, real decay, and less conservative encoder adaptation.
+# moderate warmup, delayed decay, softer head LR, and less conservative
+# encoder adaptation. This is intended to test whether SSL plateaus because
+# the original fine-tune recipe was too flat/conservative.
 TRAIN_SPLITS="${TRAIN_SPLITS:-train-clean-100}"
 TRAIN_HOURS="${TRAIN_HOURS:-100}"
 SUBSET_SEED="${SUBSET_SEED:-42}"
 EVAL_SPLIT="${EVAL_SPLIT:-dev-other}"
-EPOCHS="${EPOCHS:-150}"
+EPOCHS="${EPOCHS:-100}"
 
 BATCH_SIZE="${BATCH_SIZE:-128}"
 GRAD_ACCUM_STEPS="${GRAD_ACCUM_STEPS:-2}"
@@ -40,14 +42,14 @@ WORKERS="${WORKERS:-8}"
 DATALOADER_TIMEOUT="${DATALOADER_TIMEOUT:-120}"
 
 ENCODER_LR="${ENCODER_LR:-5e-4}"
-HEAD_LR="${HEAD_LR:-1e-3}"
-BASE_LR="${BASE_LR:-1e-3}"
-WARMUP_EPOCHS="${WARMUP_EPOCHS:-8}"
-PEAK_EPOCHS="${PEAK_EPOCHS:-20}"
+HEAD_LR="${HEAD_LR:-7e-4}"
+BASE_LR="${BASE_LR:-7e-4}"
+WARMUP_EPOCHS="${WARMUP_EPOCHS:-10}"
+PEAK_EPOCHS="${PEAK_EPOCHS:-50}"
 NOAM_DECAY_RATE="${NOAM_DECAY_RATE:-0.5}"
 MAX_GRAD_NORM="${MAX_GRAD_NORM:-1.0}"
 
-OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_100h_tune_elr5e4_w8_p20_c8}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_100h_tune_elr5e4_hlr7e4_w10_p50_100ep_c8}"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"

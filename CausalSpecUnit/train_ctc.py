@@ -8,6 +8,7 @@ import sys
 import time
 
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
@@ -50,6 +51,27 @@ def current_lrs(optimizer):
         name = group.get("name", f"group_{idx}")
         lrs[name] = group["lr"]
     return lrs
+
+
+def current_group_grad_norms(optimizer):
+    norms = {}
+    for idx, group in enumerate(optimizer.param_groups):
+        name = group.get("name", f"group_{idx}")
+        total_sq = 0.0
+        for param in group["params"]:
+            if param.grad is None:
+                continue
+            grad = param.grad.detach().float()
+            total_sq += float(grad.pow(2).sum().item())
+        norms[name] = math.sqrt(total_sq)
+    return norms
+
+
+def reduce_train_average(total_loss, n_batches, device):
+    stats = torch.tensor([float(total_loss), float(n_batches)], dtype=torch.float64, device=device)
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+    return float(stats[0].item() / max(stats[1].item(), 1.0))
 
 
 def parse_args():
@@ -119,6 +141,33 @@ def edit_distance(a, b):
     return dp[-1]
 
 
+def word_error_counts(ref_words, hyp_words):
+    """Return substitutions, insertions, deletions for ref -> hyp."""
+    rows, cols = len(ref_words), len(hyp_words)
+    dp = [[(0, 0, 0, 0) for _ in range(cols + 1)] for _ in range(rows + 1)]
+    for i in range(1, rows + 1):
+        cost, sub, ins, dele = dp[i - 1][0]
+        dp[i][0] = (cost + 1, sub, ins, dele + 1)
+    for j in range(1, cols + 1):
+        cost, sub, ins, dele = dp[0][j - 1]
+        dp[0][j] = (cost + 1, sub, ins + 1, dele)
+
+    for i in range(1, rows + 1):
+        for j in range(1, cols + 1):
+            if ref_words[i - 1] == hyp_words[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1]
+                continue
+            cost, sub, ins, dele = dp[i - 1][j - 1]
+            substitute = (cost + 1, sub + 1, ins, dele)
+            cost, sub, ins, dele = dp[i][j - 1]
+            insert = (cost + 1, sub, ins + 1, dele)
+            cost, sub, ins, dele = dp[i - 1][j]
+            delete = (cost + 1, sub, ins, dele + 1)
+            dp[i][j] = min((substitute, insert, delete), key=lambda x: (x[0], x[1], x[2], x[3]))
+    _, sub, ins, dele = dp[rows][cols]
+    return sub, ins, dele
+
+
 def greedy_decode(log_probs, lengths, blank_id):
     preds = log_probs.argmax(dim=-1)
     decoded = []
@@ -139,6 +188,14 @@ def evaluate(model, loader, tokenizer, blank_id, ctc_loss, device, rank, show_pr
     total_ref_words = 0
     total_loss = 0.0
     total_batches = 0
+    total_substitutions = 0
+    total_insertions = 0
+    total_deletions = 0
+    total_hyp_words = 0
+    total_char_errors = 0
+    total_ref_chars = 0
+    empty_hypotheses = 0
+    total_utterances = 0
     example = None
     bar = tqdm(loader, desc="eval", leave=False, disable=not (show_progress and is_main_process(rank)))
     for mel, lengths, labels, label_lengths, transcripts in bar:
@@ -155,13 +212,66 @@ def evaluate(model, loader, tokenizer, blank_id, ctc_loss, device, rank, show_pr
         refs = [x.lower().strip() for x in transcripts]
         for hyp, ref in zip(hyps, refs):
             hw, rw = hyp.split(), ref.split()
-            total_word_errors += edit_distance(hw, rw)
+            substitutions, insertions, deletions = word_error_counts(rw, hw)
+            total_substitutions += substitutions
+            total_insertions += insertions
+            total_deletions += deletions
+            total_word_errors += substitutions + insertions + deletions
             total_ref_words += max(len(rw), 1)
+            total_hyp_words += len(hw)
+            empty_hypotheses += int(len(hw) == 0)
+            ref_chars = list(ref.replace(" ", ""))
+            hyp_chars = list(hyp.replace(" ", ""))
+            total_char_errors += edit_distance(hyp_chars, ref_chars)
+            total_ref_chars += max(len(ref_chars), 1)
+            total_utterances += 1
             if example is None:
                 example = (hyp, ref)
+
+    stats = torch.tensor(
+        [
+            total_word_errors,
+            total_ref_words,
+            total_loss,
+            total_batches,
+            total_substitutions,
+            total_insertions,
+            total_deletions,
+            total_hyp_words,
+            total_char_errors,
+            total_ref_chars,
+            empty_hypotheses,
+            total_utterances,
+        ],
+        dtype=torch.float64,
+        device=device,
+    )
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+
+    total_word_errors = float(stats[0].item())
+    total_ref_words = float(stats[1].item())
+    total_loss = float(stats[2].item())
+    total_batches = float(stats[3].item())
+    total_substitutions = float(stats[4].item())
+    total_insertions = float(stats[5].item())
+    total_deletions = float(stats[6].item())
+    total_hyp_words = float(stats[7].item())
+    total_char_errors = float(stats[8].item())
+    total_ref_chars = float(stats[9].item())
+    empty_hypotheses = float(stats[10].item())
+    total_utterances = float(stats[11].item())
+
     return {
-        "loss": total_loss / max(total_batches, 1),
-        "wer": total_word_errors / max(total_ref_words, 1),
+        "loss": total_loss / max(total_batches, 1.0),
+        "wer": total_word_errors / max(total_ref_words, 1.0),
+        "cer": total_char_errors / max(total_ref_chars, 1.0),
+        "substitution_rate": total_substitutions / max(total_ref_words, 1.0),
+        "insertion_rate": total_insertions / max(total_ref_words, 1.0),
+        "deletion_rate": total_deletions / max(total_ref_words, 1.0),
+        "hyp_words_per_ref_word": total_hyp_words / max(total_ref_words, 1.0),
+        "empty_hypothesis_rate": empty_hypotheses / max(total_utterances, 1.0),
+        "eval_utterances": int(total_utterances),
         "example": example,
     }
 
@@ -302,6 +412,12 @@ def main():
             optimizer.zero_grad(set_to_none=True)
             total_loss = 0.0
             n_batches = 0
+            grad_steps = 0
+            clipped_steps = 0
+            grad_norm_sum = 0.0
+            grad_norm_max = 0.0
+            group_grad_norm_sums = {}
+            group_grad_norm_max = {}
             show = args.progress == "on" and is_main_process(rank)
             bar = tqdm(train_loader, desc=f"CTC {epoch:03d}", leave=False, disable=not show)
             for step, batch in enumerate(bar, start=1):
@@ -319,9 +435,18 @@ def main():
                 loss.backward()
                 sync_step = step % max(1, args.grad_accum_steps) == 0 or step == len(train_loader)
                 grad_norm_value = None
+                group_grad_norms = None
                 if sync_step:
+                    group_grad_norms = current_group_grad_norms(optimizer)
                     grad_norm = nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                     grad_norm_value = float(grad_norm.detach().item() if isinstance(grad_norm, torch.Tensor) else grad_norm)
+                    grad_steps += 1
+                    grad_norm_sum += grad_norm_value
+                    grad_norm_max = max(grad_norm_max, grad_norm_value)
+                    clipped_steps += int(grad_norm_value > args.max_grad_norm)
+                    for name, value in group_grad_norms.items():
+                        group_grad_norm_sums[name] = group_grad_norm_sums.get(name, 0.0) + value
+                        group_grad_norm_max[name] = max(group_grad_norm_max.get(name, 0.0), value)
                     optimizer.step()
                     scheduler.step()
                     optimizer.zero_grad(set_to_none=True)
@@ -343,10 +468,17 @@ def main():
                         "lr": scheduler.get_last_lr()[0],
                         "lrs": current_lrs(optimizer),
                         "grad_norm": grad_norm_value,
+                        "group_grad_norms": group_grad_norms,
                         "elapsed_hours": (time.time() - run_start) / 3600,
                     })
 
-            avg_loss = total_loss / max(n_batches, 1)
+            avg_loss = reduce_train_average(total_loss, n_batches, device)
+            grad_norm_avg = grad_norm_sum / max(grad_steps, 1)
+            group_grad_norm_avg = {
+                name: value / max(grad_steps, 1)
+                for name, value in group_grad_norm_sums.items()
+            }
+            clip_fraction = clipped_steps / max(grad_steps, 1)
             should_eval = args.eval_every > 0 and (epoch % args.eval_every == 0 or epoch == args.epochs)
             if should_eval and dev_sampler is not None:
                 dev_sampler.set_epoch(epoch)
@@ -357,7 +489,9 @@ def main():
                     hyp, ref = metrics["example"] or ("", "")
                     tqdm.write(
                         f"[ctc] epoch={epoch:03d} train_loss={avg_loss:.4f} dev_loss={metrics['loss']:.4f} "
-                        f"wer={metrics['wer']:.2%} best={best_wer:.2%}\nREF: {ref}\nHYP: {hyp}"
+                        f"wer={metrics['wer']:.2%} cer={metrics['cer']:.2%} best={best_wer:.2%} "
+                        f"del={metrics['deletion_rate']:.2%} ins={metrics['insertion_rate']:.2%} "
+                        f"clip={clip_fraction:.1%}\nREF: {ref}\nHYP: {hyp}"
                     )
                     append_jsonl(metrics_path, {
                         "event": "epoch_end",
@@ -366,9 +500,21 @@ def main():
                         "train_loss": avg_loss,
                         "dev_loss": metrics["loss"],
                         "wer": metrics["wer"],
+                        "cer": metrics["cer"],
+                        "substitution_rate": metrics["substitution_rate"],
+                        "insertion_rate": metrics["insertion_rate"],
+                        "deletion_rate": metrics["deletion_rate"],
+                        "hyp_words_per_ref_word": metrics["hyp_words_per_ref_word"],
+                        "empty_hypothesis_rate": metrics["empty_hypothesis_rate"],
+                        "eval_utterances": metrics["eval_utterances"],
                         "best_wer": best_wer,
                         "lr": scheduler.get_last_lr()[0],
                         "lrs": current_lrs(optimizer),
+                        "grad_norm_avg": grad_norm_avg,
+                        "grad_norm_max": grad_norm_max,
+                        "clip_fraction": clip_fraction,
+                        "group_grad_norm_avg": group_grad_norm_avg,
+                        "group_grad_norm_max": group_grad_norm_max,
                         "elapsed_hours": (time.time() - run_start) / 3600,
                         "example_ref": ref,
                         "example_hyp": hyp,
@@ -395,6 +541,11 @@ def main():
                         "best_wer": best_wer if math.isfinite(best_wer) else None,
                         "lr": scheduler.get_last_lr()[0],
                         "lrs": current_lrs(optimizer),
+                        "grad_norm_avg": grad_norm_avg,
+                        "grad_norm_max": grad_norm_max,
+                        "clip_fraction": clip_fraction,
+                        "group_grad_norm_avg": group_grad_norm_avg,
+                        "group_grad_norm_max": group_grad_norm_max,
                         "elapsed_hours": (time.time() - run_start) / 3600,
                     })
             barrier()
