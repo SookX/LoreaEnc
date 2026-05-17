@@ -26,6 +26,7 @@ from CausalSpecUnit.common import (
     print0,
     save_checkpoint,
     setup_distributed,
+    strip_state_prefixes,
     unwrap_model,
 )
 from CausalSpecUnit.data import SpecUnitDataset, collate_ssl
@@ -64,6 +65,9 @@ def parse_args():
                    help="Override training splits (default: TRAIN_SPLITS constant).")
     p.add_argument("--resume", type=str, default=None,
                    help="Path to a checkpoint directory to resume from.")
+    p.add_argument("--init-encoder-checkpoint", type=str, default=None,
+                   help="Initialize only the encoder from a checkpoint, leaving SSL heads fresh. "
+                        "Useful for iter-2 targets. Incompatible with --resume.")
     p.add_argument("--epochs", type=int, default=100)
     p.add_argument("--batch-size", type=int, default=128)
     p.add_argument("--grad-accum-steps", type=int, default=1)
@@ -313,8 +317,29 @@ def dataloader_worker_init(_worker_id):
     torch.set_num_threads(1)
 
 
+def init_encoder_from_checkpoint(model, checkpoint_path, device):
+    ckpt_path = os.path.join(checkpoint_path, "checkpoint.pt") if os.path.isdir(checkpoint_path) else checkpoint_path
+    state = torch.load(ckpt_path, map_location=device)
+    model_state = state["model"] if isinstance(state, dict) and "model" in state else state
+    model_state = strip_state_prefixes(model_state)
+    encoder_state = {
+        key[len("encoder."):]: value
+        for key, value in model_state.items()
+        if key.startswith("encoder.")
+    }
+    if not encoder_state:
+        raise RuntimeError(f"No encoder.* weights found in {checkpoint_path}")
+    missing, unexpected = model.encoder.load_state_dict(encoder_state, strict=False)
+    if "mask_emb" in model_state and hasattr(model, "mask_emb") and model_state["mask_emb"].shape == model.mask_emb.shape:
+        with torch.no_grad():
+            model.mask_emb.copy_(model_state["mask_emb"].to(model.mask_emb.device))
+    return missing, unexpected
+
+
 def main():
     args = parse_args()
+    if args.resume and args.init_encoder_checkpoint:
+        raise ValueError("--resume and --init-encoder-checkpoint are mutually exclusive")
     rank, local_rank, world_size, device = setup_distributed()
     os.makedirs(args.output_dir, exist_ok=True)
     if device.type == "cuda":
@@ -367,6 +392,13 @@ def main():
     trace(args.trace_startup, rank, f"dataloader built with {len(loader)} batches")
 
     model = CausalSpecUnitSSL(variant=args.variant).to(device)
+    if args.init_encoder_checkpoint:
+        missing, unexpected = init_encoder_from_checkpoint(model, args.init_encoder_checkpoint, device)
+        print0(
+            rank,
+            f"[ssl] initialized encoder from {args.init_encoder_checkpoint} | "
+            f"missing={len(missing)} unexpected={len(unexpected)}",
+        )
     if args.compile:
         try:
             import triton  # noqa: F401
