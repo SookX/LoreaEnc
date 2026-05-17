@@ -44,6 +44,14 @@ def count_parameters(model):
     return {"total": total, "trainable": trainable, "encoder": encoder}
 
 
+def current_lrs(optimizer):
+    lrs = {}
+    for idx, group in enumerate(optimizer.param_groups):
+        name = group.get("name", f"group_{idx}")
+        lrs[name] = group["lr"]
+    return lrs
+
+
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data-root", type=str, default="dataset/datasets/librispeech/LibriSpeech")
@@ -70,6 +78,10 @@ def parse_args():
                    help="Optional peak LR for non-encoder parameters, including the CTC head.")
     p.add_argument("--weight-decay", type=float, default=5e-4)
     p.add_argument("--max-grad-norm", type=float, default=1.0)
+    p.add_argument("--warmup-epochs", type=int, default=20)
+    p.add_argument("--peak-epochs", type=int, default=160,
+                   help="Number of epochs to hold the peak LR after warmup before Noam decay.")
+    p.add_argument("--noam-decay-rate", type=float, default=1.0)
     p.add_argument("--eval-split", type=str, default=DEV_SPLIT)
     p.add_argument("--eval-every", type=int, default=1)
     p.add_argument("--save-every", type=int, default=10)
@@ -261,7 +273,13 @@ def main():
             weight_decay=args.weight_decay,
         )
     steps_per_epoch = math.ceil(len(train_loader) / max(1, args.grad_accum_steps))
-    scheduler = build_extended_noam_scheduler(optimizer, steps_per_epoch, warmup_epochs=20, peak_epochs=160, decay_rate=1.0)
+    scheduler = build_extended_noam_scheduler(
+        optimizer,
+        steps_per_epoch,
+        warmup_epochs=args.warmup_epochs,
+        peak_epochs=args.peak_epochs,
+        decay_rate=args.noam_decay_rate,
+    )
     ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)
     best_wer = float("inf")
     optimizer_steps = 0
@@ -273,7 +291,7 @@ def main():
         rank,
         f"CausalSpecUnit CTC | train={len(train_dataset)} dev={len(dev_dataset)} "
         f"world={world_size} effective_batch={args.batch_size * world_size * args.grad_accum_steps}"
-        f"{hours_note}",
+        f"{hours_note} | warmup={args.warmup_epochs} hold={args.peak_epochs} decay={args.noam_decay_rate:g}",
     )
 
     try:
@@ -323,6 +341,7 @@ def main():
                         "train_loss": loss_val,
                         "train_loss_avg": total_loss / max(n_batches, 1),
                         "lr": scheduler.get_last_lr()[0],
+                        "lrs": current_lrs(optimizer),
                         "grad_norm": grad_norm_value,
                         "elapsed_hours": (time.time() - run_start) / 3600,
                     })
@@ -349,6 +368,7 @@ def main():
                         "wer": metrics["wer"],
                         "best_wer": best_wer,
                         "lr": scheduler.get_last_lr()[0],
+                        "lrs": current_lrs(optimizer),
                         "elapsed_hours": (time.time() - run_start) / 3600,
                         "example_ref": ref,
                         "example_hyp": hyp,
@@ -374,6 +394,7 @@ def main():
                         "wer": None,
                         "best_wer": best_wer if math.isfinite(best_wer) else None,
                         "lr": scheduler.get_last_lr()[0],
+                        "lrs": current_lrs(optimizer),
                         "elapsed_hours": (time.time() - run_start) / 3600,
                     })
             barrier()
