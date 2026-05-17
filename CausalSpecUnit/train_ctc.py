@@ -74,6 +74,56 @@ def reduce_train_average(total_loss, n_batches, device):
     return float(stats[0].item() / max(stats[1].item(), 1.0))
 
 
+class BatchSpecAugment(nn.Module):
+    """SpecAugment for padded [B, T, F] CMVN log-mel batches."""
+
+    def __init__(
+        self,
+        time_mask_param=40,
+        freq_mask_param=30,
+        num_time_masks=2,
+        num_freq_masks=2,
+        mask_value=0.0,
+    ):
+        super().__init__()
+        self.time_mask_param = int(time_mask_param)
+        self.freq_mask_param = int(freq_mask_param)
+        self.num_time_masks = int(num_time_masks)
+        self.num_freq_masks = int(num_freq_masks)
+        self.mask_value = float(mask_value)
+
+    def forward(self, mel, lengths):
+        if self.num_time_masks <= 0 and self.num_freq_masks <= 0:
+            return mel
+        out = mel.clone()
+        batch, _, n_mels = out.shape
+        device = out.device
+
+        for b in range(batch):
+            valid_t = int(lengths[b].item())
+            if valid_t <= 0:
+                continue
+            for _ in range(self.num_freq_masks):
+                width_max = min(self.freq_mask_param, n_mels)
+                if width_max <= 0:
+                    continue
+                width = int(torch.randint(0, width_max + 1, (1,), device=device).item())
+                if width == 0 or width >= n_mels:
+                    continue
+                start = int(torch.randint(0, n_mels - width + 1, (1,), device=device).item())
+                out[b, :valid_t, start:start + width] = self.mask_value
+            for _ in range(self.num_time_masks):
+                width_max = min(self.time_mask_param, valid_t)
+                if width_max <= 0:
+                    continue
+                width = int(torch.randint(0, width_max + 1, (1,), device=device).item())
+                if width == 0 or width >= valid_t:
+                    continue
+                start = int(torch.randint(0, valid_t - width + 1, (1,), device=device).item())
+                out[b, start:start + width, :] = self.mask_value
+        return out
+
+
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data-root", type=str, default="dataset/datasets/librispeech/LibriSpeech")
@@ -111,6 +161,14 @@ def parse_args():
     p.add_argument("--log-every", type=int, default=0)
     p.add_argument("--max-train-batches", type=int, default=None)
     p.add_argument("--progress", choices=["on", "off"], default="on")
+    p.add_argument("--specaug", action="store_true",
+                   help="Apply SpecAugment to training mels after CMVN and before the model.")
+    p.add_argument("--specaug-time-mask-param", type=int, default=40)
+    p.add_argument("--specaug-freq-mask-param", type=int, default=30)
+    p.add_argument("--specaug-time-masks", type=int, default=2)
+    p.add_argument("--specaug-freq-masks", type=int, default=2)
+    p.add_argument("--specaug-disable-last-epochs", type=int, default=0,
+                   help="Disable SpecAugment for the final N epochs for clean fine-tuning.")
     return p.parse_args()
 
 
@@ -391,6 +449,12 @@ def main():
         decay_rate=args.noam_decay_rate,
     )
     ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)
+    specaugment = BatchSpecAugment(
+        time_mask_param=args.specaug_time_mask_param,
+        freq_mask_param=args.specaug_freq_mask_param,
+        num_time_masks=args.specaug_time_masks,
+        num_freq_masks=args.specaug_freq_masks,
+    ).to(device)
     best_wer = float("inf")
     optimizer_steps = 0
     run_start = time.time()
@@ -401,11 +465,19 @@ def main():
         rank,
         f"CausalSpecUnit CTC | train={len(train_dataset)} dev={len(dev_dataset)} "
         f"world={world_size} effective_batch={args.batch_size * world_size * args.grad_accum_steps}"
-        f"{hours_note} | warmup={args.warmup_epochs} hold={args.peak_epochs} decay={args.noam_decay_rate:g}",
+        f"{hours_note} | warmup={args.warmup_epochs} hold={args.peak_epochs} decay={args.noam_decay_rate:g} "
+        f"| specaug={args.specaug} disable_last={args.specaug_disable_last_epochs}",
     )
 
     try:
         for epoch in range(1, args.epochs + 1):
+            specaug_enabled = bool(
+                args.specaug
+                and (
+                    args.specaug_disable_last_epochs <= 0
+                    or epoch <= args.epochs - args.specaug_disable_last_epochs
+                )
+            )
             if train_sampler is not None:
                 train_sampler.set_epoch(epoch)
             model.train()
@@ -428,6 +500,8 @@ def main():
                 lengths = lengths.to(device, non_blocking=True)
                 labels = labels.to(device, non_blocking=True)
                 label_lengths = label_lengths.to(device, non_blocking=True)
+                if specaug_enabled:
+                    mel = specaugment(mel, lengths)
                 with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
                     log_probs, output_lengths = model(mel, lengths)
                     loss = ctc_loss(log_probs.transpose(0, 1), labels, output_lengths, label_lengths)
@@ -469,6 +543,7 @@ def main():
                         "lrs": current_lrs(optimizer),
                         "grad_norm": grad_norm_value,
                         "group_grad_norms": group_grad_norms,
+                        "specaug_enabled": specaug_enabled,
                         "elapsed_hours": (time.time() - run_start) / 3600,
                     })
 
@@ -510,6 +585,14 @@ def main():
                         "best_wer": best_wer,
                         "lr": scheduler.get_last_lr()[0],
                         "lrs": current_lrs(optimizer),
+                        "specaug_enabled": specaug_enabled,
+                        "specaug": {
+                            "time_mask_param": args.specaug_time_mask_param,
+                            "freq_mask_param": args.specaug_freq_mask_param,
+                            "time_masks": args.specaug_time_masks,
+                            "freq_masks": args.specaug_freq_masks,
+                            "disable_last_epochs": args.specaug_disable_last_epochs,
+                        },
                         "grad_norm_avg": grad_norm_avg,
                         "grad_norm_max": grad_norm_max,
                         "clip_fraction": clip_fraction,
@@ -541,6 +624,7 @@ def main():
                         "best_wer": best_wer if math.isfinite(best_wer) else None,
                         "lr": scheduler.get_last_lr()[0],
                         "lrs": current_lrs(optimizer),
+                        "specaug_enabled": specaug_enabled,
                         "grad_norm_avg": grad_norm_avg,
                         "grad_norm_max": grad_norm_max,
                         "clip_fraction": clip_fraction,
