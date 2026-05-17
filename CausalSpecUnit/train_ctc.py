@@ -51,6 +51,11 @@ def parse_args():
     p.add_argument("--ssl-checkpoint", type=str, default=None)
     p.add_argument("--output-dir", type=str, default="outputs/causal_specunit/ctc")
     p.add_argument("--tokenizer-path", type=str, default="dataset/bpe128.model")
+    p.add_argument("--train-splits", nargs="+", default=TRAIN_SPLITS,
+                   help="Training splits to use. Defaults to full LibriSpeech train-960.")
+    p.add_argument("--train-subset-hours", type=float, default=None,
+                   help="Use a reproducible random subset with approximately this many audio hours.")
+    p.add_argument("--train-subset-seed", type=int, default=42)
     p.add_argument("--epochs", type=int, default=150)
     p.add_argument("--batch-size", type=int, default=128)
     p.add_argument("--grad-accum-steps", type=int, default=2)
@@ -159,7 +164,15 @@ def main():
 
     tokenizer = build_tokenizer(args.tokenizer_path)
     blank_id = tokenizer.pad_token_id
-    train_dataset = CTCSpecDataset(args.data_root, TRAIN_SPLITS, tokenizer, cmvn_path=args.cmvn_path, train_split=True)
+    train_dataset = CTCSpecDataset(
+        args.data_root,
+        args.train_splits,
+        tokenizer,
+        cmvn_path=args.cmvn_path,
+        train_split=True,
+        max_hours=args.train_subset_hours,
+        subset_seed=args.train_subset_seed,
+    )
     dev_dataset = CTCSpecDataset(args.data_root, [args.eval_split], tokenizer, cmvn_path=args.cmvn_path, train_split=False)
     train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True) if world_size > 1 else None
     dev_sampler = DistributedSampler(dev_dataset, num_replicas=world_size, rank=rank, shuffle=False) if world_size > 1 else None
@@ -215,6 +228,8 @@ def main():
             "dev_utterances": len(dev_dataset),
             "effective_batch": args.batch_size * world_size * args.grad_accum_steps,
             "ssl_initialized": bool(args.ssl_checkpoint),
+            "train_splits": args.train_splits,
+            "train_audio_hours": getattr(train_dataset, "audio_hours", None),
         }
         with open(run_info_path, "w", encoding="utf-8") as f:
             json.dump(run_info, f, indent=2, sort_keys=True)
@@ -251,7 +266,15 @@ def main():
     best_wer = float("inf")
     optimizer_steps = 0
     run_start = time.time()
-    print0(rank, f"CausalSpecUnit CTC | train={len(train_dataset)} dev={len(dev_dataset)} world={world_size} effective_batch={args.batch_size * world_size * args.grad_accum_steps}")
+    hours_note = ""
+    if getattr(train_dataset, "audio_hours", None) is not None:
+        hours_note = f" train_hours={train_dataset.audio_hours:.2f}"
+    print0(
+        rank,
+        f"CausalSpecUnit CTC | train={len(train_dataset)} dev={len(dev_dataset)} "
+        f"world={world_size} effective_batch={args.batch_size * world_size * args.grad_accum_steps}"
+        f"{hours_note}",
+    )
 
     try:
         for epoch in range(1, args.epochs + 1):

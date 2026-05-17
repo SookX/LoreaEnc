@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import json
+import random
 from collections import defaultdict
 
 import torch
@@ -46,6 +47,45 @@ def iter_librispeech_items(data_root, splits):
                             "transcript": transcript,
                             "split": split,
                         }
+
+
+def audio_duration_seconds(path):
+    info = torchaudio.info(path)
+    return float(info.num_frames) / float(info.sample_rate)
+
+
+def subset_items_by_hours(items, max_hours, seed=42):
+    if max_hours is None:
+        return items, None
+    if max_hours <= 0:
+        raise ValueError(f"max_hours must be positive, got {max_hours}")
+
+    rng = random.Random(seed)
+    candidates = list(items)
+    rng.shuffle(candidates)
+    selected = []
+    total_seconds = 0.0
+    target_seconds = float(max_hours) * 3600.0
+
+    for item in candidates:
+        try:
+            duration = audio_duration_seconds(item["audio_path"])
+        except Exception as exc:
+            dataset_trace(f"duration read failed uid={item['uid']} path={item['audio_path']} error={exc}")
+            continue
+        item = dict(item)
+        item["duration_seconds"] = duration
+        selected.append(item)
+        total_seconds += duration
+        if total_seconds >= target_seconds:
+            break
+
+    if not selected:
+        raise RuntimeError(
+            f"No utterances selected for max_hours={max_hours}. "
+            "Check that the LibriSpeech audio files exist and torchaudio can read metadata."
+        )
+    return selected, total_seconds / 3600.0
 
 
 class LogMelExtractor(torch.nn.Module):
@@ -168,10 +208,23 @@ class SpecUnitDataset(Dataset):
 
 
 class CTCSpecDataset(Dataset):
-    def __init__(self, data_root, splits, tokenizer, cmvn_path=None, train_split=True, max_items=None):
+    def __init__(
+        self,
+        data_root,
+        splits,
+        tokenizer,
+        cmvn_path=None,
+        train_split=True,
+        max_items=None,
+        max_hours=None,
+        subset_seed=42,
+    ):
         self.items = list(iter_librispeech_items(data_root, splits))
         if max_items is not None:
             self.items = self.items[:max_items]
+        self.audio_hours = None
+        if max_hours is not None:
+            self.items, self.audio_hours = subset_items_by_hours(self.items, max_hours, seed=subset_seed)
         self.tokenizer = tokenizer
         self.extractor = LogMelExtractor()
         self.train_split = train_split
