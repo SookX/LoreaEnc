@@ -125,7 +125,7 @@ echo "Starting scratch 10h sanity run at $(date)"
 python -m CausalSpecUnit.train_ctc \
     "${COMMON_ARGS[@]}" \
     --output-dir "${SCRATCH_OUTPUT_DIR}" \
-    --lr 2e-3
+    --lr 1e-3
 
 echo "Job ${SLURM_JOB_ID} 10h CTC sanity finished at $(date)"
 echo "Metrics:"

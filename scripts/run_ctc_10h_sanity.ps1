@@ -79,7 +79,7 @@ if (-not $SkipScratch) {
     Write-Host "Starting 10h scratch sanity run -> $scratchOutput"
     $scratchArgs = $common + @(
         "--output-dir", $scratchOutput,
-        "--lr", "2e-3"
+        "--lr", "1e-3"
     )
     python @scratchArgs
 }

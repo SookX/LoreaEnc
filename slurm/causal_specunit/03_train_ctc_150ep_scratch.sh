@@ -88,7 +88,7 @@ torchrun \
     --eval-batch-size 128 \
     --eval-split dev-other \
     --eval-every 1 \
-    --lr 2e-3 \
+    --lr 1e-3 \
     --max-grad-norm 1.0 \
     --workers "${WORKERS}" \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
