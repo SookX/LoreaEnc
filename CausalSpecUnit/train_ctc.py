@@ -1,7 +1,11 @@
 import argparse
+import json
 import math
 import os
 import shutil
+import socket
+import sys
+import time
 
 import torch
 import torch.nn as nn
@@ -24,6 +28,20 @@ from CausalSpecUnit.common import (
 )
 from CausalSpecUnit.data import CTCSpecDataset, collate_ctc, collate_eval
 from CausalSpecUnit.model import CausalSpecUnitCTC
+
+
+def append_jsonl(path, record):
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def count_parameters(model):
+    target = model.module if hasattr(model, "module") else model
+    total = sum(p.numel() for p in target.parameters())
+    trainable = sum(p.numel() for p in target.parameters() if p.requires_grad)
+    encoder = sum(p.numel() for p in target.encoder.parameters())
+    return {"total": total, "trainable": trainable, "encoder": encoder}
 
 
 def parse_args():
@@ -181,6 +199,27 @@ def main():
     if world_size > 1:
         model = DDP(model, device_ids=[local_rank], output_device=local_rank)
 
+    metrics_path = os.path.join(args.output_dir, "ctc_metrics.jsonl")
+    run_info_path = os.path.join(args.output_dir, "ctc_run_info.json")
+    if is_main_process(rank):
+        run_info = {
+            "event": "run_start",
+            "argv": sys.argv,
+            "args": vars(args),
+            "world_size": world_size,
+            "device": str(device),
+            "hostname": socket.gethostname(),
+            "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "parameter_counts": count_parameters(model),
+            "train_utterances": len(train_dataset),
+            "dev_utterances": len(dev_dataset),
+            "effective_batch": args.batch_size * world_size * args.grad_accum_steps,
+            "ssl_initialized": bool(args.ssl_checkpoint),
+        }
+        with open(run_info_path, "w", encoding="utf-8") as f:
+            json.dump(run_info, f, indent=2, sort_keys=True)
+        append_jsonl(metrics_path, run_info)
+
     opt_model = model.module if hasattr(model, "module") else model
     if args.encoder_lr is not None or args.head_lr is not None:
         encoder_lr = args.encoder_lr if args.encoder_lr is not None else args.lr
@@ -210,6 +249,8 @@ def main():
     scheduler = build_extended_noam_scheduler(optimizer, steps_per_epoch, warmup_epochs=20, peak_epochs=160, decay_rate=1.0)
     ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)
     best_wer = float("inf")
+    optimizer_steps = 0
+    run_start = time.time()
     print0(rank, f"CausalSpecUnit CTC | train={len(train_dataset)} dev={len(dev_dataset)} world={world_size} effective_batch={args.batch_size * world_size * args.grad_accum_steps}")
 
     try:
@@ -236,16 +277,32 @@ def main():
                     loss = loss / max(1, args.grad_accum_steps)
                 loss.backward()
                 sync_step = step % max(1, args.grad_accum_steps) == 0 or step == len(train_loader)
+                grad_norm_value = None
                 if sync_step:
-                    nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                    grad_norm = nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                    grad_norm_value = float(grad_norm.detach().item() if isinstance(grad_norm, torch.Tensor) else grad_norm)
                     optimizer.step()
                     scheduler.step()
                     optimizer.zero_grad(set_to_none=True)
+                    optimizer_steps += 1
                 loss_val = loss.detach().float().item() * max(1, args.grad_accum_steps)
                 total_loss += loss_val
                 n_batches += 1
                 if show:
                     bar.set_postfix(loss=f"{loss_val:.3f}", avg=f"{total_loss/max(n_batches,1):.3f}", lr=f"{scheduler.get_last_lr()[0]:.1e}", refresh=False)
+                if args.log_every > 0 and is_main_process(rank) and step % args.log_every == 0:
+                    append_jsonl(metrics_path, {
+                        "event": "train_step",
+                        "epoch": epoch,
+                        "batch": step,
+                        "batches_per_epoch": len(train_loader),
+                        "optimizer_step": optimizer_steps,
+                        "train_loss": loss_val,
+                        "train_loss_avg": total_loss / max(n_batches, 1),
+                        "lr": scheduler.get_last_lr()[0],
+                        "grad_norm": grad_norm_value,
+                        "elapsed_hours": (time.time() - run_start) / 3600,
+                    })
 
             avg_loss = total_loss / max(n_batches, 1)
             should_eval = args.eval_every > 0 and (epoch % args.eval_every == 0 or epoch == args.epochs)
@@ -260,13 +317,52 @@ def main():
                         f"[ctc] epoch={epoch:03d} train_loss={avg_loss:.4f} dev_loss={metrics['loss']:.4f} "
                         f"wer={metrics['wer']:.2%} best={best_wer:.2%}\nREF: {ref}\nHYP: {hyp}"
                     )
+                    append_jsonl(metrics_path, {
+                        "event": "epoch_end",
+                        "epoch": epoch,
+                        "optimizer_step": optimizer_steps,
+                        "train_loss": avg_loss,
+                        "dev_loss": metrics["loss"],
+                        "wer": metrics["wer"],
+                        "best_wer": best_wer,
+                        "lr": scheduler.get_last_lr()[0],
+                        "elapsed_hours": (time.time() - run_start) / 3600,
+                        "example_ref": ref,
+                        "example_hyp": hyp,
+                    })
                     if metrics["wer"] <= best_wer:
-                        save_checkpoint(os.path.join(args.output_dir, "checkpoint_best"), model, optimizer, scheduler, epoch, extra={"best_wer": best_wer})
+                        save_checkpoint(
+                            os.path.join(args.output_dir, "checkpoint_best"),
+                            model,
+                            optimizer,
+                            scheduler,
+                            epoch,
+                            extra={"best_wer": best_wer, "optimizer_steps": optimizer_steps},
+                        )
             else:
                 print0(rank, f"[ctc] epoch={epoch:03d} train_loss={avg_loss:.4f}")
+                if is_main_process(rank):
+                    append_jsonl(metrics_path, {
+                        "event": "epoch_end",
+                        "epoch": epoch,
+                        "optimizer_step": optimizer_steps,
+                        "train_loss": avg_loss,
+                        "dev_loss": None,
+                        "wer": None,
+                        "best_wer": best_wer if math.isfinite(best_wer) else None,
+                        "lr": scheduler.get_last_lr()[0],
+                        "elapsed_hours": (time.time() - run_start) / 3600,
+                    })
             barrier()
             if epoch % args.save_every == 0 and is_main_process(rank):
-                save_checkpoint(os.path.join(args.output_dir, f"checkpoint_ep{epoch:03d}"), model, optimizer, scheduler, epoch, extra={"best_wer": best_wer})
+                save_checkpoint(
+                    os.path.join(args.output_dir, f"checkpoint_ep{epoch:03d}"),
+                    model,
+                    optimizer,
+                    scheduler,
+                    epoch,
+                    extra={"best_wer": best_wer, "optimizer_steps": optimizer_steps},
+                )
                 cleanup_epoch_checkpoints(args.output_dir, args.keep_checkpoints)
             barrier()
     finally:

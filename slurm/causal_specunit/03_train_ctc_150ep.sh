@@ -105,6 +105,6 @@ torchrun \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --log-every 0 \
     --save-every 10 \
-    --progress on
+    --progress off
 
 echo "Job ${SLURM_JOB_ID} CTC fine-tuning finished at $(date)"
