@@ -57,6 +57,7 @@ SPECAUG_DISABLE_LAST_EPOCHS="${SPECAUG_DISABLE_LAST_EPOCHS:-30}"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_iter2_10h_specaug_fair_elr2e4_hlr1e3_w10_p50_150ep_c8}"
 
 export VIRTUAL_ENV
+export TARGETS_DIR
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
 export PYTHONFAULTHANDLER=1
 export CUDA_LAUNCH_BLOCKING=0
