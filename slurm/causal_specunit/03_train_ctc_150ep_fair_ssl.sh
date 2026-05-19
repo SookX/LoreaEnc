@@ -38,15 +38,19 @@ EVAL_BATCH_SIZE="${EVAL_BATCH_SIZE:-128}"
 WORKERS="${WORKERS:-8}"
 DATALOADER_TIMEOUT="${DATALOADER_TIMEOUT:-120}"
 
-# Same fair optimizer structure as 03_train_ctc_150ep_fair_both.sh. The run is
-# pretrained-only, but it keeps the fair LR groups used in the comparison.
-ENCODER_LR="${ENCODER_LR:-3e-4}"
+# Tuned SSL-only version of the fair 960h recipe. The old fair recipe learned
+# quickly at first but then under-adapted to CTC, so this keeps the same setup
+# while allowing the upper encoder layers to move a bit more.
+ENCODER_LR="${ENCODER_LR:-4e-4}"
 HEAD_LR="${HEAD_LR:-1e-3}"
 BASE_LR="${BASE_LR:-1e-3}"
+ENCODER_LAYER_LR_DECAY="${ENCODER_LAYER_LR_DECAY:-0.96}"
 WARMUP_EPOCHS="${WARMUP_EPOCHS:-10}"
-PEAK_EPOCHS="${PEAK_EPOCHS:-50}"
-NOAM_DECAY_RATE="${NOAM_DECAY_RATE:-0.5}"
+PEAK_EPOCHS="${PEAK_EPOCHS:-90}"
+NOAM_DECAY_RATE="${NOAM_DECAY_RATE:-0.25}"
 MAX_GRAD_NORM="${MAX_GRAD_NORM:-1.0}"
+SPECAUG_MASK_SOURCE="${SPECAUG_MASK_SOURCE:-zero}"
+NO_DECAY_NORM_BIAS="${NO_DECAY_NORM_BIAS:-1}"
 
 SPECAUG_TIME_MASK_PARAM="${SPECAUG_TIME_MASK_PARAM:-40}"
 SPECAUG_FREQ_MASK_PARAM="${SPECAUG_FREQ_MASK_PARAM:-30}"
@@ -54,7 +58,7 @@ SPECAUG_TIME_MASKS="${SPECAUG_TIME_MASKS:-2}"
 SPECAUG_FREQ_MASKS="${SPECAUG_FREQ_MASKS:-2}"
 SPECAUG_DISABLE_LAST_EPOCHS="${SPECAUG_DISABLE_LAST_EPOCHS:-15}"
 
-OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_960h_specaug_fair_elr3e4_hlr1e3_w10_p50_150ep_c8}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_960h_specaug_tune_elr4e4_ld096_hlr1e3_w10_p90_d025_150ep_c8}"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
@@ -110,9 +114,9 @@ echo "Train splits: ${TRAIN_SPLITS}"
 echo "Eval split: ${EVAL_SPLIT}"
 echo "Epochs: ${EPOCHS}"
 echo "Effective batch: $((BATCH_SIZE * NUM_PROCESSES * GRAD_ACCUM_STEPS))"
-echo "LR groups: encoder=${ENCODER_LR} head=${HEAD_LR} base=${BASE_LR}"
+echo "LR groups: encoder_top=${ENCODER_LR} layer_decay=${ENCODER_LAYER_LR_DECAY} head=${HEAD_LR} base=${BASE_LR} no_decay_norm_bias=${NO_DECAY_NORM_BIAS}"
 echo "SpecAug: time=${SPECAUG_TIME_MASK_PARAM}x${SPECAUG_TIME_MASKS} freq=${SPECAUG_FREQ_MASK_PARAM}x${SPECAUG_FREQ_MASKS} disable_last=${SPECAUG_DISABLE_LAST_EPOCHS}"
-echo "Schedule: warmup=${WARMUP_EPOCHS} hold=${PEAK_EPOCHS} decay=${NOAM_DECAY_RATE}"
+echo "Schedule: warmup=${WARMUP_EPOCHS} hold=${PEAK_EPOCHS} decay=${NOAM_DECAY_RATE} specaug_mask_source=${SPECAUG_MASK_SOURCE}"
 echo "SSL checkpoint: ${SSL_CHECKPOINT}"
 echo "Output: ${OUTPUT_DIR}"
 echo "Master: ${MASTER_ADDR}:${MASTER_PORT}"
@@ -123,6 +127,14 @@ print("PyTorch:", torch.__version__)
 print("CUDA available:", torch.cuda.is_available())
 print("CUDA devices:", torch.cuda.device_count())
 PY
+
+EXTRA_ARGS=(
+    --encoder-layer-lr-decay "${ENCODER_LAYER_LR_DECAY}"
+    --specaug-mask-source "${SPECAUG_MASK_SOURCE}"
+)
+if [ "${NO_DECAY_NORM_BIAS}" = "1" ]; then
+    EXTRA_ARGS+=(--no-decay-norm-and-bias)
+fi
 
 torchrun \
     --nproc_per_node="${NUM_PROCESSES}" \
@@ -147,6 +159,7 @@ torchrun \
     --lr "${BASE_LR}" \
     --encoder-lr "${ENCODER_LR}" \
     --head-lr "${HEAD_LR}" \
+    "${EXTRA_ARGS[@]}" \
     --warmup-epochs "${WARMUP_EPOCHS}" \
     --peak-epochs "${PEAK_EPOCHS}" \
     --noam-decay-rate "${NOAM_DECAY_RATE}" \

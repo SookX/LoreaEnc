@@ -81,23 +81,48 @@ def clear_encoder_grads(model):
         param.grad = None
 
 
-def make_adamw_param_groups(model, encoder_lr, head_lr):
+def encoder_layer_depth(model, name):
+    num_layers = int(getattr(model.encoder, "num_layers", 0))
+    for marker in ("encoder.layers.", "model.encoder.layers."):
+        if marker in name:
+            rest = name.split(marker, 1)[1]
+            try:
+                return int(rest.split(".", 1)[0]) + 1
+            except (IndexError, ValueError):
+                return num_layers
+    if "encoder.time_reduction_layer." in name or "model.encoder.time_reduction_layer." in name:
+        return min(num_layers, int(getattr(model.encoder, "reduce_layer_index", 0)) + 1)
+    if "encoder.time_recover_layer." in name or "model.encoder.time_recover_layer." in name:
+        return min(num_layers, int(getattr(model.encoder, "recover_layer_index", num_layers - 1)) + 1)
+    return 0
+
+
+def make_adamw_param_groups(model, encoder_lr, head_lr, encoder_layer_lr_decay=1.0, split_no_decay=True):
+    if encoder_layer_lr_decay <= 0.0:
+        raise ValueError("--encoder-layer-lr-decay must be positive.")
     no_decay_terms = ("bias", "norm", "layer_norm", "ln")
-    groups = {
-        "encoder_decay": {"params": [], "lr": encoder_lr, "weight_decay": None, "name": "encoder_decay"},
-        "encoder_no_decay": {"params": [], "lr": encoder_lr, "weight_decay": 0.0, "name": "encoder_no_decay"},
-        "head_decay": {"params": [], "lr": head_lr, "weight_decay": None, "name": "head_decay"},
-        "head_no_decay": {"params": [], "lr": head_lr, "weight_decay": 0.0, "name": "head_no_decay"},
-    }
+    groups = {}
     encoder_param_ids = {id(p) for p in model.encoder.parameters()}
+    num_layers = int(getattr(model.encoder, "num_layers", 0))
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
         is_encoder = id(param) in encoder_param_ids
-        is_no_decay = param.ndim <= 1 or any(term in name.lower() for term in no_decay_terms)
-        prefix = "encoder" if is_encoder else "head"
+        if is_encoder:
+            depth = encoder_layer_depth(model, name)
+            lr_scale = float(encoder_layer_lr_decay) ** max(num_layers - depth, 0)
+            lr = encoder_lr * lr_scale
+            prefix = f"encoder_l{depth:02d}"
+        else:
+            lr = head_lr
+            prefix = "head"
+        is_no_decay = split_no_decay and (param.ndim <= 1 or any(term in name.lower() for term in no_decay_terms))
         suffix = "no_decay" if is_no_decay else "decay"
-        groups[f"{prefix}_{suffix}"]["params"].append(param)
+        weight_decay = 0.0 if is_no_decay else None
+        key = (prefix, suffix, lr, weight_decay)
+        if key not in groups:
+            groups[key] = {"params": [], "lr": lr, "weight_decay": weight_decay, "name": f"{prefix}_{suffix}"}
+        groups[key]["params"].append(param)
     return [group for group in groups.values() if group["params"]]
 
 
@@ -219,6 +244,8 @@ def parse_args():
     p.add_argument("--weight-decay", type=float, default=5e-4)
     p.add_argument("--no-decay-norm-and-bias", action="store_true",
                    help="Exclude normalization weights and biases from AdamW weight decay.")
+    p.add_argument("--encoder-layer-lr-decay", type=float, default=1.0,
+                   help="Layer-wise encoder LR decay. 1.0 uses one encoder LR; values below 1.0 adapt upper layers more than lower layers.")
     p.add_argument("--max-grad-norm", type=float, default=1.0)
     p.add_argument("--freeze-encoder-epochs", type=int, default=0,
                    help="Keep the encoder frozen for the first N epochs. Mainly useful when fine-tuning SSL encoders with a fresh CTC head.")
@@ -493,7 +520,8 @@ def main():
     if args.encoder_lr is not None or args.head_lr is not None:
         encoder_lr = args.encoder_lr if args.encoder_lr is not None else args.lr
         head_lr = args.head_lr if args.head_lr is not None else args.lr
-        if not args.no_decay_norm_and_bias:
+        use_detailed_groups = args.no_decay_norm_and_bias or args.encoder_layer_lr_decay != 1.0
+        if not use_detailed_groups:
             encoder_param_ids = {id(p) for p in opt_model.encoder.parameters()}
             head_params = [p for p in opt_model.parameters() if id(p) not in encoder_param_ids]
             param_groups = [
@@ -501,7 +529,13 @@ def main():
                 {"params": head_params, "lr": head_lr, "name": "head"},
             ]
         else:
-            param_groups = make_adamw_param_groups(opt_model, encoder_lr, head_lr)
+            param_groups = make_adamw_param_groups(
+                opt_model,
+                encoder_lr,
+                head_lr,
+                encoder_layer_lr_decay=args.encoder_layer_lr_decay,
+                split_no_decay=args.no_decay_norm_and_bias,
+            )
             for group in param_groups:
                 if group["weight_decay"] is None:
                     group["weight_decay"] = args.weight_decay
@@ -512,12 +546,23 @@ def main():
             eps=1e-9,
             weight_decay=args.weight_decay,
         )
-        print0(rank, f"LR groups: encoder={encoder_lr:g} | head={head_lr:g}")
+        print0(
+            rank,
+            f"LR groups: encoder={encoder_lr:g} | head={head_lr:g} "
+            f"| layer_decay={args.encoder_layer_lr_decay:g} | no_decay_norm_bias={args.no_decay_norm_and_bias}",
+        )
     else:
-        if not args.no_decay_norm_and_bias:
+        use_detailed_groups = args.no_decay_norm_and_bias or args.encoder_layer_lr_decay != 1.0
+        if not use_detailed_groups:
             param_groups = model.parameters()
         else:
-            param_groups = make_adamw_param_groups(opt_model, args.lr, args.lr)
+            param_groups = make_adamw_param_groups(
+                opt_model,
+                args.lr,
+                args.lr,
+                encoder_layer_lr_decay=args.encoder_layer_lr_decay,
+                split_no_decay=args.no_decay_norm_and_bias,
+            )
             for group in param_groups:
                 if group["weight_decay"] is None:
                     group["weight_decay"] = args.weight_decay
@@ -600,6 +645,10 @@ def main():
             for step, batch in enumerate(bar, start=1):
                 if step > effective_batches:
                     break
+                accum_index = (step - 1) % max(1, args.grad_accum_steps)
+                remaining = effective_batches - step + 1
+                actual_accum_steps = min(max(1, args.grad_accum_steps), accum_index + remaining)
+                sync_step = accum_index + 1 >= actual_accum_steps
                 mel, lengths, labels, label_lengths = batch
                 mel = mel.to(device, non_blocking=True)
                 lengths = lengths.to(device, non_blocking=True)
@@ -607,11 +656,6 @@ def main():
                 label_lengths = label_lengths.to(device, non_blocking=True)
                 if specaug_enabled:
                     mel = specaugment(mel, lengths)
-                actual_accum_steps = max(1, args.grad_accum_steps)
-                remaining = effective_batches - step + 1
-                if remaining < actual_accum_steps:
-                    actual_accum_steps = remaining
-                sync_step = step % max(1, args.grad_accum_steps) == 0 or step == effective_batches
                 sync_context = (
                     model.no_sync
                     if isinstance(model, DDP) and not sync_step
