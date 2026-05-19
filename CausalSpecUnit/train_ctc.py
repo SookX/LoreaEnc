@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import json
 import math
 import os
@@ -67,6 +68,57 @@ def current_group_grad_norms(optimizer):
     return norms
 
 
+def unwrap_model(model):
+    if hasattr(model, "module"):
+        model = model.module
+    if hasattr(model, "_orig_mod"):
+        model = model._orig_mod
+    return model
+
+
+def clear_encoder_grads(model):
+    for param in unwrap_model(model).encoder.parameters():
+        param.grad = None
+
+
+def make_adamw_param_groups(model, encoder_lr, head_lr):
+    no_decay_terms = ("bias", "norm", "layer_norm", "ln")
+    groups = {
+        "encoder_decay": {"params": [], "lr": encoder_lr, "weight_decay": None, "name": "encoder_decay"},
+        "encoder_no_decay": {"params": [], "lr": encoder_lr, "weight_decay": 0.0, "name": "encoder_no_decay"},
+        "head_decay": {"params": [], "lr": head_lr, "weight_decay": None, "name": "head_decay"},
+        "head_no_decay": {"params": [], "lr": head_lr, "weight_decay": 0.0, "name": "head_no_decay"},
+    }
+    encoder_param_ids = {id(p) for p in model.encoder.parameters()}
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        is_encoder = id(param) in encoder_param_ids
+        is_no_decay = param.ndim <= 1 or any(term in name.lower() for term in no_decay_terms)
+        prefix = "encoder" if is_encoder else "head"
+        suffix = "no_decay" if is_no_decay else "decay"
+        groups[f"{prefix}_{suffix}"]["params"].append(param)
+    return [group for group in groups.values() if group["params"]]
+
+
+def load_ssl_mask_embedding(checkpoint_path, expected_dim=80, map_location="cpu"):
+    if not checkpoint_path:
+        return None
+    state = torch.load(checkpoint_path, map_location=map_location)
+    model_state = state["model"] if isinstance(state, dict) and "model" in state else state
+    for key, value in model_state.items():
+        key = key.removeprefix("module.").removeprefix("_orig_mod.")
+        if key == "mask_emb":
+            value = value.detach().float()
+            if value.numel() != expected_dim:
+                raise ValueError(
+                    f"SSL mask_emb has {value.numel()} values, expected {expected_dim}. "
+                    "Check that the checkpoint and mel feature config match."
+                )
+            return value
+    return None
+
+
 def reduce_train_average(total_loss, n_batches, device):
     stats = torch.tensor([float(total_loss), float(n_batches)], dtype=torch.float64, device=device)
     if dist.is_available() and dist.is_initialized():
@@ -90,7 +142,23 @@ class BatchSpecAugment(nn.Module):
         self.freq_mask_param = int(freq_mask_param)
         self.num_time_masks = int(num_time_masks)
         self.num_freq_masks = int(num_freq_masks)
-        self.mask_value = float(mask_value)
+        if isinstance(mask_value, torch.Tensor):
+            if mask_value.dim() != 1:
+                raise ValueError("SpecAugment tensor mask_value must be 1-D [n_mels].")
+            self.register_buffer("mask_value_tensor", mask_value.float())
+            self.mask_value = 0.0
+        else:
+            self.register_buffer("mask_value_tensor", None)
+            self.mask_value = float(mask_value)
+
+    def _fill(self, out, index):
+        if self.mask_value_tensor is None:
+            out[index] = self.mask_value
+        else:
+            value = self.mask_value_tensor.to(dtype=out.dtype, device=out.device)
+            if isinstance(index, tuple) and len(index) == 3:
+                value = value[index[2]]
+            out[index] = value
 
     def forward(self, mel, lengths):
         if self.num_time_masks <= 0 and self.num_freq_masks <= 0:
@@ -111,7 +179,7 @@ class BatchSpecAugment(nn.Module):
                 if width == 0 or width >= n_mels:
                     continue
                 start = int(torch.randint(0, n_mels - width + 1, (1,), device=device).item())
-                out[b, :valid_t, start:start + width] = self.mask_value
+                self._fill(out, (b, slice(0, valid_t), slice(start, start + width)))
             for _ in range(self.num_time_masks):
                 width_max = min(self.time_mask_param, valid_t)
                 if width_max <= 0:
@@ -120,7 +188,7 @@ class BatchSpecAugment(nn.Module):
                 if width == 0 or width >= valid_t:
                     continue
                 start = int(torch.randint(0, valid_t - width + 1, (1,), device=device).item())
-                out[b, start:start + width, :] = self.mask_value
+                self._fill(out, (b, slice(start, start + width), slice(None)))
         return out
 
 
@@ -149,7 +217,11 @@ def parse_args():
     p.add_argument("--head-lr", type=float, default=None,
                    help="Optional peak LR for non-encoder parameters, including the CTC head.")
     p.add_argument("--weight-decay", type=float, default=5e-4)
+    p.add_argument("--no-decay-norm-and-bias", action="store_true",
+                   help="Exclude normalization weights and biases from AdamW weight decay.")
     p.add_argument("--max-grad-norm", type=float, default=1.0)
+    p.add_argument("--freeze-encoder-epochs", type=int, default=0,
+                   help="Keep the encoder frozen for the first N epochs. Mainly useful when fine-tuning SSL encoders with a fresh CTC head.")
     p.add_argument("--warmup-epochs", type=int, default=20)
     p.add_argument("--peak-epochs", type=int, default=160,
                    help="Number of epochs to hold the peak LR after warmup before Noam decay.")
@@ -169,6 +241,8 @@ def parse_args():
     p.add_argument("--specaug-freq-masks", type=int, default=2)
     p.add_argument("--specaug-disable-last-epochs", type=int, default=0,
                    help="Disable SpecAugment for the final N epochs for clean fine-tuning.")
+    p.add_argument("--specaug-mask-source", choices=["zero", "ssl-mask"], default="zero",
+                   help="Use zero masks or the SSL checkpoint's learned mask token for SpecAugment.")
     return p.parse_args()
 
 
@@ -415,17 +489,24 @@ def main():
             json.dump(run_info, f, indent=2, sort_keys=True)
         append_jsonl(metrics_path, run_info)
 
-    opt_model = model.module if hasattr(model, "module") else model
+    opt_model = unwrap_model(model)
     if args.encoder_lr is not None or args.head_lr is not None:
         encoder_lr = args.encoder_lr if args.encoder_lr is not None else args.lr
         head_lr = args.head_lr if args.head_lr is not None else args.lr
-        encoder_param_ids = {id(p) for p in opt_model.encoder.parameters()}
-        head_params = [p for p in opt_model.parameters() if id(p) not in encoder_param_ids]
-        optimizer = torch.optim.AdamW(
-            [
+        if not args.no_decay_norm_and_bias:
+            encoder_param_ids = {id(p) for p in opt_model.encoder.parameters()}
+            head_params = [p for p in opt_model.parameters() if id(p) not in encoder_param_ids]
+            param_groups = [
                 {"params": opt_model.encoder.parameters(), "lr": encoder_lr, "name": "encoder"},
                 {"params": head_params, "lr": head_lr, "name": "head"},
-            ],
+            ]
+        else:
+            param_groups = make_adamw_param_groups(opt_model, encoder_lr, head_lr)
+            for group in param_groups:
+                if group["weight_decay"] is None:
+                    group["weight_decay"] = args.weight_decay
+        optimizer = torch.optim.AdamW(
+            param_groups,
             lr=args.lr,
             betas=(0.9, 0.98),
             eps=1e-9,
@@ -433,8 +514,15 @@ def main():
         )
         print0(rank, f"LR groups: encoder={encoder_lr:g} | head={head_lr:g}")
     else:
+        if not args.no_decay_norm_and_bias:
+            param_groups = model.parameters()
+        else:
+            param_groups = make_adamw_param_groups(opt_model, args.lr, args.lr)
+            for group in param_groups:
+                if group["weight_decay"] is None:
+                    group["weight_decay"] = args.weight_decay
         optimizer = torch.optim.AdamW(
-            model.parameters(),
+            param_groups,
             lr=args.lr,
             betas=(0.9, 0.98),
             eps=1e-9,
@@ -449,11 +537,21 @@ def main():
         decay_rate=args.noam_decay_rate,
     )
     ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)
+    specaug_mask_value = 0.0
+    specaug_mask_source = args.specaug_mask_source
+    if args.specaug_mask_source == "ssl-mask":
+        specaug_mask_value = load_ssl_mask_embedding(args.ssl_checkpoint, expected_dim=80, map_location="cpu")
+        if specaug_mask_value is None:
+            raise ValueError("--specaug-mask-source ssl-mask requires an SSL checkpoint with mask_emb")
+        print0(rank, "SpecAugment mask source: SSL learned mask_emb")
+    else:
+        print0(rank, "SpecAugment mask source: zero")
     specaugment = BatchSpecAugment(
         time_mask_param=args.specaug_time_mask_param,
         freq_mask_param=args.specaug_freq_mask_param,
         num_time_masks=args.specaug_time_masks,
         num_freq_masks=args.specaug_freq_masks,
+        mask_value=specaug_mask_value,
     ).to(device)
     best_wer = float("inf")
     optimizer_steps = 0
@@ -480,6 +578,10 @@ def main():
             )
             if train_sampler is not None:
                 train_sampler.set_epoch(epoch)
+            encoder_should_train = epoch > args.freeze_encoder_epochs
+            if args.freeze_encoder_epochs > 0 and epoch in (1, args.freeze_encoder_epochs + 1):
+                state = "trainable" if encoder_should_train else "update-frozen"
+                print0(rank, f"[ctc] epoch={epoch:03d} encoder {state}")
             model.train()
             optimizer.zero_grad(set_to_none=True)
             total_loss = 0.0
@@ -492,8 +594,11 @@ def main():
             group_grad_norm_max = {}
             show = args.progress == "on" and is_main_process(rank)
             bar = tqdm(train_loader, desc=f"CTC {epoch:03d}", leave=False, disable=not show)
+            effective_batches = len(train_loader)
+            if args.max_train_batches is not None:
+                effective_batches = min(effective_batches, args.max_train_batches)
             for step, batch in enumerate(bar, start=1):
-                if args.max_train_batches is not None and step > args.max_train_batches:
+                if step > effective_batches:
                     break
                 mel, lengths, labels, label_lengths = batch
                 mel = mel.to(device, non_blocking=True)
@@ -502,15 +607,27 @@ def main():
                 label_lengths = label_lengths.to(device, non_blocking=True)
                 if specaug_enabled:
                     mel = specaugment(mel, lengths)
-                with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-                    log_probs, output_lengths = model(mel, lengths)
-                    loss = ctc_loss(log_probs.transpose(0, 1), labels, output_lengths, label_lengths)
-                    loss = loss / max(1, args.grad_accum_steps)
-                loss.backward()
-                sync_step = step % max(1, args.grad_accum_steps) == 0 or step == len(train_loader)
+                actual_accum_steps = max(1, args.grad_accum_steps)
+                remaining = effective_batches - step + 1
+                if remaining < actual_accum_steps:
+                    actual_accum_steps = remaining
+                sync_step = step % max(1, args.grad_accum_steps) == 0 or step == effective_batches
+                sync_context = (
+                    model.no_sync
+                    if isinstance(model, DDP) and not sync_step
+                    else contextlib.nullcontext
+                )
+                with sync_context():
+                    with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
+                        log_probs, output_lengths = model(mel, lengths)
+                        loss = ctc_loss(log_probs.transpose(0, 1), labels, output_lengths, label_lengths)
+                        loss = loss / actual_accum_steps
+                    loss.backward()
                 grad_norm_value = None
                 group_grad_norms = None
                 if sync_step:
+                    if not encoder_should_train:
+                        clear_encoder_grads(model)
                     group_grad_norms = current_group_grad_norms(optimizer)
                     grad_norm = nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                     grad_norm_value = float(grad_norm.detach().item() if isinstance(grad_norm, torch.Tensor) else grad_norm)
@@ -525,7 +642,7 @@ def main():
                     scheduler.step()
                     optimizer.zero_grad(set_to_none=True)
                     optimizer_steps += 1
-                loss_val = loss.detach().float().item() * max(1, args.grad_accum_steps)
+                loss_val = loss.detach().float().item() * actual_accum_steps
                 total_loss += loss_val
                 n_batches += 1
                 if show:
@@ -535,7 +652,7 @@ def main():
                         "event": "train_step",
                         "epoch": epoch,
                         "batch": step,
-                        "batches_per_epoch": len(train_loader),
+                        "batches_per_epoch": effective_batches,
                         "optimizer_step": optimizer_steps,
                         "train_loss": loss_val,
                         "train_loss_avg": total_loss / max(n_batches, 1),
@@ -544,6 +661,8 @@ def main():
                         "grad_norm": grad_norm_value,
                         "group_grad_norms": group_grad_norms,
                         "specaug_enabled": specaug_enabled,
+                        "specaug_mask_source": specaug_mask_source,
+                        "encoder_trainable": encoder_should_train,
                         "elapsed_hours": (time.time() - run_start) / 3600,
                     })
 
@@ -592,7 +711,10 @@ def main():
                             "time_masks": args.specaug_time_masks,
                             "freq_masks": args.specaug_freq_masks,
                             "disable_last_epochs": args.specaug_disable_last_epochs,
+                            "mask_source": specaug_mask_source,
                         },
+                        "encoder_trainable": encoder_should_train,
+                        "freeze_encoder_epochs": args.freeze_encoder_epochs,
                         "grad_norm_avg": grad_norm_avg,
                         "grad_norm_max": grad_norm_max,
                         "clip_fraction": clip_fraction,

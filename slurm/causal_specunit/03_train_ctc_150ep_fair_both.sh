@@ -28,6 +28,8 @@ SSL_CHECKPOINT="${SSL_CHECKPOINT:-outputs/causal_specunit/pretrain_ssl_100k_c8/c
 TRAIN_SPLITS="${TRAIN_SPLITS:-train-clean-100 train-clean-360 train-other-500}"
 EVAL_SPLIT="${EVAL_SPLIT:-dev-other}"
 EPOCHS="${EPOCHS:-150}"
+RUN_SCRATCH="${RUN_SCRATCH:-1}"
+RUN_SSL="${RUN_SSL:-1}"
 
 BATCH_SIZE="${BATCH_SIZE:-128}"
 GRAD_ACCUM_STEPS="${GRAD_ACCUM_STEPS:-2}"
@@ -35,11 +37,20 @@ EVAL_BATCH_SIZE="${EVAL_BATCH_SIZE:-128}"
 WORKERS="${WORKERS:-8}"
 DATALOADER_TIMEOUT="${DATALOADER_TIMEOUT:-120}"
 
-# Full-data fair comparison: both scratch and SSL use the same encoder/head LR
-# groups. The intended experimental difference is only SSL encoder init.
+# Full-data comparison. Scratch keeps the original fair recipe; SSL gets a
+# slightly more adaptive fine-tune recipe because the 960h curve under-adapts
+# rather than overfits.
 ENCODER_LR="${ENCODER_LR:-3e-4}"
 HEAD_LR="${HEAD_LR:-1e-3}"
 BASE_LR="${BASE_LR:-1e-3}"
+SSL_ENCODER_LR="${SSL_ENCODER_LR:-5e-4}"
+SSL_HEAD_LR="${SSL_HEAD_LR:-1e-3}"
+SSL_BASE_LR="${SSL_BASE_LR:-1e-3}"
+SSL_WARMUP_EPOCHS="${SSL_WARMUP_EPOCHS:-5}"
+SSL_PEAK_EPOCHS="${SSL_PEAK_EPOCHS:-90}"
+SSL_NOAM_DECAY_RATE="${SSL_NOAM_DECAY_RATE:-0.25}"
+SSL_SPECAUG_MASK_SOURCE="${SSL_SPECAUG_MASK_SOURCE:-ssl-mask}"
+SSL_NO_DECAY_NORM_BIAS="${SSL_NO_DECAY_NORM_BIAS:-1}"
 WARMUP_EPOCHS="${WARMUP_EPOCHS:-10}"
 PEAK_EPOCHS="${PEAK_EPOCHS:-50}"
 NOAM_DECAY_RATE="${NOAM_DECAY_RATE:-0.5}"
@@ -52,7 +63,7 @@ SPECAUG_FREQ_MASKS="${SPECAUG_FREQ_MASKS:-2}"
 SPECAUG_DISABLE_LAST_EPOCHS="${SPECAUG_DISABLE_LAST_EPOCHS:-15}"
 
 SCRATCH_OUTPUT_DIR="${SCRATCH_OUTPUT_DIR:-outputs/causal_specunit/ctc_scratch_960h_specaug_fair_elr3e4_hlr1e3_w10_p50_150ep_c8}"
-SSL_OUTPUT_DIR="${SSL_OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_960h_specaug_fair_elr3e4_hlr1e3_w10_p50_150ep_c8}"
+SSL_OUTPUT_DIR="${SSL_OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_960h_specaug_tune_elr5e4_hlr1e3_w5_p90_d025_150ep_c8}"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
@@ -107,10 +118,12 @@ echo "Data root: ${DATA_ROOT}"
 echo "Train splits: ${TRAIN_SPLITS}"
 echo "Eval split: ${EVAL_SPLIT}"
 echo "Epochs: ${EPOCHS}"
+echo "Run scratch: ${RUN_SCRATCH}"
+echo "Run SSL: ${RUN_SSL}"
 echo "Effective batch: $((BATCH_SIZE * NUM_PROCESSES * GRAD_ACCUM_STEPS))"
-echo "LR groups for both runs: encoder=${ENCODER_LR} head=${HEAD_LR} base=${BASE_LR}"
+echo "Scratch recipe: base=${BASE_LR} encoder=${ENCODER_LR} head=${HEAD_LR} warmup=${WARMUP_EPOCHS} hold=${PEAK_EPOCHS} decay=${NOAM_DECAY_RATE}"
+echo "SSL recipe: base=${SSL_BASE_LR} encoder=${SSL_ENCODER_LR} head=${SSL_HEAD_LR} warmup=${SSL_WARMUP_EPOCHS} hold=${SSL_PEAK_EPOCHS} decay=${SSL_NOAM_DECAY_RATE} specaug_mask_source=${SSL_SPECAUG_MASK_SOURCE} no_decay_norm_bias=${SSL_NO_DECAY_NORM_BIAS}"
 echo "SpecAug: time=${SPECAUG_TIME_MASK_PARAM}x${SPECAUG_TIME_MASKS} freq=${SPECAUG_FREQ_MASK_PARAM}x${SPECAUG_FREQ_MASKS} disable_last=${SPECAUG_DISABLE_LAST_EPOCHS}"
-echo "Schedule: warmup=${WARMUP_EPOCHS} hold=${PEAK_EPOCHS} decay=${NOAM_DECAY_RATE}"
 echo "Scratch output: ${SCRATCH_OUTPUT_DIR}"
 echo "SSL output: ${SSL_OUTPUT_DIR}"
 echo "Master: ${MASTER_ADDR}:${MASTER_PORT}"
@@ -155,23 +168,43 @@ COMMON_ARGS=(
     --save-every 10
 )
 
-echo "Starting fair scratch 960h/150ep SpecAug run at $(date)"
-torchrun \
-    --nproc_per_node="${NUM_PROCESSES}" \
-    --master_addr="${MASTER_ADDR}" \
-    --master_port="${MASTER_PORT}" \
-    "${COMMON_ARGS[@]}" \
-    --output-dir "${SCRATCH_OUTPUT_DIR}"
+SSL_EXTRA_ARGS=(
+    --lr "${SSL_BASE_LR}"
+    --encoder-lr "${SSL_ENCODER_LR}"
+    --head-lr "${SSL_HEAD_LR}"
+    --warmup-epochs "${SSL_WARMUP_EPOCHS}"
+    --peak-epochs "${SSL_PEAK_EPOCHS}"
+    --noam-decay-rate "${SSL_NOAM_DECAY_RATE}"
+    --specaug-mask-source "${SSL_SPECAUG_MASK_SOURCE}"
+)
+if [ "${SSL_NO_DECAY_NORM_BIAS}" = "1" ]; then
+    SSL_EXTRA_ARGS+=(--no-decay-norm-and-bias)
+fi
 
-echo "Starting fair SSL 960h/150ep SpecAug run at $(date)"
-export MASTER_PORT="$((MASTER_PORT + 1))"
-torchrun \
-    --nproc_per_node="${NUM_PROCESSES}" \
-    --master_addr="${MASTER_ADDR}" \
-    --master_port="${MASTER_PORT}" \
-    "${COMMON_ARGS[@]}" \
-    --ssl-checkpoint "${SSL_CHECKPOINT}" \
-    --output-dir "${SSL_OUTPUT_DIR}"
+if [ "${RUN_SCRATCH}" = "1" ]; then
+    echo "Starting fair scratch 960h/150ep SpecAug run at $(date)"
+    torchrun \
+        --nproc_per_node="${NUM_PROCESSES}" \
+        --master_addr="${MASTER_ADDR}" \
+        --master_port="${MASTER_PORT}" \
+        "${COMMON_ARGS[@]}" \
+        --output-dir "${SCRATCH_OUTPUT_DIR}"
+fi
+
+if [ "${RUN_SSL}" = "1" ]; then
+    if [ "${RUN_SCRATCH}" = "1" ]; then
+        export MASTER_PORT="$((MASTER_PORT + 1))"
+    fi
+    echo "Starting tuned SSL 960h/150ep SpecAug run at $(date)"
+    torchrun \
+        --nproc_per_node="${NUM_PROCESSES}" \
+        --master_addr="${MASTER_ADDR}" \
+        --master_port="${MASTER_PORT}" \
+        "${COMMON_ARGS[@]}" \
+        --ssl-checkpoint "${SSL_CHECKPOINT}" \
+        --output-dir "${SSL_OUTPUT_DIR}" \
+        "${SSL_EXTRA_ARGS[@]}"
+fi
 
 echo "Job ${SLURM_JOB_ID} fair 960h/150ep SpecAug CTC comparison finished at $(date)"
 echo "Metrics:"
