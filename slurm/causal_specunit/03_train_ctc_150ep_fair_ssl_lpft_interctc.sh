@@ -38,7 +38,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
 #SBATCH --mem=256G
-#SBATCH --gres=gpu:8
+#SBATCH --gres=gpu:4
 #SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ctc960_ssl_lpft_ic.%j.out
 #SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ctc960_ssl_lpft_ic.%j.err
 
@@ -59,13 +59,13 @@ TRAIN_SPLITS="${TRAIN_SPLITS:-train-clean-100 train-clean-360 train-other-500}"
 EVAL_SPLIT="${EVAL_SPLIT:-dev-other}"
 EPOCHS="${EPOCHS:-150}"
 
-# Effective batch = BATCH_SIZE * NUM_PROCESSES * GRAD_ACCUM_STEPS = 64 * 8 * 1 = 512.
+# Effective batch = BATCH_SIZE * NUM_PROCESSES * GRAD_ACCUM_STEPS = 128 * 4 * 1 = 512.
 # This matches the prior 2-GPU run (128 * 2 * 2 = 512), so LR/SpecAug stay numerically
 # comparable to the scratch and old-SSL baselines — only wall clock changes.
-BATCH_SIZE="${BATCH_SIZE:-64}"
+BATCH_SIZE="${BATCH_SIZE:-128}"
 GRAD_ACCUM_STEPS="${GRAD_ACCUM_STEPS:-1}"
 EVAL_BATCH_SIZE="${EVAL_BATCH_SIZE:-128}"
-WORKERS="${WORKERS:-4}"
+WORKERS="${WORKERS:-8}"
 DATALOADER_TIMEOUT="${DATALOADER_TIMEOUT:-120}"
 
 # (3) Layer-wise LR — top encoder LR + layer-decay 0.85
@@ -147,7 +147,7 @@ read -r -a INTER_CTC_LAYERS_ARGS <<< "${INTER_CTC_LAYERS}"
 export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
 export MASTER_PORT="${MASTER_PORT:-$((27000 + SLURM_JOB_ID % 20000))}"
 
-NUM_PROCESSES=8
+NUM_PROCESSES=4
 
 echo "Job ${SLURM_JOB_ID} SSL 960h/150ep CTC fine-tune w/ LP-FT + InterCTC starting at $(date)"
 echo "Python: $(which python)"
