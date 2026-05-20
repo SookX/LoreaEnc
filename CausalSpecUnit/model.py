@@ -50,21 +50,28 @@ class CausalSpecUnitSSL(nn.Module):
         self.mask_emb = nn.Parameter(torch.empty(n_mels).normal_(mean=0.0, std=0.1))
 
     def forward(self, mel, lengths):
-        encoded, out_lengths = self.encoder(mel, lengths)
+        encoded, out_lengths, _ = self.encoder(mel, lengths)
         return self.head_coarse(encoded), self.head_fine(encoded), out_lengths
 
 
 class CausalSpecUnitCTC(nn.Module):
-    """CTC wrapper around the copied SqueezeFormer baseline."""
+    """CTC wrapper around the copied SqueezeFormer baseline.
 
-    def __init__(self, vocab_size, variant="xs"):
+    inter_ctc_layers: 0-indexed encoder block indices at which to attach an
+    auxiliary CTC head. Empty/None disables InterCTC.
+    """
+
+    def __init__(self, vocab_size, variant="xs", inter_ctc_layers=None):
         super().__init__()
         self.variant = variant
         self.model = build_copied_squeezeformer(variant, num_classes=vocab_size)
         self.encoder = self.model.encoder
+        self.inter_ctc_layers = tuple(int(i) for i in (inter_ctc_layers or ()))
+        if self.inter_ctc_layers:
+            self.model.add_inter_ctc_heads(self.inter_ctc_layers)
 
-    def forward(self, mel, lengths):
-        return self.model(mel, lengths)
+    def forward(self, mel, lengths, return_inter: bool = False):
+        return self.model(mel, lengths, return_inter=return_inter and bool(self.inter_ctc_layers))
 
     def load_ssl_encoder(self, checkpoint_path, map_location="cpu"):
         state = torch.load(checkpoint_path, map_location=map_location)

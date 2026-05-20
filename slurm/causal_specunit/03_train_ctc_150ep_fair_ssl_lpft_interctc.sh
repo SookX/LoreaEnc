@@ -1,19 +1,46 @@
 #!/bin/bash
-# Full 960h fair CTC fine-tuning from an iter-1 SSL pretrained checkpoint.
-# This is the SSL half of 03_train_ctc_150ep_fair_both.sh without the scratch run.
+# Full 960h CTC fine-tune from SSL with the three structural changes that
+# address the SSL under-adaptation observed at scale:
+#
+#   (1) InterCTC at layer 7 (post-time-reduction bottleneck):
+#       Auxiliary CTC head halfway through the encoder. Old recipe relied on
+#       gradient from a single CTC head at the top traveling back through 16
+#       SqueezeFormer blocks + U-net recover. By epoch 25 the SSL train loss
+#       (0.74) was already 14% worse than scratch (0.65) under identical LRs,
+#       so the encoder isn't getting enough task signal. InterCTC injects a
+#       direct CTC gradient at the bottleneck. Weight 0.3 follows the standard
+#       Lee & Watanabe (2021) recipe — final = 0.7*main + 0.3*inter.
+#
+#   (2) LP-FT (Linear Probe then Fine-Tune): freeze encoder 2 epochs, then
+#       linearly re-warmup encoder LR over 3 epochs (epochs 3-5) while the
+#       head schedule is unchanged. Rationale: with a randomly-initialized
+#       head at full LR=1e-3, the encoder is being pulled by gradients fit to
+#       junk head features in the first few epochs — this is where the SSL
+#       basin starts to leak. Letting the head settle on the (frozen) SSL
+#       features first, then bringing the encoder in gently, preserves the
+#       pretrained representation.
+#
+#   (3) Layer-wise LR decay 0.85 with top encoder LR 6e-4:
+#       Bottom encoder layers (low-level acoustic features) transfer well from
+#       SSL — keep them stable. Top encoder layers (which in SSL were tuned for
+#       cluster-id prediction) need to be reshaped for CTC — give them more
+#       headroom. With 16 layers: top=6e-4, layer 8 (mid)≈1.95e-4 (similar to
+#       old 3e-4 baseline), bottom=6e-4*0.85^15 ≈ 5.2e-5 (~11x top-to-bottom
+#       range). Previous attempts at 0.96 were too uniform (1.7x range, like
+#       no decay); at 0.75 the bottom would be near-frozen (~1.1e-5).
 
 #SBATCH --partition=common
 #SBATCH --qos=bg-eng-01
 #SBATCH --account=bg-eng-01
-#SBATCH --job-name=csu_ctc960_fair_ssl
+#SBATCH --job-name=csu_ctc960_ssl_lpft_ic
 #SBATCH --time=24:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
 #SBATCH --mem=256G
-#SBATCH --gres=gpu:2
-#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ctc960_fair_ssl.%j.out
-#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ctc960_fair_ssl.%j.err
+#SBATCH --gres=gpu:8
+#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ctc960_ssl_lpft_ic.%j.out
+#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_ctc960_ssl_lpft_ic.%j.err
 
 set -euo pipefail
 
@@ -32,22 +59,37 @@ TRAIN_SPLITS="${TRAIN_SPLITS:-train-clean-100 train-clean-360 train-other-500}"
 EVAL_SPLIT="${EVAL_SPLIT:-dev-other}"
 EPOCHS="${EPOCHS:-150}"
 
-BATCH_SIZE="${BATCH_SIZE:-128}"
-GRAD_ACCUM_STEPS="${GRAD_ACCUM_STEPS:-2}"
+# Effective batch = BATCH_SIZE * NUM_PROCESSES * GRAD_ACCUM_STEPS = 64 * 8 * 1 = 512.
+# This matches the prior 2-GPU run (128 * 2 * 2 = 512), so LR/SpecAug stay numerically
+# comparable to the scratch and old-SSL baselines — only wall clock changes.
+BATCH_SIZE="${BATCH_SIZE:-64}"
+GRAD_ACCUM_STEPS="${GRAD_ACCUM_STEPS:-1}"
 EVAL_BATCH_SIZE="${EVAL_BATCH_SIZE:-128}"
-WORKERS="${WORKERS:-8}"
+WORKERS="${WORKERS:-4}"
 DATALOADER_TIMEOUT="${DATALOADER_TIMEOUT:-120}"
 
-# Tuned SSL-only version of the fair 960h recipe. The old fair recipe learned
-# quickly at first but then under-adapted to CTC, so this keeps the same setup
-# while allowing the upper encoder layers to move a bit more.
-ENCODER_LR="${ENCODER_LR:-4e-4}"
+# (3) Layer-wise LR — top encoder LR + layer-decay 0.85
+# Top layer sees 6e-4; layer 8 (mid) sees 6e-4*0.85^7 ≈ 1.95e-4; bottom sees ~5.2e-5.
+# Conservative vs 8e-4 — the previous 5e-4 attempt clipped 30%, this gives only the top layer a real LR bump.
+ENCODER_LR="${ENCODER_LR:-6e-4}"
 HEAD_LR="${HEAD_LR:-1e-3}"
 BASE_LR="${BASE_LR:-1e-3}"
-ENCODER_LAYER_LR_DECAY="${ENCODER_LAYER_LR_DECAY:-1.0}"
+ENCODER_LAYER_LR_DECAY="${ENCODER_LAYER_LR_DECAY:-0.85}"
+
+# (2) LP-FT — head schedule (warmup/peak/decay) is the SAME as the old recipe so
+# the head trajectory is directly comparable. Encoder is held at LR=0 for 2 ep,
+# then re-warmed from 0 → 8e-4 over the next 3 ep, then tracks the same peak/decay.
 WARMUP_EPOCHS="${WARMUP_EPOCHS:-10}"
 PEAK_EPOCHS="${PEAK_EPOCHS:-90}"
 NOAM_DECAY_RATE="${NOAM_DECAY_RATE:-0.25}"
+FREEZE_ENCODER_EPOCHS="${FREEZE_ENCODER_EPOCHS:-2}"
+ENCODER_REWARMUP_EPOCHS="${ENCODER_REWARMUP_EPOCHS:-3}"
+
+# (1) InterCTC — head at layer 7 (post-time-reduction, deep enough to carry
+# meaningful features, shallow enough that we're not just duplicating the main head).
+INTER_CTC_LAYERS="${INTER_CTC_LAYERS:-7}"
+INTER_CTC_WEIGHT="${INTER_CTC_WEIGHT:-0.3}"
+
 MAX_GRAD_NORM="${MAX_GRAD_NORM:-1.0}"
 SPECAUG_MASK_SOURCE="${SPECAUG_MASK_SOURCE:-zero}"
 NO_DECAY_NORM_BIAS="${NO_DECAY_NORM_BIAS:-1}"
@@ -58,7 +100,7 @@ SPECAUG_TIME_MASKS="${SPECAUG_TIME_MASKS:-2}"
 SPECAUG_FREQ_MASKS="${SPECAUG_FREQ_MASKS:-2}"
 SPECAUG_DISABLE_LAST_EPOCHS="${SPECAUG_DISABLE_LAST_EPOCHS:-15}"
 
-OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_960h_specaug_tune_elr4e4_ld100_hlr1e3_w10_p90_d025_150ep_c8}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_960h_lpft_interctc_elr6e4_ld085_w10_p90_d025_150ep_c8}"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
@@ -100,13 +142,14 @@ if [ ! -f "${SSL_CHECKPOINT}" ]; then
 fi
 
 read -r -a TRAIN_SPLIT_ARGS <<< "${TRAIN_SPLITS}"
+read -r -a INTER_CTC_LAYERS_ARGS <<< "${INTER_CTC_LAYERS}"
 
 export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
-export MASTER_PORT="${MASTER_PORT:-$((26000 + SLURM_JOB_ID % 20000))}"
+export MASTER_PORT="${MASTER_PORT:-$((27000 + SLURM_JOB_ID % 20000))}"
 
-NUM_PROCESSES=2
+NUM_PROCESSES=8
 
-echo "Job ${SLURM_JOB_ID} fair pretrained-only 960h/150ep SpecAug CTC fine-tuning starting at $(date)"
+echo "Job ${SLURM_JOB_ID} SSL 960h/150ep CTC fine-tune w/ LP-FT + InterCTC starting at $(date)"
 echo "Python: $(which python)"
 echo "Torchrun: $(which torchrun)"
 echo "Data root: ${DATA_ROOT}"
@@ -114,9 +157,11 @@ echo "Train splits: ${TRAIN_SPLITS}"
 echo "Eval split: ${EVAL_SPLIT}"
 echo "Epochs: ${EPOCHS}"
 echo "Effective batch: $((BATCH_SIZE * NUM_PROCESSES * GRAD_ACCUM_STEPS))"
-echo "LR groups: encoder_top=${ENCODER_LR} layer_decay=${ENCODER_LAYER_LR_DECAY} head=${HEAD_LR} base=${BASE_LR} no_decay_norm_bias=${NO_DECAY_NORM_BIAS}"
+echo "LR groups: encoder_top=${ENCODER_LR} layer_decay=${ENCODER_LAYER_LR_DECAY} head=${HEAD_LR} no_decay_norm_bias=${NO_DECAY_NORM_BIAS}"
+echo "LP-FT: freeze=${FREEZE_ENCODER_EPOCHS}ep rewarmup=${ENCODER_REWARMUP_EPOCHS}ep"
+echo "InterCTC: layers=[${INTER_CTC_LAYERS}] weight=${INTER_CTC_WEIGHT}"
 echo "SpecAug: time=${SPECAUG_TIME_MASK_PARAM}x${SPECAUG_TIME_MASKS} freq=${SPECAUG_FREQ_MASK_PARAM}x${SPECAUG_FREQ_MASKS} disable_last=${SPECAUG_DISABLE_LAST_EPOCHS}"
-echo "Schedule: warmup=${WARMUP_EPOCHS} hold=${PEAK_EPOCHS} decay=${NOAM_DECAY_RATE} specaug_mask_source=${SPECAUG_MASK_SOURCE}"
+echo "Head schedule: warmup=${WARMUP_EPOCHS} hold=${PEAK_EPOCHS} decay=${NOAM_DECAY_RATE}"
 echo "SSL checkpoint: ${SSL_CHECKPOINT}"
 echo "Output: ${OUTPUT_DIR}"
 echo "Master: ${MASTER_ADDR}:${MASTER_PORT}"
@@ -131,6 +176,10 @@ PY
 EXTRA_ARGS=(
     --encoder-layer-lr-decay "${ENCODER_LAYER_LR_DECAY}"
     --specaug-mask-source "${SPECAUG_MASK_SOURCE}"
+    --freeze-encoder-epochs "${FREEZE_ENCODER_EPOCHS}"
+    --encoder-rewarmup-epochs "${ENCODER_REWARMUP_EPOCHS}"
+    --inter-ctc-layers "${INTER_CTC_LAYERS_ARGS[@]}"
+    --inter-ctc-weight "${INTER_CTC_WEIGHT}"
 )
 if [ "${NO_DECAY_NORM_BIAS}" = "1" ]; then
     EXTRA_ARGS+=(--no-decay-norm-and-bias)
@@ -174,5 +223,5 @@ torchrun \
     --log-every 0 \
     --save-every 10
 
-echo "Job ${SLURM_JOB_ID} fair pretrained-only 960h/150ep SpecAug CTC fine-tuning finished at $(date)"
+echo "Job ${SLURM_JOB_ID} SSL 960h/150ep CTC fine-tune w/ LP-FT + InterCTC finished at $(date)"
 echo "Metrics: ${OUTPUT_DIR}/ctc_metrics.jsonl"

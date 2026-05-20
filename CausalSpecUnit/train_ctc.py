@@ -22,6 +22,7 @@ from CausalSpecUnit.common import (
     TRAIN_SPLITS,
     barrier,
     build_extended_noam_scheduler,
+    build_lpft_scheduler,
     cleanup_distributed,
     is_main_process,
     print0,
@@ -249,6 +250,17 @@ def parse_args():
     p.add_argument("--max-grad-norm", type=float, default=1.0)
     p.add_argument("--freeze-encoder-epochs", type=int, default=0,
                    help="Keep the encoder frozen for the first N epochs. Mainly useful when fine-tuning SSL encoders with a fresh CTC head.")
+    p.add_argument("--encoder-rewarmup-epochs", type=int, default=0,
+                   help="After --freeze-encoder-epochs, linearly re-warmup the encoder LR over this many epochs. "
+                        "The head schedule is unaffected. Enables LP-FT (linear probe then fine-tune): the head settles "
+                        "on SSL features before the encoder starts moving, preventing destruction of the pretrained representation.")
+    p.add_argument("--inter-ctc-layers", type=int, nargs="*", default=None,
+                   help="Encoder block indices (0-based) at which to attach auxiliary CTC heads (InterCTC). "
+                        "For SqueezeFormer XS (16 blocks, reduce@7, recover@15), 7 is a strong default: the deepest "
+                        "shared point of the upper U-net half. Injects a CTC gradient halfway down the encoder so the "
+                        "lower stack gets direct task supervision instead of one diluted by the rest of the network.")
+    p.add_argument("--inter-ctc-weight", type=float, default=0.3,
+                   help="Total weight on InterCTC losses; final loss = (1-w)*main_ctc + w*mean(inter_ctc).")
     p.add_argument("--warmup-epochs", type=int, default=20)
     p.add_argument("--peak-epochs", type=int, default=160,
                    help="Number of epochs to hold the peak LR after warmup before Noam decay.")
@@ -363,7 +375,8 @@ def evaluate(model, loader, tokenizer, blank_id, ctc_loss, device, rank, show_pr
         labels = labels.to(device, non_blocking=True)
         label_lengths = label_lengths.to(device, non_blocking=True)
         with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-            log_probs, output_lengths = model(mel, lengths)
+            # Eval always uses only the main CTC head; InterCTC is a training-time auxiliary.
+            log_probs, output_lengths, _ = model(mel, lengths, return_inter=False)
             loss = ctc_loss(log_probs.transpose(0, 1), labels, output_lengths, label_lengths)
         total_loss += loss.detach().float().item()
         total_batches += 1
@@ -485,6 +498,7 @@ def main():
     model = CausalSpecUnitCTC(
         vocab_size=tokenizer.vocab_size,
         variant=args.variant,
+        inter_ctc_layers=args.inter_ctc_layers,
     )
     if args.ssl_checkpoint:
         missing, unexpected = model.load_ssl_encoder(args.ssl_checkpoint, map_location="cpu")
@@ -574,13 +588,30 @@ def main():
             weight_decay=args.weight_decay,
         )
     steps_per_epoch = math.ceil(len(train_loader) / max(1, args.grad_accum_steps))
-    scheduler = build_extended_noam_scheduler(
-        optimizer,
-        steps_per_epoch,
-        warmup_epochs=args.warmup_epochs,
-        peak_epochs=args.peak_epochs,
-        decay_rate=args.noam_decay_rate,
-    )
+    use_lpft = args.encoder_rewarmup_epochs > 0 or args.freeze_encoder_epochs > 0
+    if use_lpft:
+        scheduler = build_lpft_scheduler(
+            optimizer,
+            steps_per_epoch,
+            warmup_epochs=args.warmup_epochs,
+            peak_epochs=args.peak_epochs,
+            decay_rate=args.noam_decay_rate,
+            encoder_freeze_epochs=args.freeze_encoder_epochs,
+            encoder_rewarmup_epochs=args.encoder_rewarmup_epochs,
+        )
+        print0(
+            rank,
+            f"LP-FT scheduler: encoder freeze={args.freeze_encoder_epochs}ep "
+            f"+ rewarmup={args.encoder_rewarmup_epochs}ep | head schedule unchanged",
+        )
+    else:
+        scheduler = build_extended_noam_scheduler(
+            optimizer,
+            steps_per_epoch,
+            warmup_epochs=args.warmup_epochs,
+            peak_epochs=args.peak_epochs,
+            decay_rate=args.noam_decay_rate,
+        )
     ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)
     specaug_mask_value = 0.0
     specaug_mask_source = args.specaug_mask_source
@@ -630,6 +661,8 @@ def main():
             model.train()
             optimizer.zero_grad(set_to_none=True)
             total_loss = 0.0
+            total_main_loss = 0.0
+            total_inter_loss = 0.0
             n_batches = 0
             grad_steps = 0
             clipped_steps = 0
@@ -663,9 +696,28 @@ def main():
                 )
                 with sync_context():
                     with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-                        log_probs, output_lengths = model(mel, lengths)
-                        loss = ctc_loss(log_probs.transpose(0, 1), labels, output_lengths, label_lengths)
-                        loss = loss / actual_accum_steps
+                        log_probs, output_lengths, inter_outputs = model(
+                            mel, lengths, return_inter=bool(args.inter_ctc_layers)
+                        )
+                        main_loss = ctc_loss(log_probs.transpose(0, 1), labels, output_lengths, label_lengths)
+                        if inter_outputs:
+                            inter_losses = []
+                            for _idx, (inter_log_probs, inter_lengths) in inter_outputs.items():
+                                inter_losses.append(
+                                    ctc_loss(
+                                        inter_log_probs.transpose(0, 1),
+                                        labels,
+                                        inter_lengths,
+                                        label_lengths,
+                                    )
+                                )
+                            inter_loss = torch.stack(inter_losses).mean()
+                            w = args.inter_ctc_weight
+                            combined = (1.0 - w) * main_loss + w * inter_loss
+                        else:
+                            inter_loss = None
+                            combined = main_loss
+                        loss = combined / actual_accum_steps
                     loss.backward()
                 grad_norm_value = None
                 group_grad_norms = None
@@ -687,10 +739,23 @@ def main():
                     optimizer.zero_grad(set_to_none=True)
                     optimizer_steps += 1
                 loss_val = loss.detach().float().item() * actual_accum_steps
+                main_loss_val = main_loss.detach().float().item()
+                inter_loss_val = inter_loss.detach().float().item() if inter_loss is not None else None
                 total_loss += loss_val
+                total_main_loss += main_loss_val
+                if inter_loss_val is not None:
+                    total_inter_loss += inter_loss_val
                 n_batches += 1
                 if show:
-                    bar.set_postfix(loss=f"{loss_val:.3f}", avg=f"{total_loss/max(n_batches,1):.3f}", lr=f"{scheduler.get_last_lr()[0]:.1e}", refresh=False)
+                    postfix = dict(
+                        loss=f"{loss_val:.3f}",
+                        avg=f"{total_loss/max(n_batches,1):.3f}",
+                        lr=f"{scheduler.get_last_lr()[0]:.1e}",
+                    )
+                    if inter_loss_val is not None:
+                        postfix["main"] = f"{main_loss_val:.3f}"
+                        postfix["inter"] = f"{inter_loss_val:.3f}"
+                    bar.set_postfix(**postfix, refresh=False)
                 if args.log_every > 0 and is_main_process(rank) and step % args.log_every == 0:
                     append_jsonl(metrics_path, {
                         "event": "train_step",
@@ -711,6 +776,11 @@ def main():
                     })
 
             avg_loss = reduce_train_average(total_loss, n_batches, device)
+            avg_main_loss = reduce_train_average(total_main_loss, n_batches, device)
+            avg_inter_loss = (
+                reduce_train_average(total_inter_loss, n_batches, device)
+                if args.inter_ctc_layers else None
+            )
             grad_norm_avg = grad_norm_sum / max(grad_steps, 1)
             group_grad_norm_avg = {
                 name: value / max(grad_steps, 1)
@@ -736,6 +806,10 @@ def main():
                         "epoch": epoch,
                         "optimizer_step": optimizer_steps,
                         "train_loss": avg_loss,
+                        "train_main_loss": avg_main_loss,
+                        "train_inter_loss": avg_inter_loss,
+                        "inter_ctc_layers": list(args.inter_ctc_layers) if args.inter_ctc_layers else None,
+                        "inter_ctc_weight": args.inter_ctc_weight if args.inter_ctc_layers else None,
                         "dev_loss": metrics["loss"],
                         "wer": metrics["wer"],
                         "cer": metrics["cer"],
@@ -785,6 +859,10 @@ def main():
                         "epoch": epoch,
                         "optimizer_step": optimizer_steps,
                         "train_loss": avg_loss,
+                        "train_main_loss": avg_main_loss,
+                        "train_inter_loss": avg_inter_loss,
+                        "inter_ctc_layers": list(args.inter_ctc_layers) if args.inter_ctc_layers else None,
+                        "inter_ctc_weight": args.inter_ctc_weight if args.inter_ctc_layers else None,
                         "dev_loss": None,
                         "wer": None,
                         "best_wer": best_wer if math.isfinite(best_wer) else None,

@@ -92,7 +92,7 @@ def load_ssl_model(checkpoint_path, variant, device):
 def encode_batch(model, mels, lengths, device):
     mels = mels.to(device, non_blocking=True)
     lengths = lengths.to(device, non_blocking=True)
-    encoded, out_lengths = model.encoder(mels, lengths)
+    encoded, out_lengths, _ = model.encoder(mels, lengths)
     return encoded.detach().float().cpu(), out_lengths.detach().cpu()
 
 

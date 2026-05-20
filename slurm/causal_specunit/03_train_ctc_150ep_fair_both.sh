@@ -3,7 +3,7 @@
 #SBATCH --qos=bg-eng-01
 #SBATCH --account=bg-eng-01
 #SBATCH --job-name=csu_ctc960_fair_both
-#SBATCH --time=96:00:00
+#SBATCH --time=24:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
@@ -46,7 +46,7 @@ BASE_LR="${BASE_LR:-1e-3}"
 SSL_ENCODER_LR="${SSL_ENCODER_LR:-4e-4}"
 SSL_HEAD_LR="${SSL_HEAD_LR:-1e-3}"
 SSL_BASE_LR="${SSL_BASE_LR:-1e-3}"
-SSL_ENCODER_LAYER_LR_DECAY="${SSL_ENCODER_LAYER_LR_DECAY:-0.96}"
+SSL_ENCODER_LAYER_LR_DECAY="${SSL_ENCODER_LAYER_LR_DECAY:-1.0}"
 SSL_WARMUP_EPOCHS="${SSL_WARMUP_EPOCHS:-10}"
 SSL_PEAK_EPOCHS="${SSL_PEAK_EPOCHS:-90}"
 SSL_NOAM_DECAY_RATE="${SSL_NOAM_DECAY_RATE:-0.25}"
@@ -64,7 +64,7 @@ SPECAUG_FREQ_MASKS="${SPECAUG_FREQ_MASKS:-2}"
 SPECAUG_DISABLE_LAST_EPOCHS="${SPECAUG_DISABLE_LAST_EPOCHS:-15}"
 
 SCRATCH_OUTPUT_DIR="${SCRATCH_OUTPUT_DIR:-outputs/causal_specunit/ctc_scratch_960h_specaug_fair_elr3e4_hlr1e3_w10_p50_150ep_c8}"
-SSL_OUTPUT_DIR="${SSL_OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_960h_specaug_tune_elr4e4_ld096_hlr1e3_w10_p90_d025_150ep_c8}"
+SSL_OUTPUT_DIR="${SSL_OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_960h_specaug_tune_elr4e4_ld100_hlr1e3_w10_p90_d025_150ep_c8}"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"

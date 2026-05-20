@@ -121,6 +121,64 @@ def build_extended_noam_scheduler(optimizer, steps_per_epoch, warmup_epochs, pea
     return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 
+def build_lpft_scheduler(
+    optimizer,
+    steps_per_epoch,
+    warmup_epochs,
+    peak_epochs,
+    decay_rate,
+    encoder_freeze_epochs=0,
+    encoder_rewarmup_epochs=0,
+    encoder_group_prefix="encoder",
+):
+    """Per-group scheduler for LP-FT (linear probe then fine-tune).
+
+    Head groups follow the standard extended-noam schedule from step 0.
+    Encoder groups stay at 0 for ``encoder_freeze_epochs`` epochs (preserving
+    SSL features while the head adapts), then linearly re-warmup to peak over
+    ``encoder_rewarmup_epochs``, then track the same peak/decay phase as the head.
+
+    Both freeze and re-warmup happen in the optimizer-step domain, not the wall
+    epoch — they share ``steps_per_epoch`` with the head schedule. Group routing
+    is by ``group["name"].startswith(encoder_group_prefix)`` (matches
+    ``make_adamw_param_groups`` which names encoder groups ``encoder_lNN_...``
+    and the simple two-group path which uses ``encoder``)."""
+    warmup_steps = max(1, warmup_epochs * steps_per_epoch)
+    peak_steps = max(0, peak_epochs * steps_per_epoch)
+    freeze_steps = max(0, encoder_freeze_epochs * steps_per_epoch)
+    rewarmup_steps = max(0, encoder_rewarmup_epochs * steps_per_epoch)
+
+    def head_lambda(step):
+        step = max(1, step)
+        if step < warmup_steps:
+            return step / warmup_steps
+        if step < warmup_steps + peak_steps:
+            return 1.0
+        decay_step = step - peak_steps
+        return (warmup_steps / max(decay_step, 1)) ** decay_rate
+
+    def encoder_lambda(step):
+        if freeze_steps > 0 and step < freeze_steps:
+            return 0.0
+        local = step - freeze_steps
+        if rewarmup_steps > 0 and local < rewarmup_steps:
+            # +1 so the first post-freeze step has a non-zero LR; never exceeds 1.0.
+            return min(1.0, (local + 1) / rewarmup_steps)
+        # After re-warmup the encoder rejoins the head's peak/decay trajectory,
+        # but always at the post-warmup amplitude (1.0 then decay) — we don't
+        # re-pay the original warmup window.
+        if step < warmup_steps + peak_steps:
+            return 1.0
+        decay_step = step - peak_steps
+        return (warmup_steps / max(decay_step, 1)) ** decay_rate
+
+    lambdas = []
+    for group in optimizer.param_groups:
+        name = group.get("name", "")
+        lambdas.append(encoder_lambda if name.startswith(encoder_group_prefix) else head_lambda)
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, lambdas)
+
+
 def conv_out_length(lengths, kernel_size, stride, left_pad=0, right_pad=0, dilation=1):
     return ((lengths + left_pad + right_pad - dilation * (kernel_size - 1) - 1) // stride + 1).clamp(min=1)
 

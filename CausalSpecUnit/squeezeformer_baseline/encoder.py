@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0
 # Adapted for SqueezeFormer XS replication - Lorea project
 
-from typing import Tuple, Optional
+from typing import Dict, Iterable, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -189,12 +189,21 @@ class SqueezeformerEncoder(nn.Module):
         steps = torch.arange(max_length, device=lengths.device)
         return steps.unsqueeze(0) >= lengths.unsqueeze(1)
 
-    def forward(self, inputs: Tensor, input_lengths: Tensor) -> Tuple[Tensor, Tensor]:
+    def forward(
+        self,
+        inputs: Tensor,
+        input_lengths: Tensor,
+        intermediate_layers: Optional[Iterable[int]] = None,
+    ) -> Tuple[Tensor, Tensor, Optional[Dict[int, Tuple[Tensor, Tensor]]]]:
         outputs, output_lengths = self.conv_subsample(inputs, input_lengths)
         outputs = self.input_proj(outputs)
         outputs = self.input_layer_norm(outputs * self.xscale)
 
         recover_tensor: Optional[Tensor] = None
+        wanted = set(intermediate_layers) if intermediate_layers else None
+        intermediates: Optional[Dict[int, Tuple[Tensor, Tensor]]] = (
+            {} if wanted is not None else None
+        )
 
         for idx, layer in enumerate(self.layers):
             if idx == self.reduce_layer_index:
@@ -213,6 +222,11 @@ class SqueezeformerEncoder(nn.Module):
             outputs = layer(outputs, mask=mask, pad_mask=pad_mask)
             outputs = outputs.masked_fill(mask.unsqueeze(-1), 0.0)
 
+            if wanted is not None and idx in wanted:
+                # Clone so downstream in-place ops on `outputs` (next iteration) cannot
+                # mutate the captured tensor; lengths are scalars per-batch so no clone needed.
+                intermediates[idx] = (outputs.clone(), output_lengths.clamp(max=outputs.size(1)))
+
         # Clamp final output_lengths to actual tensor size to prevent CTC assertion errors
         output_lengths = output_lengths.clamp(max=outputs.size(1))
-        return outputs, output_lengths
+        return outputs, output_lengths, intermediates
