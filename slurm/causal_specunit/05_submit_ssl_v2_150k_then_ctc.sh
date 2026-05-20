@@ -7,12 +7,12 @@
 set -euo pipefail
 
 PRETRAIN_SCRIPT="${PRETRAIN_SCRIPT:-slurm/causal_specunit/02_pretrain_ssl_v2_100k_c8.sh}"
-CTC_SCRIPT="${CTC_SCRIPT:-slurm/causal_specunit/03_train_ctc_150ep_fair_ssl.sh}"
+CTC_SCRIPT="${CTC_SCRIPT:-slurm/causal_specunit/03_train_ctc_150ep_fair_ssl_lpft_interctc.sh}"
 
 MAX_STEPS="${MAX_STEPS:-150000}"
 PRETRAIN_OUTPUT_DIR="${PRETRAIN_OUTPUT_DIR:-outputs/causal_specunit/pretrain_ssl_v2_150k_c8}"
 PRETRAIN_CHECKPOINT="${PRETRAIN_CHECKPOINT:-${PRETRAIN_OUTPUT_DIR}/checkpoint_step150000/checkpoint.pt}"
-CTC_OUTPUT_DIR="${CTC_OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_960h_v2_150k_elr4e4_ld100_hlr1e3_w10_p90_d025_150ep_c8}"
+CTC_OUTPUT_DIR="${CTC_OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_960h_v2_150k_lpft_interctc_elr6e4_ld085_w10_p90_d025_150ep_c8}"
 
 pretrain_jid="$(
     sbatch \
