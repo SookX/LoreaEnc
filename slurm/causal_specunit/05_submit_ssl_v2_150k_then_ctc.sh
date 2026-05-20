@@ -1,8 +1,23 @@
 #!/bin/bash
-# Submit v2 SSL pretraining, then submit CTC fine-tuning after pretraining succeeds.
+# Single-allocation overnight run:
+#   1) SSL v2 pretraining to 150k steps
+#   2) CTC fine-tuning with LP-FT + InterCTC from the new checkpoint
 #
 # Run from the repo root on the cluster:
-#   bash slurm/causal_specunit/05_submit_ssl_v2_150k_then_ctc.sh
+#   sbatch slurm/causal_specunit/05_submit_ssl_v2_150k_then_ctc.sh
+
+#SBATCH --partition=common
+#SBATCH --qos=bg-eng-01
+#SBATCH --account=bg-eng-01
+#SBATCH --job-name=csu_sslv2_150k_ctc
+#SBATCH --time=30:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=40
+#SBATCH --mem=256G
+#SBATCH --gres=gpu:4
+#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_sslv2_150k_ctc.%j.out
+#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_sslv2_150k_ctc.%j.err
 
 set -euo pipefail
 
@@ -14,24 +29,27 @@ PRETRAIN_OUTPUT_DIR="${PRETRAIN_OUTPUT_DIR:-outputs/causal_specunit/pretrain_ssl
 PRETRAIN_CHECKPOINT="${PRETRAIN_CHECKPOINT:-${PRETRAIN_OUTPUT_DIR}/checkpoint_step150000/checkpoint.pt}"
 CTC_OUTPUT_DIR="${CTC_OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_960h_v2_150k_lpft_interctc_elr6e4_ld085_w10_p90_d025_150ep_c8}"
 
-pretrain_jid="$(
-    sbatch \
-        --parsable \
-        --export=ALL,MAX_STEPS="${MAX_STEPS}",OUTPUT_DIR="${PRETRAIN_OUTPUT_DIR}" \
-        "${PRETRAIN_SCRIPT}"
-)"
+echo "Single-allocation SSL v2 150k -> CTC LP-FT + InterCTC starting at $(date)"
+echo "Pretrain script: ${PRETRAIN_SCRIPT}"
+echo "Pretrain output: ${PRETRAIN_OUTPUT_DIR}"
+echo "Pretrain max steps: ${MAX_STEPS}"
+echo "CTC script: ${CTC_SCRIPT}"
+echo "CTC checkpoint: ${PRETRAIN_CHECKPOINT}"
+echo "CTC output: ${CTC_OUTPUT_DIR}"
 
-ctc_jid="$(
-    sbatch \
-        --parsable \
-        --dependency="afterok:${pretrain_jid}" \
-        --export=ALL,SSL_CHECKPOINT="${PRETRAIN_CHECKPOINT}",OUTPUT_DIR="${CTC_OUTPUT_DIR}" \
-        "${CTC_SCRIPT}"
-)"
+MAX_STEPS="${MAX_STEPS}" \
+OUTPUT_DIR="${PRETRAIN_OUTPUT_DIR}" \
+bash "${PRETRAIN_SCRIPT}"
 
-echo "Submitted SSL v2 pretraining job: ${pretrain_jid}"
-echo "  output: ${PRETRAIN_OUTPUT_DIR}"
-echo "  checkpoint: ${PRETRAIN_CHECKPOINT}"
-echo "Submitted dependent CTC fine-tune job: ${ctc_jid}"
-echo "  dependency: afterok:${pretrain_jid}"
-echo "  output: ${CTC_OUTPUT_DIR}"
+if [ ! -f "${PRETRAIN_CHECKPOINT}" ]; then
+    echo "Expected pretrain checkpoint was not created: ${PRETRAIN_CHECKPOINT}"
+    exit 1
+fi
+
+SSL_CHECKPOINT="${PRETRAIN_CHECKPOINT}" \
+OUTPUT_DIR="${CTC_OUTPUT_DIR}" \
+bash "${CTC_SCRIPT}"
+
+echo "Single-allocation SSL v2 150k -> CTC LP-FT + InterCTC finished at $(date)"
+echo "Pretrain checkpoint: ${PRETRAIN_CHECKPOINT}"
+echo "CTC metrics: ${CTC_OUTPUT_DIR}/ctc_metrics.jsonl"
