@@ -29,7 +29,7 @@ from CausalSpecUnit.common import (
     strip_state_prefixes,
     unwrap_model,
 )
-from CausalSpecUnit.data import SpecUnitDataset, collate_ssl
+from CausalSpecUnit.data import BatchSpecAugment, SpecUnitDataset, collate_ssl
 from CausalSpecUnit.model import CausalSpecUnitSSL
 
 
@@ -86,6 +86,28 @@ def parse_args():
                    help="HuBERT-style mask span length in target steps.")
     p.add_argument("--mask-value", type=float, default=0.0,
                    help="Value used to replace masked CMVN-normalized spectrogram frames.")
+    # ---- v2 SSL training improvements (orthogonal to target iteration) ----
+    p.add_argument("--layer-drop-p", type=float, default=0.0,
+                   help="Stochastic depth probability for encoder blocks during SSL training. "
+                        "wav2vec2/HuBERT use 0.05. Reduce_layer/recover_layer blocks are never dropped.")
+    p.add_argument("--aux-layers", type=int, nargs="*", default=None,
+                   help="Encoder block indices (0-based) at which to attach auxiliary SSL prediction heads "
+                        "(predicting the same z100/z500 targets). For SqueezeFormer XS (16 blocks, reduce@7, "
+                        "recover@15), 8 is a strong default — one layer past the time-reduction, deep enough "
+                        "to be meaningful, while still in the half-rate bottleneck.")
+    p.add_argument("--aux-weight", type=float, default=0.5,
+                   help="Total weight on auxiliary SSL losses; loss = main + aux_weight * mean(aux_losses). "
+                        "Auxiliary heads operate at the (possibly reduced) bottleneck rate; this gives "
+                        "intermediate layers a direct gradient signal instead of relying on backprop through "
+                        "the rest of the network.")
+    p.add_argument("--specaug", action="store_true",
+                   help="Apply SpecAugment to the corrupted mel batch during SSL (in addition to HuBERT "
+                        "mask-token corruption). Helps the encoder be robust to the zero-fill SpecAug "
+                        "distribution used at fine-tuning, and adds extra context masking during pretraining.")
+    p.add_argument("--specaug-time-mask-param", type=int, default=30)
+    p.add_argument("--specaug-freq-mask-param", type=int, default=20)
+    p.add_argument("--specaug-time-masks", type=int, default=2)
+    p.add_argument("--specaug-freq-masks", type=int, default=2)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--warmup-epochs", type=int, default=20)
     p.add_argument("--peak-epochs", type=int, default=20)
@@ -391,7 +413,24 @@ def main():
     )
     trace(args.trace_startup, rank, f"dataloader built with {len(loader)} batches")
 
-    model = CausalSpecUnitSSL(variant=args.variant).to(device)
+    model = CausalSpecUnitSSL(
+        variant=args.variant,
+        layer_drop_p=args.layer_drop_p,
+        aux_layer_indices=args.aux_layers,
+    ).to(device)
+    specaugment = None
+    if args.specaug:
+        # SpecAug uses the *live* SSL mask_emb as fill (passed at forward time),
+        # so the encoder sees one consistent "masked-value" distribution across
+        # HuBERT-mask and SpecAug-mask, and SpecAug gradients flow back into
+        # mask_emb. Zero-init the buffer here; the real value is supplied per-step.
+        specaugment = BatchSpecAugment(
+            time_mask_param=args.specaug_time_mask_param,
+            freq_mask_param=args.specaug_freq_mask_param,
+            num_time_masks=args.specaug_time_masks,
+            num_freq_masks=args.specaug_freq_masks,
+            mask_value=0.0,
+        ).to(device)
     if args.init_encoder_checkpoint:
         missing, unexpected = init_encoder_from_checkpoint(model, args.init_encoder_checkpoint, device)
         print0(
@@ -487,8 +526,8 @@ def main():
                 sampler.set_epoch(epoch)
             model.train()
             optimizer.zero_grad(set_to_none=True)
-            total_loss = total_c100 = total_c500 = total_masked_frac = 0.0
-            n_batches = 0
+            total_loss = total_c100 = total_c500 = total_masked_frac = total_aux = 0.0
+            n_batches = n_aux_batches = 0
             skipped_steps = 0
             show = args.progress == "on" and is_main_process(rank)
             bar = tqdm(loader, desc=f"SSL {epoch:03d}", leave=False, disable=not show)
@@ -522,6 +561,10 @@ def main():
                     chunk_stride=args.chunk_stride,
                     mask_value=mask_token if mask_token is not None else args.mask_value,
                 )
+                if specaugment is not None:
+                    # SpecAug on top of HuBERT-mask corruption. Uses the live
+                    # mask_emb parameter so the encoder sees one fill distribution.
+                    corrupted_mel = specaugment(corrupted_mel, lengths, mask_value=mask_token)
 
                 sync_step = step % max(1, args.grad_accum_steps) == 0 or step == len(loader)
                 window_start = ((step - 1) // max(1, args.grad_accum_steps)) * max(1, args.grad_accum_steps) + 1
@@ -534,7 +577,7 @@ def main():
                 with sync_context():
                     if args.trace_every > 0 and step % args.trace_every == 0:
                         trace(True, rank, f"epoch={epoch} step={step} forward start")
-                    coarse_logits, fine_logits, _ = model(corrupted_mel, lengths)
+                    coarse_logits, fine_logits, _, aux_outputs = model(corrupted_mel, lengths)
                     coarse_logits, fine_logits, z100_aligned, z500_aligned, masked_aligned = align_ssl_tensors(
                         coarse_logits,
                         fine_logits,
@@ -544,7 +587,25 @@ def main():
                     )
                     loss100 = masked_unit_ce(coarse_logits, z100_aligned, masked_aligned)
                     loss500 = masked_unit_ce(fine_logits, z500_aligned, masked_aligned)
-                    loss = (loss100 + loss500) / actual_accum_steps
+                    main_loss = loss100 + loss500
+                    # Auxiliary SSL losses at intermediate encoder layers (same z100/z500 targets).
+                    # The bottleneck features run at the *reduced* rate (post time-reduction), so
+                    # align by the shorter of (aux_features, targets, mask).
+                    aux_total = None
+                    aux_loss_value = None
+                    if aux_outputs:
+                        aux_losses = []
+                        for _idx, (aux_coarse, aux_fine, _aux_lengths) in aux_outputs.items():
+                            ac, af, z100_a, z500_a, mask_a = align_ssl_tensors(
+                                aux_coarse, aux_fine, z100, z500, masked_positions,
+                            )
+                            aux_losses.append(masked_unit_ce(ac, z100_a, mask_a) + masked_unit_ce(af, z500_a, mask_a))
+                        aux_total = torch.stack(aux_losses).mean()
+                        aux_loss_value = aux_total.detach().float().item()
+                        combined = main_loss + args.aux_weight * aux_total
+                    else:
+                        combined = main_loss
+                    loss = combined / actual_accum_steps
                     if args.trace_every > 0 and step % args.trace_every == 0:
                         trace(True, rank, f"epoch={epoch} step={step} backward start")
                     loss.backward()
@@ -587,6 +648,9 @@ def main():
                 total_c100 += c100_mean
                 total_c500 += c500_mean
                 total_masked_frac += masked_frac_mean
+                if aux_loss_value is not None:
+                    total_aux += aux_loss_value
+                    n_aux_batches += 1
                 n_batches += 1
                 if show:
                     remaining = (args.max_steps - optimizer_steps) if args.max_steps else None
@@ -599,6 +663,8 @@ def main():
                         step=f"{optimizer_steps}/{args.max_steps or '?'}",
                         eta=fmt_eta(remaining) if remaining is not None else "?",
                     )
+                    if aux_loss_value is not None:
+                        postfix["aux"] = f"{aux_loss_value:.3f}"
                     bar.set_postfix(**postfix, refresh=False)
                 if args.log_every > 0 and is_main_process(rank) and step % args.log_every == 0:
                     remaining = (args.max_steps - optimizer_steps) if args.max_steps else None
@@ -612,6 +678,7 @@ def main():
                         "loss": loss_mean,
                         "c100": c100_mean,
                         "c500": c500_mean,
+                        "aux_loss": aux_loss_value,
                         "masked_fraction": masked_frac_mean,
                         "lr": scheduler.get_last_lr()[0],
                         "grad_norm": grad_norm_value,
@@ -633,13 +700,15 @@ def main():
             avg_c100 = total_c100 / max(n_batches, 1)
             avg_c500 = total_c500 / max(n_batches, 1)
             avg_masked = total_masked_frac / max(n_batches, 1)
+            avg_aux = (total_aux / n_aux_batches) if n_aux_batches > 0 else None
             elapsed = time.time() - job_start
             remaining = (args.max_steps - optimizer_steps) if args.max_steps else None
             skipped_note = f" skipped={skipped_steps}" if skipped_steps else ""
+            aux_note = f" aux={avg_aux:.4f}" if avg_aux is not None else ""
             print0(
                 rank,
                 f"[ssl] epoch={epoch:03d} opt_step={optimizer_steps} loss={avg:.4f} "
-                f"c100={avg_c100:.4f} c500={avg_c500:.4f} "
+                f"c100={avg_c100:.4f} c500={avg_c500:.4f}{aux_note} "
                 f"masked={avg_masked:.2%}{skipped_note} "
                 f"elapsed={elapsed/3600:.2f}h eta={fmt_eta(remaining)}",
             )
@@ -651,6 +720,11 @@ def main():
                     "loss": avg,
                     "c100": avg_c100,
                     "c500": avg_c500,
+                    "aux_loss": avg_aux,
+                    "aux_layer_indices": list(args.aux_layers) if args.aux_layers else None,
+                    "aux_weight": args.aux_weight if args.aux_layers else None,
+                    "layer_drop_p": args.layer_drop_p,
+                    "specaug_during_ssl": bool(args.specaug),
                     "masked_fraction": avg_masked,
                     "lr": scheduler.get_last_lr()[0],
                     "skipped_steps_epoch": skipped_steps,

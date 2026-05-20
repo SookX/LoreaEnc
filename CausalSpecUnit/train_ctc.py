@@ -29,7 +29,7 @@ from CausalSpecUnit.common import (
     save_checkpoint,
     setup_distributed,
 )
-from CausalSpecUnit.data import CTCSpecDataset, collate_ctc, collate_eval
+from CausalSpecUnit.data import BatchSpecAugment, CTCSpecDataset, collate_ctc, collate_eval
 from CausalSpecUnit.model import CausalSpecUnitCTC
 
 
@@ -150,72 +150,6 @@ def reduce_train_average(total_loss, n_batches, device):
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(stats, op=dist.ReduceOp.SUM)
     return float(stats[0].item() / max(stats[1].item(), 1.0))
-
-
-class BatchSpecAugment(nn.Module):
-    """SpecAugment for padded [B, T, F] CMVN log-mel batches."""
-
-    def __init__(
-        self,
-        time_mask_param=40,
-        freq_mask_param=30,
-        num_time_masks=2,
-        num_freq_masks=2,
-        mask_value=0.0,
-    ):
-        super().__init__()
-        self.time_mask_param = int(time_mask_param)
-        self.freq_mask_param = int(freq_mask_param)
-        self.num_time_masks = int(num_time_masks)
-        self.num_freq_masks = int(num_freq_masks)
-        if isinstance(mask_value, torch.Tensor):
-            if mask_value.dim() != 1:
-                raise ValueError("SpecAugment tensor mask_value must be 1-D [n_mels].")
-            self.register_buffer("mask_value_tensor", mask_value.float())
-            self.mask_value = 0.0
-        else:
-            self.register_buffer("mask_value_tensor", None)
-            self.mask_value = float(mask_value)
-
-    def _fill(self, out, index):
-        if self.mask_value_tensor is None:
-            out[index] = self.mask_value
-        else:
-            value = self.mask_value_tensor.to(dtype=out.dtype, device=out.device)
-            if isinstance(index, tuple) and len(index) == 3:
-                value = value[index[2]]
-            out[index] = value
-
-    def forward(self, mel, lengths):
-        if self.num_time_masks <= 0 and self.num_freq_masks <= 0:
-            return mel
-        out = mel.clone()
-        batch, _, n_mels = out.shape
-        device = out.device
-
-        for b in range(batch):
-            valid_t = int(lengths[b].item())
-            if valid_t <= 0:
-                continue
-            for _ in range(self.num_freq_masks):
-                width_max = min(self.freq_mask_param, n_mels)
-                if width_max <= 0:
-                    continue
-                width = int(torch.randint(0, width_max + 1, (1,), device=device).item())
-                if width == 0 or width >= n_mels:
-                    continue
-                start = int(torch.randint(0, n_mels - width + 1, (1,), device=device).item())
-                self._fill(out, (b, slice(0, valid_t), slice(start, start + width)))
-            for _ in range(self.num_time_masks):
-                width_max = min(self.time_mask_param, valid_t)
-                if width_max <= 0:
-                    continue
-                width = int(torch.randint(0, width_max + 1, (1,), device=device).item())
-                if width == 0 or width >= valid_t:
-                    continue
-                start = int(torch.randint(0, valid_t - width + 1, (1,), device=device).item())
-                self._fill(out, (b, slice(start, start + width), slice(None)))
-        return out
 
 
 def parse_args():

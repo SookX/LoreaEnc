@@ -146,11 +146,16 @@ class SqueezeformerEncoder(nn.Module):
         conv_kernel_size: int = 31,
         half_step_residual: bool = False,
         adaptive_scale: bool = True,
+        layer_drop_p: float = 0.0,
     ):
         super().__init__()
         self.num_layers = num_layers
         self.reduce_layer_index = reduce_layer_index
         self.recover_layer_index = recover_layer_index
+        # Stochastic depth (LayerDrop). During training, with probability p_drop,
+        # a block is replaced by identity (residuals + skip), forcing each layer
+        # to be optional. Standard regularizer in wav2vec2/HuBERT (typically 0.05).
+        self.layer_drop_p = float(layer_drop_p)
 
         self.conv_subsample = DepthwiseConv2dSubsampling(in_channels=1, out_channels=encoder_dim)
         # With SAME-style padding (pad+1 before each stride-2 conv): freq_out = ceil(input_dim / 4)
@@ -219,7 +224,18 @@ class SqueezeformerEncoder(nn.Module):
 
             mask = self._padding_mask(output_lengths, outputs.size(1))
             pad_mask = ~mask
-            outputs = layer(outputs, mask=mask, pad_mask=pad_mask)
+            # LayerDrop: with probability layer_drop_p, skip this block (identity).
+            # Reduce_layer_index / recover_layer_index are NEVER dropped — they
+            # change tensor shape so skipping would break the U-net.
+            drop_this_block = (
+                self.training
+                and self.layer_drop_p > 0.0
+                and idx != self.reduce_layer_index
+                and idx != self.recover_layer_index
+                and torch.rand((), device=outputs.device).item() < self.layer_drop_p
+            )
+            if not drop_this_block:
+                outputs = layer(outputs, mask=mask, pad_mask=pad_mask)
             outputs = outputs.masked_fill(mask.unsqueeze(-1), 0.0)
 
             if wanted is not None and idx in wanted:

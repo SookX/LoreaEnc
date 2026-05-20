@@ -270,3 +270,80 @@ def collate_eval(batch):
     mel, lengths, labels, label_lengths = collate_ctc(batch)
     transcripts = [b["transcript"] for b in batch]
     return mel, lengths, labels, label_lengths, transcripts
+
+
+class BatchSpecAugment(nn.Module):
+    """SpecAugment for padded [B, T, F] CMVN log-mel batches.
+
+    mask_value can be a scalar (e.g. 0.0) or a 1-D tensor of size n_mels
+    (e.g. the SSL-trained ``mask_emb``) — in the tensor case, the same
+    learnable per-mel mask vector replaces every masked spectrogram cell,
+    matching the distribution the encoder saw during SSL pretraining."""
+
+    def __init__(
+        self,
+        time_mask_param=40,
+        freq_mask_param=30,
+        num_time_masks=2,
+        num_freq_masks=2,
+        mask_value=0.0,
+    ):
+        super().__init__()
+        self.time_mask_param = int(time_mask_param)
+        self.freq_mask_param = int(freq_mask_param)
+        self.num_time_masks = int(num_time_masks)
+        self.num_freq_masks = int(num_freq_masks)
+        if isinstance(mask_value, torch.Tensor):
+            if mask_value.dim() != 1:
+                raise ValueError("SpecAugment tensor mask_value must be 1-D [n_mels].")
+            self.register_buffer("mask_value_tensor", mask_value.float())
+            self.mask_value = 0.0
+        else:
+            self.register_buffer("mask_value_tensor", None)
+            self.mask_value = float(mask_value)
+
+    def _fill(self, out, index, live_value):
+        # live_value (when provided) takes precedence over the registered buffer:
+        # used during SSL pretraining so SpecAug fills with the *current* mask_emb
+        # parameter and gradients can flow back into mask_emb. The buffer path is
+        # used at fine-tune time where mask_emb is loaded once and frozen.
+        source = live_value if live_value is not None else self.mask_value_tensor
+        if source is None:
+            out[index] = self.mask_value
+        else:
+            value = source.to(dtype=out.dtype, device=out.device)
+            if isinstance(index, tuple) and len(index) == 3:
+                value = value[index[2]]
+            out[index] = value
+
+    def forward(self, mel, lengths, mask_value=None):
+        if self.num_time_masks <= 0 and self.num_freq_masks <= 0:
+            return mel
+        out = mel.clone()
+        batch, _, n_mels = out.shape
+        device = out.device
+        live = mask_value if (isinstance(mask_value, torch.Tensor) and mask_value.dim() == 1) else None
+
+        for b in range(batch):
+            valid_t = int(lengths[b].item())
+            if valid_t <= 0:
+                continue
+            for _ in range(self.num_freq_masks):
+                width_max = min(self.freq_mask_param, n_mels)
+                if width_max <= 0:
+                    continue
+                width = int(torch.randint(0, width_max + 1, (1,), device=device).item())
+                if width == 0 or width >= n_mels:
+                    continue
+                start = int(torch.randint(0, n_mels - width + 1, (1,), device=device).item())
+                self._fill(out, (b, slice(0, valid_t), slice(start, start + width)), live)
+            for _ in range(self.num_time_masks):
+                width_max = min(self.time_mask_param, valid_t)
+                if width_max <= 0:
+                    continue
+                width = int(torch.randint(0, width_max + 1, (1,), device=device).item())
+                if width == 0 or width >= valid_t:
+                    continue
+                start = int(torch.randint(0, valid_t - width + 1, (1,), device=device).item())
+                self._fill(out, (b, slice(start, start + width), slice(None)), live)
+        return out

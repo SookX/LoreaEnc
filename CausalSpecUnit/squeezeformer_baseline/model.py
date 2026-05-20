@@ -54,6 +54,7 @@ class Squeezeformer(nn.Module):
         conv_kernel_size: int = 31,
         half_step_residual: bool = False,
         adaptive_scale: bool = True,
+        layer_drop_p: float = 0.0,
     ) -> None:
         super().__init__()
         self.encoder = SqueezeformerEncoder(
@@ -72,6 +73,7 @@ class Squeezeformer(nn.Module):
             conv_kernel_size=conv_kernel_size,
             half_step_residual=half_step_residual,
             adaptive_scale=adaptive_scale,
+            layer_drop_p=layer_drop_p,
         )
         self.fc = nn.Linear(encoder_dim, num_classes, bias=True)
         # InterCTC heads are added on demand by the wrapper (CausalSpecUnitCTC).
