@@ -80,6 +80,11 @@ def parse_args():
                    help="Frames per target chunk. Must match target generation.")
     p.add_argument("--chunk-stride", type=int, default=4,
                    help="Frame stride between target chunks. Must match target generation.")
+    p.add_argument("--codebook-mode", choices=["coarse", "fine", "both"], default="both",
+                   help="Which k-means codebook(s) the SSL model predicts. 'coarse' uses only K_c=100, "
+                        "'fine' uses only K_f=500, 'both' (default) uses K_c+K_f as the joint objective. "
+                        "Used for the dual-codebook ablation. The unused head still exists in the module "
+                        "(DDP find_unused_parameters=True handles it) but receives no loss.")
     p.add_argument("--mask-prob", type=float, default=0.065,
                    help="HuBERT-style probability of starting a time mask span over target steps.")
     p.add_argument("--mask-length", type=int, default=10,
@@ -452,7 +457,7 @@ def main():
         # encoder blocks: a dropped block's params receive no gradient on that
         # step, which DDP's default reducer treats as a fatal error. Pay the
         # small perf overhead only when LayerDrop is actually on.
-        ddp_find_unused = bool(args.layer_drop_p > 0.0)
+        ddp_find_unused = bool(args.layer_drop_p > 0.0) or args.codebook_mode != "both"
         model = DDP(
             model,
             device_ids=[local_rank],
@@ -597,7 +602,12 @@ def main():
                     )
                     loss100 = masked_unit_ce(coarse_logits, z100_aligned, masked_aligned)
                     loss500 = masked_unit_ce(fine_logits, z500_aligned, masked_aligned)
-                    main_loss = loss100 + loss500
+                    if args.codebook_mode == "coarse":
+                        main_loss = loss100
+                    elif args.codebook_mode == "fine":
+                        main_loss = loss500
+                    else:
+                        main_loss = loss100 + loss500
                     # Auxiliary SSL losses at intermediate encoder layers (same z100/z500 targets).
                     # The bottleneck features run at the *reduced* rate (post time-reduction), so
                     # align by the shorter of (aux_features, targets, mask).
@@ -609,7 +619,14 @@ def main():
                             ac, af, z100_a, z500_a, mask_a = align_ssl_tensors(
                                 aux_coarse, aux_fine, z100, z500, masked_positions,
                             )
-                            aux_losses.append(masked_unit_ce(ac, z100_a, mask_a) + masked_unit_ce(af, z500_a, mask_a))
+                            aux_c = masked_unit_ce(ac, z100_a, mask_a)
+                            aux_f = masked_unit_ce(af, z500_a, mask_a)
+                            if args.codebook_mode == "coarse":
+                                aux_losses.append(aux_c)
+                            elif args.codebook_mode == "fine":
+                                aux_losses.append(aux_f)
+                            else:
+                                aux_losses.append(aux_c + aux_f)
                         aux_total = torch.stack(aux_losses).mean()
                         aux_loss_value = aux_total.detach().float().item()
                         combined = main_loss + args.aux_weight * aux_total
@@ -735,6 +752,7 @@ def main():
                     "aux_weight": args.aux_weight if args.aux_layers else None,
                     "layer_drop_p": args.layer_drop_p,
                     "specaug_during_ssl": bool(args.specaug),
+                    "codebook_mode": args.codebook_mode,
                     "masked_fraction": avg_masked,
                     "lr": scheduler.get_last_lr()[0],
                     "skipped_steps_epoch": skipped_steps,
