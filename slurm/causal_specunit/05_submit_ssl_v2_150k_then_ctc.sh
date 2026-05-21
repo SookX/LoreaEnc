@@ -21,6 +21,8 @@
 
 set -euo pipefail
 
+SLURM_ACCOUNT="${SLURM_JOB_ACCOUNT:-bg-eng-01}"
+PROJECT_DIR="${PROJECT_DIR:-/valhalla/projects/${SLURM_ACCOUNT}/LoreaEnc}"
 PRETRAIN_SCRIPT="${PRETRAIN_SCRIPT:-slurm/causal_specunit/02_pretrain_ssl_v2_100k_c8.sh}"
 CTC_SCRIPT="${CTC_SCRIPT:-slurm/causal_specunit/03_train_ctc_150ep_fair_ssl_lpft_interctc.sh}"
 
@@ -29,7 +31,15 @@ PRETRAIN_OUTPUT_DIR="${PRETRAIN_OUTPUT_DIR:-outputs/causal_specunit/pretrain_ssl
 PRETRAIN_CHECKPOINT="${PRETRAIN_CHECKPOINT:-${PRETRAIN_OUTPUT_DIR}/checkpoint_step150000/checkpoint.pt}"
 CTC_OUTPUT_DIR="${CTC_OUTPUT_DIR:-outputs/causal_specunit/ctc_ssl_960h_v2_150k_lpft_interctc_elr6e4_ld085_w10_p90_d025_150ep_c8}"
 
+if [ ! -d "${PROJECT_DIR}" ]; then
+    echo "Missing project dir: ${PROJECT_DIR}"
+    exit 1
+fi
+cd "${PROJECT_DIR}"
+mkdir -p logs
+
 echo "Single-allocation SSL v2 150k -> CTC LP-FT + InterCTC starting at $(date)"
+echo "Project dir: ${PROJECT_DIR}"
 echo "Pretrain script: ${PRETRAIN_SCRIPT}"
 echo "Pretrain output: ${PRETRAIN_OUTPUT_DIR}"
 echo "Pretrain max steps: ${MAX_STEPS}"

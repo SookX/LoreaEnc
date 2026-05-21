@@ -448,8 +448,18 @@ def main():
             args.compile = False
     trace(args.trace_startup, rank, "model moved to device")
     if world_size > 1:
-        model = DDP(model, device_ids=[local_rank], output_device=local_rank)
-        trace(args.trace_startup, rank, "DDP wrapper built")
+        # find_unused_parameters=True is required when LayerDrop randomly skips
+        # encoder blocks: a dropped block's params receive no gradient on that
+        # step, which DDP's default reducer treats as a fatal error. Pay the
+        # small perf overhead only when LayerDrop is actually on.
+        ddp_find_unused = bool(args.layer_drop_p > 0.0)
+        model = DDP(
+            model,
+            device_ids=[local_rank],
+            output_device=local_rank,
+            find_unused_parameters=ddp_find_unused,
+        )
+        trace(args.trace_startup, rank, f"DDP wrapper built (find_unused_parameters={ddp_find_unused})")
 
     metrics_path = os.path.join(args.output_dir, "ssl_metrics.jsonl")
     run_info_path = os.path.join(args.output_dir, "ssl_run_info.json")
