@@ -163,8 +163,15 @@ run_ft() {
         subset="--train-subset-hours 10 --train-subset-seed 42"
     fi
 
-    log_phase "FT ${mode}_${hours}h  |  ${EPOCHS} epochs  |  SSL=${ssl_ckpt}"
+    log_phase "FT ${mode}_${hours}h  |  ${EPOCHS} epochs  |  SSL=${ssl_ckpt}  |  recipe=anchored"
     export MASTER_PORT=$((PORT_BASE + 200 + (hours == 10 ? 1 : 2)))
+    # Anchored fine-tune recipe (the strongest one we have):
+    # LP-FT rewarmup + layer-decay 0.85 + InterCTC@7 (w=0.15) + ssl-mask SpecAug
+    # + SSL anchor (w=0.1, heads warm-started from the SSL k-means heads).
+    # IDENTICAL across all three codebook conditions — only the SSL pretraining
+    # objective varies. Anchor uses targets from ${TARGETS_DIR} (the original
+    # iter-1 k-means targets); the encoder state — including which of K=100 /
+    # K=500 / both it was trained on — is the only thing that differs.
     torchrun \
         --nproc_per_node=4 \
         --master_addr="${MASTER_ADDR}" \
@@ -187,8 +194,18 @@ run_ft() {
         --workers 8 \
         --dataloader-timeout 120 \
         --lr 1e-3 \
-        --encoder-lr 3e-4 \
+        --encoder-lr 6e-4 \
         --head-lr 1e-3 \
+        --encoder-layer-lr-decay 0.85 \
+        --no-decay-norm-and-bias \
+        --freeze-encoder-epochs 0 \
+        --encoder-rewarmup-epochs 5 \
+        --inter-ctc-layers 7 \
+        --inter-ctc-weight 0.15 \
+        --specaug-mask-source ssl-mask \
+        --ssl-anchor-weight 0.1 \
+        --ssl-anchor-targets-dir "${TARGETS_DIR}" \
+        --ssl-anchor-load-heads \
         --warmup-epochs 10 \
         --peak-epochs 50 \
         --noam-decay-rate 0.5 \
