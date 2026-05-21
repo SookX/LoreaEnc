@@ -1,3 +1,5 @@
+import copy
+
 import torch
 import torch.nn as nn
 
@@ -52,6 +54,7 @@ class CausalSpecUnitSSL(nn.Module):
         n_mels=80,
         layer_drop_p: float = 0.0,
         aux_layer_indices=None,
+        teacher_momentum: float = 0.0,
     ):
         super().__init__()
         cfg = get_config(variant)
@@ -73,6 +76,61 @@ class CausalSpecUnitSSL(nn.Module):
             key = str(int(idx))
             self.aux_head_coarse[key] = nn.Linear(cfg.encoder_dim, k_coarse)
             self.aux_head_fine[key] = nn.Linear(cfg.encoder_dim, k_fine)
+        # EMA teacher for data2vec-style continuous-feature distillation. The
+        # teacher is a (non-trainable) deepcopy of the encoder updated each
+        # optimizer step toward the student with momentum ``teacher_momentum``.
+        # The student is trained to predict the teacher's encoder features at
+        # masked positions, in addition to the cluster prediction objective.
+        # teacher_momentum = 0.0 disables (no teacher built, no extra memory).
+        self.teacher_momentum = float(teacher_momentum)
+        self.teacher: nn.Module = None  # type: ignore[assignment]
+        if self.teacher_momentum > 0.0:
+            self._build_teacher()
+
+    def _build_teacher(self):
+        """Materialize the EMA teacher as a frozen deepcopy of the encoder.
+
+        Registered as a regular submodule so the teacher state participates in
+        save_checkpoint / load_checkpoint round-trips — preserving the EMA
+        history across resumes. Teacher params have ``requires_grad=False`` so
+        they never receive gradients; the optimizer never sees them."""
+        if self.teacher is not None:
+            return
+        teacher = copy.deepcopy(self.encoder)
+        for p in teacher.parameters():
+            p.requires_grad = False
+        teacher.eval()
+        self.teacher = teacher
+
+    @torch.no_grad()
+    def teacher_encode(self, mel, lengths):
+        """Run the EMA teacher on (clean) mel, return (features, lengths).
+
+        Always invoked under no_grad. Caller passes the **unmasked** mel so the
+        teacher sees the ground-truth audio while the student sees mask_emb at
+        the same positions — the asymmetry is what makes the distillation a
+        meaningful self-supervisory signal."""
+        if self.teacher is None:
+            raise RuntimeError("teacher not initialized; pass teacher_momentum > 0 at __init__")
+        feat, out_lengths, _ = self.teacher(mel, lengths)
+        return feat, out_lengths
+
+    @torch.no_grad()
+    def update_teacher_ema(self):
+        """EMA update: teacher = momentum * teacher + (1 - momentum) * student.
+
+        Called once per optimizer step. Skipped if teacher is disabled or
+        momentum is 0/1 (in which case the teacher would be either ignored or
+        a hard copy)."""
+        if self.teacher is None or self.teacher_momentum <= 0.0:
+            return
+        m = self.teacher_momentum
+        for src, dst in zip(self.encoder.parameters(), self.teacher.parameters()):
+            dst.data.mul_(m).add_(src.data, alpha=1.0 - m)
+        # Buffers (BatchNorm running stats etc.) are copied directly — they
+        # don't have a "rate of change" interpretation for EMA.
+        for src, dst in zip(self.encoder.buffers(), self.teacher.buffers()):
+            dst.data.copy_(src.data)
 
     def forward(self, mel, lengths):
         wanted = sorted(self.aux_layer_indices) if self.aux_layer_indices else None
@@ -91,7 +149,10 @@ class CausalSpecUnitSSL(nn.Module):
                     self.aux_head_fine[key](feat),
                     feat_lengths,
                 )
-        return coarse, fine, out_lengths, aux
+        # ``encoded`` is exposed so the training loop can use it as the source
+        # for data2vec-style EMA-teacher distillation. None of the existing
+        # cluster-prediction code paths depend on it; ignore it if you don't.
+        return coarse, fine, out_lengths, aux, encoded
 
 
 class CausalSpecUnitCTC(nn.Module):
@@ -99,9 +160,25 @@ class CausalSpecUnitCTC(nn.Module):
 
     inter_ctc_layers: 0-indexed encoder block indices at which to attach an
     auxiliary CTC head. Empty/None disables InterCTC.
+
+    ssl_anchor: when True, adds K_c=100 and K_f=500 prediction heads (matching
+    the SSL pretraining objective). The training loop can then anchor the
+    encoder to its SSL feature space by predicting cluster IDs during CTC
+    fine-tuning. Heads are randomly initialized — they get optimized alongside
+    the CTC head. This costs ~92k extra params (Linear(144,100) + Linear(144,500)),
+    well under 1% of the encoder.
     """
 
-    def __init__(self, vocab_size, variant="xs", inter_ctc_layers=None, layer_drop_p: float = 0.0):
+    def __init__(
+        self,
+        vocab_size,
+        variant="xs",
+        inter_ctc_layers=None,
+        layer_drop_p: float = 0.0,
+        ssl_anchor: bool = False,
+        ssl_k_coarse: int = 100,
+        ssl_k_fine: int = 500,
+    ):
         super().__init__()
         self.variant = variant
         self.model = build_copied_squeezeformer(variant, num_classes=vocab_size, layer_drop_p=layer_drop_p)
@@ -109,18 +186,54 @@ class CausalSpecUnitCTC(nn.Module):
         self.inter_ctc_layers = tuple(int(i) for i in (inter_ctc_layers or ()))
         if self.inter_ctc_layers:
             self.model.add_inter_ctc_heads(self.inter_ctc_layers)
+        self.ssl_anchor = bool(ssl_anchor)
+        if self.ssl_anchor:
+            encoder_dim = self.model.fc.in_features
+            self.ssl_head_coarse = nn.Linear(encoder_dim, ssl_k_coarse)
+            self.ssl_head_fine = nn.Linear(encoder_dim, ssl_k_fine)
 
-    def forward(self, mel, lengths, return_inter: bool = False):
-        return self.model(mel, lengths, return_inter=return_inter and bool(self.inter_ctc_layers))
+    def forward(self, mel, lengths, return_inter: bool = False, return_ssl: bool = False):
+        return_features = return_ssl and self.ssl_anchor
+        log_probs, out_lengths, inter_outputs, encoder_features = self.model(
+            mel, lengths,
+            return_inter=return_inter and bool(self.inter_ctc_layers),
+            return_features=return_features,
+        )
+        ssl_outputs = None
+        if return_features:
+            ssl_outputs = (
+                self.ssl_head_coarse(encoder_features),
+                self.ssl_head_fine(encoder_features),
+            )
+        return log_probs, out_lengths, inter_outputs, ssl_outputs
 
-    def load_ssl_encoder(self, checkpoint_path, map_location="cpu"):
+    def load_ssl_encoder(self, checkpoint_path, map_location="cpu", load_ssl_heads: bool = False):
+        """Load the encoder weights from an SSL checkpoint.
+
+        When ``load_ssl_heads`` is True (default False), also transfer the SSL
+        cluster prediction heads (``head_coarse`` / ``head_fine``) into this
+        model's ``ssl_head_coarse`` / ``ssl_head_fine``. This warm-starts the
+        anchor objective with the SSL-trained head weights instead of random
+        init, so the auxiliary loss is meaningful from step 1.
+        """
         state = torch.load(checkpoint_path, map_location=map_location)
         model_state = state["model"] if "model" in state else state
         encoder_state = {}
+        ssl_head_coarse_state = {}
+        ssl_head_fine_state = {}
         for key, value in model_state.items():
             key = key.removeprefix("module.").removeprefix("_orig_mod.")
             if key.startswith("encoder."):
                 encoder_state[key[len("encoder."):]] = value
+            elif key.startswith("head_coarse."):
+                ssl_head_coarse_state[key[len("head_coarse."):]] = value
+            elif key.startswith("head_fine."):
+                ssl_head_fine_state[key[len("head_fine."):]] = value
         missing, unexpected = self.encoder.load_state_dict(encoder_state, strict=False)
+        if load_ssl_heads and self.ssl_anchor:
+            if ssl_head_coarse_state:
+                self.ssl_head_coarse.load_state_dict(ssl_head_coarse_state, strict=True)
+            if ssl_head_fine_state:
+                self.ssl_head_fine.load_state_dict(ssl_head_fine_state, strict=True)
         return missing, unexpected
 

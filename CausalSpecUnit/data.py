@@ -208,6 +208,14 @@ class SpecUnitDataset(Dataset):
 
 
 class CTCSpecDataset(Dataset):
+    """LibriSpeech CTC dataset.
+
+    ssl_targets_path: when provided, also loads the precomputed K=100 / K=500
+    SSL cluster targets from that path (or directory containing ``targets.pt``
+    and the sharded index). Items without targets are filtered out — this is
+    safe because the user's 10h/100h subsets are subsets of the 960h utterances
+    those targets were generated for. Used by SSL-anchored fine-tuning.
+    """
     def __init__(
         self,
         data_root,
@@ -218,6 +226,7 @@ class CTCSpecDataset(Dataset):
         max_items=None,
         max_hours=None,
         subset_seed=42,
+        ssl_targets_path=None,
     ):
         self.items = list(iter_librispeech_items(data_root, splits))
         if max_items is not None:
@@ -231,6 +240,22 @@ class CTCSpecDataset(Dataset):
         self.mean = self.std = None
         if cmvn_path is not None:
             self.mean, self.std = load_cmvn(cmvn_path)
+        self.ssl_targets = None
+        if ssl_targets_path is not None:
+            # Accept either a directory (containing targets.pt + shards) or
+            # the targets.pt file directly. load_targets handles both.
+            targets_file = (
+                os.path.join(ssl_targets_path, "targets.pt")
+                if os.path.isdir(ssl_targets_path) else ssl_targets_path
+            )
+            self.ssl_targets = load_targets(targets_file)
+            before = len(self.items)
+            self.items = [it for it in self.items if it["uid"] in self.ssl_targets]
+            if before != len(self.items):
+                print(
+                    f"[CTCSpecDataset] filtered {before - len(self.items)} items without "
+                    f"SSL targets (kept {len(self.items)}/{before})", flush=True,
+                )
 
     def __len__(self):
         return len(self.items)
@@ -241,12 +266,17 @@ class CTCSpecDataset(Dataset):
         if self.mean is not None:
             mel = apply_cmvn(mel, self.mean, self.std)
         labels = torch.tensor(self.tokenizer.encode(item["transcript"]), dtype=torch.long)
-        return {
+        out = {
             "uid": item["uid"],
             "mel": mel,
             "labels": labels,
             "transcript": item["transcript"],
         }
+        if self.ssl_targets is not None:
+            tgt = self.ssl_targets[item["uid"]]
+            out["z100"] = tgt["z100"].long()
+            out["z500"] = tgt["z500"].long()
+        return out
 
 
 def collate_ssl(batch):
@@ -263,11 +293,25 @@ def collate_ctc(batch):
     lengths = torch.tensor([b["mel"].size(0) for b in batch], dtype=torch.long)
     labels = torch.cat([b["labels"] for b in batch])
     label_lengths = torch.tensor([b["labels"].numel() for b in batch], dtype=torch.long)
-    return mel, lengths, labels, label_lengths
+    # Cluster targets are optional. When present, they're padded with -100
+    # (the standard CE ignore_index) so the loss naturally masks padded
+    # positions. We return them as None if the dataset wasn't built with
+    # ssl_targets_path — caller checks.
+    if "z100" in batch[0]:
+        z100 = nn.utils.rnn.pad_sequence(
+            [b["z100"] for b in batch], batch_first=True, padding_value=-100,
+        )
+        z500 = nn.utils.rnn.pad_sequence(
+            [b["z500"] for b in batch], batch_first=True, padding_value=-100,
+        )
+        target_lengths = torch.tensor([b["z100"].numel() for b in batch], dtype=torch.long)
+    else:
+        z100 = z500 = target_lengths = None
+    return mel, lengths, labels, label_lengths, z100, z500, target_lengths
 
 
 def collate_eval(batch):
-    mel, lengths, labels, label_lengths = collate_ctc(batch)
+    mel, lengths, labels, label_lengths, _z100, _z500, _tlens = collate_ctc(batch)
     transcripts = [b["transcript"] for b in batch]
     return mel, lengths, labels, label_lengths, transcripts
 

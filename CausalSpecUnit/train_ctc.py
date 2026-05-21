@@ -195,6 +195,20 @@ def parse_args():
                         "lower stack gets direct task supervision instead of one diluted by the rest of the network.")
     p.add_argument("--inter-ctc-weight", type=float, default=0.3,
                    help="Total weight on InterCTC losses; final loss = (1-w)*main_ctc + w*mean(inter_ctc).")
+    # ---- SSL-target anchored fine-tuning ----
+    p.add_argument("--ssl-anchor-weight", type=float, default=0.0,
+                   help="Weight on the auxiliary K=100/K=500 cluster prediction loss during fine-tuning. "
+                        "Anchors the encoder to its SSL feature space and prevents the CTC head from "
+                        "rewriting useful pretrained features. 0.0 disables (no targets loaded, no heads). "
+                        "Recommended starting weight: 0.1.")
+    p.add_argument("--ssl-anchor-targets-dir", type=str, default=None,
+                   help="Directory containing the SSL cluster targets (targets.pt + shards). When "
+                        "--ssl-anchor-weight > 0, the dataset loads these targets and the model "
+                        "predicts cluster IDs at every encoder output position alongside CTC. "
+                        "Items whose UID is not in the targets file are filtered.")
+    p.add_argument("--ssl-anchor-load-heads", action="store_true",
+                   help="Warm-start the SSL anchor heads from the SSL checkpoint's head_coarse/head_fine "
+                        "weights, so the auxiliary loss is meaningful from step 1 rather than random.")
     p.add_argument("--warmup-epochs", type=int, default=20)
     p.add_argument("--peak-epochs", type=int, default=160,
                    help="Number of epochs to hold the peak LR after warmup before Noam decay.")
@@ -309,8 +323,8 @@ def evaluate(model, loader, tokenizer, blank_id, ctc_loss, device, rank, show_pr
         labels = labels.to(device, non_blocking=True)
         label_lengths = label_lengths.to(device, non_blocking=True)
         with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-            # Eval always uses only the main CTC head; InterCTC is a training-time auxiliary.
-            log_probs, output_lengths, _ = model(mel, lengths, return_inter=False)
+            # Eval always uses only the main CTC head; InterCTC and SSL anchor are training-time auxiliaries.
+            log_probs, output_lengths, _, _ = model(mel, lengths, return_inter=False, return_ssl=False)
             loss = ctc_loss(log_probs.transpose(0, 1), labels, output_lengths, label_lengths)
         total_loss += loss.detach().float().item()
         total_batches += 1
@@ -392,6 +406,8 @@ def main():
 
     tokenizer = build_tokenizer(args.tokenizer_path)
     blank_id = tokenizer.pad_token_id
+    ssl_anchor_active = args.ssl_anchor_weight > 0.0
+    ssl_targets_path = args.ssl_anchor_targets_dir if ssl_anchor_active else None
     train_dataset = CTCSpecDataset(
         args.data_root,
         args.train_splits,
@@ -400,6 +416,7 @@ def main():
         train_split=True,
         max_hours=args.train_subset_hours,
         subset_seed=args.train_subset_seed,
+        ssl_targets_path=ssl_targets_path,
     )
     dev_dataset = CTCSpecDataset(args.data_root, [args.eval_split], tokenizer, cmvn_path=args.cmvn_path, train_split=False)
     train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True) if world_size > 1 else None
@@ -433,10 +450,17 @@ def main():
         vocab_size=tokenizer.vocab_size,
         variant=args.variant,
         inter_ctc_layers=args.inter_ctc_layers,
+        ssl_anchor=ssl_anchor_active,
     )
     if args.ssl_checkpoint:
-        missing, unexpected = model.load_ssl_encoder(args.ssl_checkpoint, map_location="cpu")
+        missing, unexpected = model.load_ssl_encoder(
+            args.ssl_checkpoint,
+            map_location="cpu",
+            load_ssl_heads=bool(args.ssl_anchor_load_heads and ssl_anchor_active),
+        )
         print0(rank, f"Loaded SSL encoder from {args.ssl_checkpoint} | missing={len(missing)} unexpected={len(unexpected)}")
+        if ssl_anchor_active and args.ssl_anchor_load_heads:
+            print0(rank, "  SSL anchor heads warm-started from SSL checkpoint")
     model.to(device)
     if world_size > 1:
         model = DDP(model, device_ids=[local_rank], output_device=local_rank)
@@ -597,7 +621,9 @@ def main():
             total_loss = 0.0
             total_main_loss = 0.0
             total_inter_loss = 0.0
+            total_ssl_anchor_loss = 0.0
             n_batches = 0
+            n_ssl_anchor_batches = 0
             grad_steps = 0
             clipped_steps = 0
             grad_norm_sum = 0.0
@@ -616,11 +642,14 @@ def main():
                 remaining = effective_batches - step + 1
                 actual_accum_steps = min(max(1, args.grad_accum_steps), accum_index + remaining)
                 sync_step = accum_index + 1 >= actual_accum_steps
-                mel, lengths, labels, label_lengths = batch
+                mel, lengths, labels, label_lengths, z100, z500, _ssl_target_lengths = batch
                 mel = mel.to(device, non_blocking=True)
                 lengths = lengths.to(device, non_blocking=True)
                 labels = labels.to(device, non_blocking=True)
                 label_lengths = label_lengths.to(device, non_blocking=True)
+                if z100 is not None:
+                    z100 = z100.to(device, non_blocking=True)
+                    z500 = z500.to(device, non_blocking=True)
                 if specaug_enabled:
                     mel = specaugment(mel, lengths)
                 sync_context = (
@@ -630,8 +659,10 @@ def main():
                 )
                 with sync_context():
                     with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-                        log_probs, output_lengths, inter_outputs = model(
-                            mel, lengths, return_inter=bool(args.inter_ctc_layers)
+                        log_probs, output_lengths, inter_outputs, ssl_outputs = model(
+                            mel, lengths,
+                            return_inter=bool(args.inter_ctc_layers),
+                            return_ssl=ssl_anchor_active,
                         )
                         main_loss = ctc_loss(log_probs.transpose(0, 1), labels, output_lengths, label_lengths)
                         if inter_outputs:
@@ -651,6 +682,32 @@ def main():
                         else:
                             inter_loss = None
                             combined = main_loss
+
+                        # SSL-target anchored fine-tuning: predict K=100/K=500
+                        # cluster IDs at every encoder output position with the
+                        # auxiliary heads, alongside CTC. Targets are padded
+                        # with -100 so CE ignores invalid positions naturally.
+                        ssl_anchor_loss = None
+                        if ssl_anchor_active and ssl_outputs is not None and z100 is not None:
+                            ssl_coarse_logits, ssl_fine_logits = ssl_outputs
+                            t = min(ssl_coarse_logits.size(1), z100.size(1))
+                            sc = ssl_coarse_logits[:, :t]
+                            sf = ssl_fine_logits[:, :t]
+                            z100_a = z100[:, :t]
+                            z500_a = z500[:, :t]
+                            ce_coarse = nn.functional.cross_entropy(
+                                sc.reshape(-1, sc.size(-1)),
+                                z100_a.reshape(-1),
+                                ignore_index=-100,
+                            )
+                            ce_fine = nn.functional.cross_entropy(
+                                sf.reshape(-1, sf.size(-1)),
+                                z500_a.reshape(-1),
+                                ignore_index=-100,
+                            )
+                            ssl_anchor_loss = ce_coarse + ce_fine
+                            combined = combined + args.ssl_anchor_weight * ssl_anchor_loss
+
                         loss = combined / actual_accum_steps
                     loss.backward()
                 grad_norm_value = None
@@ -675,10 +732,14 @@ def main():
                 loss_val = loss.detach().float().item() * actual_accum_steps
                 main_loss_val = main_loss.detach().float().item()
                 inter_loss_val = inter_loss.detach().float().item() if inter_loss is not None else None
+                ssl_anchor_val = ssl_anchor_loss.detach().float().item() if ssl_anchor_loss is not None else None
                 total_loss += loss_val
                 total_main_loss += main_loss_val
                 if inter_loss_val is not None:
                     total_inter_loss += inter_loss_val
+                if ssl_anchor_val is not None:
+                    total_ssl_anchor_loss += ssl_anchor_val
+                    n_ssl_anchor_batches += 1
                 n_batches += 1
                 if show:
                     postfix = dict(
@@ -689,6 +750,8 @@ def main():
                     if inter_loss_val is not None:
                         postfix["main"] = f"{main_loss_val:.3f}"
                         postfix["inter"] = f"{inter_loss_val:.3f}"
+                    if ssl_anchor_val is not None:
+                        postfix["anchor"] = f"{ssl_anchor_val:.3f}"
                     bar.set_postfix(**postfix, refresh=False)
                 if args.log_every > 0 and is_main_process(rank) and step % args.log_every == 0:
                     append_jsonl(metrics_path, {
@@ -714,6 +777,10 @@ def main():
             avg_inter_loss = (
                 reduce_train_average(total_inter_loss, n_batches, device)
                 if args.inter_ctc_layers else None
+            )
+            avg_ssl_anchor_loss = (
+                reduce_train_average(total_ssl_anchor_loss, max(n_ssl_anchor_batches, 1), device)
+                if ssl_anchor_active else None
             )
             grad_norm_avg = grad_norm_sum / max(grad_steps, 1)
             group_grad_norm_avg = {
@@ -742,8 +809,10 @@ def main():
                         "train_loss": avg_loss,
                         "train_main_loss": avg_main_loss,
                         "train_inter_loss": avg_inter_loss,
+                        "train_ssl_anchor_loss": avg_ssl_anchor_loss,
                         "inter_ctc_layers": list(args.inter_ctc_layers) if args.inter_ctc_layers else None,
                         "inter_ctc_weight": args.inter_ctc_weight if args.inter_ctc_layers else None,
+                        "ssl_anchor_weight": args.ssl_anchor_weight if ssl_anchor_active else None,
                         "dev_loss": metrics["loss"],
                         "wer": metrics["wer"],
                         "cer": metrics["cer"],
@@ -795,8 +864,10 @@ def main():
                         "train_loss": avg_loss,
                         "train_main_loss": avg_main_loss,
                         "train_inter_loss": avg_inter_loss,
+                        "train_ssl_anchor_loss": avg_ssl_anchor_loss,
                         "inter_ctc_layers": list(args.inter_ctc_layers) if args.inter_ctc_layers else None,
                         "inter_ctc_weight": args.inter_ctc_weight if args.inter_ctc_layers else None,
+                        "ssl_anchor_weight": args.ssl_anchor_weight if ssl_anchor_active else None,
                         "dev_loss": None,
                         "wer": None,
                         "best_wer": best_wer if math.isfinite(best_wer) else None,

@@ -100,7 +100,8 @@ class Squeezeformer(nn.Module):
         inputs: Tensor,
         input_lengths: Tensor,
         return_inter: bool = False,
-    ) -> Tuple[Tensor, Tensor, Optional[Dict[int, Tuple[Tensor, Tensor]]]]:
+        return_features: bool = False,
+    ) -> Tuple[Tensor, Tensor, Optional[Dict[int, Tuple[Tensor, Tensor]]], Optional[Tensor]]:
         wanted = sorted(int(k) for k in self.inter_ctc_heads.keys()) if return_inter else None
         encoder_outputs, encoder_output_lengths, intermediates = self.encoder(
             inputs, input_lengths, intermediate_layers=wanted
@@ -112,4 +113,9 @@ class Squeezeformer(nn.Module):
             for idx, (feat, feat_lengths) in intermediates.items():
                 head = self.inter_ctc_heads[str(idx)]
                 inter_outputs[idx] = (F.log_softmax(head(feat), dim=-1), feat_lengths)
-        return outputs, encoder_output_lengths, inter_outputs
+        # The raw encoder output is returned for auxiliary objectives (e.g.
+        # SSL-target anchored fine-tuning that needs the pre-log_softmax
+        # features). None by default so existing 3-tuple unpacks still work
+        # at minimal disruption — but callers in this repo now unpack 4.
+        encoder_features = encoder_outputs if return_features else None
+        return outputs, encoder_output_lengths, inter_outputs, encoder_features

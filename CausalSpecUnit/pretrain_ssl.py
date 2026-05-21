@@ -113,6 +113,20 @@ def parse_args():
     p.add_argument("--specaug-freq-mask-param", type=int, default=20)
     p.add_argument("--specaug-time-masks", type=int, default=2)
     p.add_argument("--specaug-freq-masks", type=int, default=2)
+    # ---- data2vec-style EMA-teacher distillation ----
+    p.add_argument("--teacher-distill-weight", type=float, default=0.0,
+                   help="Weight on the continuous-feature distillation loss. The student "
+                        "predicts the EMA teacher's encoder features at masked positions. "
+                        "0.0 disables (no teacher built). data2vec uses ~1.0; we recommend "
+                        "0.3-0.5 when combined with the cluster prediction loss.")
+    p.add_argument("--teacher-momentum", type=float, default=0.999,
+                   help="EMA momentum for teacher update. Higher = slower teacher = more "
+                        "stable target. data2vec: 0.999. Lower (~0.99) for shorter runs.")
+    p.add_argument("--teacher-normalize-targets", action="store_true", default=True,
+                   help="Apply parameter-free LayerNorm to teacher features before "
+                        "computing the distillation loss. Recommended (matches data2vec).")
+    p.add_argument("--no-teacher-normalize-targets", dest="teacher_normalize_targets",
+                   action="store_false")
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--warmup-epochs", type=int, default=20)
     p.add_argument("--peak-epochs", type=int, default=20)
@@ -422,6 +436,7 @@ def main():
         variant=args.variant,
         layer_drop_p=args.layer_drop_p,
         aux_layer_indices=args.aux_layers,
+        teacher_momentum=args.teacher_momentum if args.teacher_distill_weight > 0.0 else 0.0,
     ).to(device)
     specaugment = None
     if args.specaug:
@@ -541,8 +556,8 @@ def main():
                 sampler.set_epoch(epoch)
             model.train()
             optimizer.zero_grad(set_to_none=True)
-            total_loss = total_c100 = total_c500 = total_masked_frac = total_aux = 0.0
-            n_batches = n_aux_batches = 0
+            total_loss = total_c100 = total_c500 = total_masked_frac = total_aux = total_distill = 0.0
+            n_batches = n_aux_batches = n_distill_batches = 0
             skipped_steps = 0
             show = args.progress == "on" and is_main_process(rank)
             bar = tqdm(loader, desc=f"SSL {epoch:03d}", leave=False, disable=not show)
@@ -592,7 +607,7 @@ def main():
                 with sync_context():
                     if args.trace_every > 0 and step % args.trace_every == 0:
                         trace(True, rank, f"epoch={epoch} step={step} forward start")
-                    coarse_logits, fine_logits, _, aux_outputs = model(corrupted_mel, lengths)
+                    coarse_logits, fine_logits, _, aux_outputs, student_encoded = model(corrupted_mel, lengths)
                     coarse_logits, fine_logits, z100_aligned, z500_aligned, masked_aligned = align_ssl_tensors(
                         coarse_logits,
                         fine_logits,
@@ -632,6 +647,41 @@ def main():
                         combined = main_loss + args.aux_weight * aux_total
                     else:
                         combined = main_loss
+
+                    # data2vec-style EMA-teacher distillation. The student must
+                    # also reconstruct the teacher's continuous encoder features
+                    # at masked positions. The teacher sees the *clean* mel; the
+                    # student sees the corrupted mel — the asymmetry IS the
+                    # supervisory signal. With teacher_distill_weight=0 this
+                    # whole block is skipped (no teacher built).
+                    distill_loss_value = None
+                    if args.teacher_distill_weight > 0.0:
+                        with torch.no_grad():
+                            teacher_feat, _ = unwrap_model(model).teacher_encode(mel, lengths)
+                        # Align student/teacher features and the mask to a common T.
+                        t = min(student_encoded.size(1), teacher_feat.size(1), masked_positions.size(1))
+                        s_feat = student_encoded[:, :t]
+                        # Detach is redundant given no_grad above, but defensive.
+                        t_feat = teacher_feat[:, :t].detach()
+                        mask_d = masked_positions[:, :t]
+                        if args.teacher_normalize_targets:
+                            # Param-free LayerNorm over the feature dim. Matches data2vec
+                            # and prevents the loss from being dominated by absolute scale.
+                            t_feat = nn.functional.layer_norm(t_feat, [t_feat.size(-1)])
+                            s_feat = nn.functional.layer_norm(s_feat, [s_feat.size(-1)])
+                        # Smooth-L1 (Huber) on per-frame squared error, averaged over
+                        # masked positions. Falls back to a zero-grad scalar if the
+                        # mask is empty in this batch.
+                        if mask_d.any():
+                            sel = mask_d.unsqueeze(-1).expand_as(s_feat)
+                            distill_loss = nn.functional.smooth_l1_loss(
+                                s_feat[sel], t_feat[sel], reduction="mean", beta=1.0
+                            )
+                        else:
+                            distill_loss = student_encoded.sum() * 0.0
+                        distill_loss_value = distill_loss.detach().float().item()
+                        combined = combined + args.teacher_distill_weight * distill_loss
+
                     loss = combined / actual_accum_steps
                     if args.trace_every > 0 and step % args.trace_every == 0:
                         trace(True, rank, f"epoch={epoch} step={step} backward start")
@@ -654,6 +704,11 @@ def main():
                         step_times.append(time.time() - t0)
                         if len(step_times) > 200:
                             step_times.pop(0)
+                        # EMA teacher tracks the student after each optimizer
+                        # step. Pure no-op if teacher_distill_weight=0 (teacher
+                        # is None) — safe to always call.
+                        if args.teacher_distill_weight > 0.0:
+                            unwrap_model(model).update_teacher_ema()
                     else:
                         skipped_steps += 1
                         print0(
@@ -678,6 +733,9 @@ def main():
                 if aux_loss_value is not None:
                     total_aux += aux_loss_value
                     n_aux_batches += 1
+                if distill_loss_value is not None:
+                    total_distill += distill_loss_value
+                    n_distill_batches += 1
                 n_batches += 1
                 if show:
                     remaining = (args.max_steps - optimizer_steps) if args.max_steps else None
@@ -692,6 +750,8 @@ def main():
                     )
                     if aux_loss_value is not None:
                         postfix["aux"] = f"{aux_loss_value:.3f}"
+                    if distill_loss_value is not None:
+                        postfix["dst"] = f"{distill_loss_value:.3f}"
                     bar.set_postfix(**postfix, refresh=False)
                 if args.log_every > 0 and is_main_process(rank) and step % args.log_every == 0:
                     remaining = (args.max_steps - optimizer_steps) if args.max_steps else None
@@ -706,6 +766,7 @@ def main():
                         "c100": c100_mean,
                         "c500": c500_mean,
                         "aux_loss": aux_loss_value,
+                        "distill_loss": distill_loss_value,
                         "masked_fraction": masked_frac_mean,
                         "lr": scheduler.get_last_lr()[0],
                         "grad_norm": grad_norm_value,
@@ -728,14 +789,16 @@ def main():
             avg_c500 = total_c500 / max(n_batches, 1)
             avg_masked = total_masked_frac / max(n_batches, 1)
             avg_aux = (total_aux / n_aux_batches) if n_aux_batches > 0 else None
+            avg_distill = (total_distill / n_distill_batches) if n_distill_batches > 0 else None
             elapsed = time.time() - job_start
             remaining = (args.max_steps - optimizer_steps) if args.max_steps else None
             skipped_note = f" skipped={skipped_steps}" if skipped_steps else ""
             aux_note = f" aux={avg_aux:.4f}" if avg_aux is not None else ""
+            distill_note = f" distill={avg_distill:.4f}" if avg_distill is not None else ""
             print0(
                 rank,
                 f"[ssl] epoch={epoch:03d} opt_step={optimizer_steps} loss={avg:.4f} "
-                f"c100={avg_c100:.4f} c500={avg_c500:.4f}{aux_note} "
+                f"c100={avg_c100:.4f} c500={avg_c500:.4f}{aux_note}{distill_note} "
                 f"masked={avg_masked:.2%}{skipped_note} "
                 f"elapsed={elapsed/3600:.2f}h eta={fmt_eta(remaining)}",
             )
@@ -750,6 +813,9 @@ def main():
                     "aux_loss": avg_aux,
                     "aux_layer_indices": list(args.aux_layers) if args.aux_layers else None,
                     "aux_weight": args.aux_weight if args.aux_layers else None,
+                    "distill_loss": avg_distill,
+                    "teacher_distill_weight": args.teacher_distill_weight if args.teacher_distill_weight > 0 else None,
+                    "teacher_momentum": args.teacher_momentum if args.teacher_distill_weight > 0 else None,
                     "layer_drop_p": args.layer_drop_p,
                     "specaug_during_ssl": bool(args.specaug),
                     "codebook_mode": args.codebook_mode,
