@@ -137,6 +137,7 @@ def main():
             tokenizer,
             cmvn_path=args.cmvn_path,
             train_split=False,
+            validate_audio=True,
         )
         sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=False) if world_size > 1 else None
         worker_kwargs = {"persistent_workers": True, "prefetch_factor": 2} if args.workers > 0 else {}

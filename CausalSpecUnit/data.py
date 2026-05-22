@@ -227,6 +227,7 @@ class CTCSpecDataset(Dataset):
         max_hours=None,
         subset_seed=42,
         ssl_targets_path=None,
+        validate_audio=False,
     ):
         self.items = list(iter_librispeech_items(data_root, splits))
         if max_items is not None:
@@ -240,6 +241,28 @@ class CTCSpecDataset(Dataset):
         self.mean = self.std = None
         if cmvn_path is not None:
             self.mean, self.std = load_cmvn(cmvn_path)
+        if validate_audio:
+            # Pre-filter items whose audio cannot be decoded (corrupt FLACs,
+            # missing files, codec mismatches). Uses torchaudio.info — header-only,
+            # fast (~ms per file). Recommended for eval datasets where a single
+            # bad file would otherwise crash a multi-hour run.
+            kept, skipped = [], []
+            for it in self.items:
+                try:
+                    torchaudio.info(it["audio_path"])
+                    kept.append(it)
+                except Exception as exc:
+                    skipped.append((it["uid"], str(exc)[:80]))
+            if skipped:
+                print(
+                    f"[CTCSpecDataset] filtered {len(skipped)} unreadable audio file(s) "
+                    f"from {','.join(splits)}", flush=True,
+                )
+                for uid, err in skipped[:5]:
+                    print(f"  - {uid}: {err}", flush=True)
+                if len(skipped) > 5:
+                    print(f"  ... and {len(skipped) - 5} more", flush=True)
+            self.items = kept
         self.ssl_targets = None
         if ssl_targets_path is not None:
             # Accept either a directory (containing targets.pt + shards) or
