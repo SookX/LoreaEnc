@@ -81,66 +81,6 @@ resolve_ssl_ckpt() {
     esac
 }
 
-run_train() {
-    local out_dir="$1"; local seed="$2"; local ssl_args=("${!3}"); local port="$4"
-    # shellcheck disable=SC2068
-    torchrun \
-        --nproc_per_node=2 \
-        --master_addr="${MASTER_ADDR}" \
-        --master_port="${port}" \
-        -m CausalSpecUnit.train_ctc \
-        --data-root "${DATA_ROOT}" \
-        --cmvn-path "${TARGETS_DIR}/cmvn.pt" \
-        --tokenizer-path "${TOKENIZER_PATH}" \
-        --train-splits "${SUBSET}" \
-        ${ssl_args[@]+"${ssl_args[@]}"} \
-        --output-dir "${out_dir}" \
-        --variant xs \
-        --epochs 150 \
-        --batch-size 64 \
-        --grad-accum-steps 1 \
-        --eval-batch-size 128 \
-        --eval-split dev-other \
-        --eval-every 1 \
-        --workers 8 \
-        --dataloader-timeout 120 \
-        --lr 1e-3 \
-        --encoder-lr 3e-4 \
-        --head-lr 1e-3 \
-        --warmup-epochs 10 \
-        --peak-epochs 50 \
-        --noam-decay-rate 0.5 \
-        --max-grad-norm 1.0 \
-        --specaug \
-        --specaug-time-mask-param 30 \
-        --specaug-freq-mask-param 20 \
-        --specaug-time-masks 2 \
-        --specaug-freq-masks 2 \
-        --specaug-disable-last-epochs 10 \
-        --seed "${seed}" \
-        --progress off \
-        --log-every 0 \
-        --save-every 10
-}
-
-run_eval() {
-    local out_dir="$1"; local port="$2"
-    torchrun \
-        --nproc_per_node=2 \
-        --master_addr="${MASTER_ADDR}" \
-        --master_port="${port}" \
-        -m CausalSpecUnit.evaluate_ctc \
-        --checkpoint "${out_dir}/checkpoint_best/checkpoint.pt" \
-        --data-root "${DATA_ROOT}" \
-        --cmvn-path "${TARGETS_DIR}/cmvn.pt" \
-        --tokenizer-path "${TOKENIZER_PATH}" \
-        --variant xs \
-        --splits test-clean test-other \
-        --batch-size 64 \
-        --workers 4 \
-        --output "${out_dir}/eval_results.json"
-}
-
 CELL_IDX=0
 for CONDITION in "${CONDITIONS[@]}"; do
     SSL_CHECKPOINT=$(resolve_ssl_ckpt "${CONDITION}")
@@ -148,29 +88,90 @@ for CONDITION in "${CONDITIONS[@]}"; do
         echo "Missing SSL checkpoint for ${CONDITION}: ${SSL_CHECKPOINT}"
         exit 1
     fi
+    # Build the conditional --ssl-checkpoint arg as an array. Bash arrays
+    # pass cleanly via expansion at the call site, but NOT through function
+    # arguments — that's why this is inlined rather than wrapped in a helper.
     SSL_ARGS=()
     if [ -n "${SSL_CHECKPOINT}" ]; then
-        SSL_ARGS=(--ssl-checkpoint "${SSL_CHECKPOINT}")
+        SSL_ARGS+=(--ssl-checkpoint "${SSL_CHECKPOINT}")
     fi
+
     for SEED in "${SEEDS[@]}"; do
         OUT_DIR="outputs/causal_specunit/librilight_matrix/${SUBSET}/${CONDITION}_seed${SEED}"
         mkdir -p "${OUT_DIR}"
 
         log_phase "CELL ${CELL_IDX}/9: ${SUBSET} | ${CONDITION} | seed=${SEED}"
+
         if [ -f "${OUT_DIR}/eval_results.json" ]; then
             log_phase "SKIP — eval_results.json exists at ${OUT_DIR}"
-        else
-            # Train (skip if checkpoint_best is already there from a previous partial run)
-            if [ ! -f "${OUT_DIR}/checkpoint_best/checkpoint.pt" ]; then
-                log_phase "  train ${CONDITION} seed=${SEED}"
-                run_train "${OUT_DIR}" "${SEED}" SSL_ARGS[@] $((PORT_BASE + CELL_IDX * 2 + 1))
-            else
-                log_phase "  SKIP train — checkpoint_best exists"
-            fi
-            # Eval test-clean + test-other
-            log_phase "  eval ${CONDITION} seed=${SEED}"
-            run_eval "${OUT_DIR}" $((PORT_BASE + CELL_IDX * 2 + 2))
+            CELL_IDX=$((CELL_IDX + 1))
+            continue
         fi
+
+        TRAIN_PORT=$((PORT_BASE + CELL_IDX * 2 + 1))
+        EVAL_PORT=$((PORT_BASE + CELL_IDX * 2 + 2))
+
+        # ---- Train (skip if checkpoint_best already exists) ----
+        if [ ! -f "${OUT_DIR}/checkpoint_best/checkpoint.pt" ]; then
+            log_phase "  train ${CONDITION} seed=${SEED}"
+            torchrun \
+                --nproc_per_node=2 \
+                --master_addr="${MASTER_ADDR}" \
+                --master_port="${TRAIN_PORT}" \
+                -m CausalSpecUnit.train_ctc \
+                --data-root "${DATA_ROOT}" \
+                --cmvn-path "${TARGETS_DIR}/cmvn.pt" \
+                --tokenizer-path "${TOKENIZER_PATH}" \
+                --train-splits "${SUBSET}" \
+                ${SSL_ARGS[@]+"${SSL_ARGS[@]}"} \
+                --output-dir "${OUT_DIR}" \
+                --variant xs \
+                --epochs 150 \
+                --batch-size 64 \
+                --grad-accum-steps 1 \
+                --eval-batch-size 128 \
+                --eval-split dev-other \
+                --eval-every 1 \
+                --workers 8 \
+                --dataloader-timeout 120 \
+                --lr 1e-3 \
+                --encoder-lr 3e-4 \
+                --head-lr 1e-3 \
+                --warmup-epochs 10 \
+                --peak-epochs 50 \
+                --noam-decay-rate 0.5 \
+                --max-grad-norm 1.0 \
+                --specaug \
+                --specaug-time-mask-param 30 \
+                --specaug-freq-mask-param 20 \
+                --specaug-time-masks 2 \
+                --specaug-freq-masks 2 \
+                --specaug-disable-last-epochs 10 \
+                --seed "${SEED}" \
+                --progress off \
+                --log-every 0 \
+                --save-every 10
+        else
+            log_phase "  SKIP train — checkpoint_best exists"
+        fi
+
+        # ---- Eval on test-clean + test-other ----
+        log_phase "  eval ${CONDITION} seed=${SEED}"
+        torchrun \
+            --nproc_per_node=2 \
+            --master_addr="${MASTER_ADDR}" \
+            --master_port="${EVAL_PORT}" \
+            -m CausalSpecUnit.evaluate_ctc \
+            --checkpoint "${OUT_DIR}/checkpoint_best/checkpoint.pt" \
+            --data-root "${DATA_ROOT}" \
+            --cmvn-path "${TARGETS_DIR}/cmvn.pt" \
+            --tokenizer-path "${TOKENIZER_PATH}" \
+            --variant xs \
+            --splits test-clean test-other \
+            --batch-size 64 \
+            --workers 4 \
+            --output "${OUT_DIR}/eval_results.json"
+
         CELL_IDX=$((CELL_IDX + 1))
     done
 done
