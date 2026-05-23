@@ -7,6 +7,7 @@
 \usepackage{subcaption}
 \usepackage{booktabs}
 \usepackage{hyperref}
+\usepackage{xcolor}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 % Figure palette --- accessible, B&W-distinguishable, ICML-friendly.
@@ -46,7 +47,7 @@
 \begin{document}
 
 \twocolumn[
-  \icmltitle{Spectrogram Only \\
+  \icmltitle{Spectrogram-Only \\
     Self-Supervised Pretraining for Low-Resource Speech Recognition}
 
   \icmlsetsymbol{equal}{*}
@@ -67,7 +68,7 @@
 \printAffiliationsAndNotice{}
 
 \begin{abstract}
-Automatic speech recognition (ASR) systems depend on large amounts of labeled data, a constraint that self-supervised pretraining (SSL) aims to alleviate. While existing SSL methods such as wav2vec~2.0 and HuBERT achieve state-of-the-art performance, they operate on raw waveforms and require thousands of GPU-hours of pretraining, making them impractical in compute-constrained and edge-deployment settings. In this paper, we reformulate self-supervised speech representation learning to operate entirely in the spectrogram domain, using a HuBERT-style masked-prediction objective over dual-codebook discrete units derived from short log-mel chunks. Applied to a 9M-parameter SqueezeFormer-XS encoder, our recipe reduces test-clean WER from 71.3\% to \textbf{32.1\%} (39.2 absolute, \textbf{55\% relative}) when fine-tuned on 10 hours of labeled data, and from 21.5\% to 17.4\% (4.1 absolute, 19\% relative) on 100 hours --- at \emph{42 GPU-hours} of total pretraining, roughly $\mathbf{50\times}$ less than wav2vec~2.0 Base.
+Automatic speech recognition (ASR) systems depend on large amounts of labeled data, a constraint that self-supervised pretraining (SSL) aims to alleviate. While existing SSL methods such as wav2vec~2.0 and HuBERT achieve state-of-the-art performance, they operate on raw waveforms and require thousands of GPU-hours of pretraining, making them impractical in compute-constrained and edge-deployment settings. In this paper, we reformulate self-supervised speech representation learning in the spectrogram domain, using a HuBERT-style masked-prediction objective over dual-codebook discrete units first derived from short log-mel chunks and then optionally refined from encoder representations. Applied to a 9M-parameter SqueezeFormer-XS encoder, our iter-2 recipe reduces test-clean WER from 71.3\% to \textbf{32.1\%} (39.2 absolute, \textbf{55\% relative}) when fine-tuned on 10 hours of labeled data, and from 21.5\% to 17.4\% (4.1 absolute, 19\% relative) on 100 hours --- at \emph{42 GPU-hours} of estimated pretraining, roughly $\mathbf{50\times}$ less reported GPU-hours than wav2vec~2.0 Base.
 \end{abstract}
 
 \begin{figure}[t!]
@@ -150,8 +151,8 @@ Automatic speech recognition (ASR) systems depend on large amounts of labeled da
   \vskip -1ex
   \caption{Test-other WER vs.\ labeled fine-tuning data on LibriSpeech.
     Spectrogram-domain SSL delivers large absolute WER reductions in the
-    low-resource regime (shaded band). At 960h, where dense supervision
-    already dominates, the gain disappears.}
+    low-resource regime (shaded band). At 960h, both SSL initializations
+    underperform scratch under the current fine-tuning recipe.}
   \label{fig:wer-vs-hours}
 \end{figure}
 
@@ -164,12 +165,12 @@ A key limitation of these models, however, is their heavy dependence on labeled 
 
 A parallel line of work applies self-supervised learning directly to \emph{spectrograms} rather than raw waveforms. Masked Spectrogram Prediction~\citep{msp} and Audio Spectrogram Transformer (AST;~\citep{ast}) demonstrate that patch-based masked autoencoding over mel-spectrograms yields rich audio representations — however, these models are designed for general audio classification and are not directly applicable to the sequence-to-sequence demands of ASR. SSAST~\citep{ssast} bridges this gap by applying joint masked prediction and contrastive objectives over spectrogram patches in a self-supervised manner, yet remains anchored to large transformer backbones with substantial pretraining costs.
 
-In this work, we present a three-stage spectrogram-only SSL pipeline that combines log-mel chunk clustering with masked-prediction pretraining of a compact SqueezeFormer encoder. Targets are produced by PCA-reduced $K$-means over short log-mel chunks at two granularities ($K_c{=}100$ coarse, $K_f{=}500$ fine), and the encoder is pretrained on LibriSpeech 960h to predict both codebooks at masked positions before being fine-tuned with CTC for ASR. The recipe yields consistent WER improvements over from-scratch baselines in the 10h and 100h fine-tuning regimes at roughly $\mathbf{50\times}$ less pretraining compute than waveform-based SSL, and we ablate the contribution of each codebook to validate the dual-vocabulary design.
+In this work, we present a spectrogram-domain SSL pipeline that combines log-mel chunk clustering with masked-prediction pretraining of a compact SqueezeFormer encoder. First-stage targets are produced by PCA-reduced $K$-means over short log-mel chunks at two granularities ($K_c{=}100$ coarse, $K_f{=}500$ fine). We additionally evaluate an optional second refinement stage in which targets are recomputed from the iter-1 encoder's hidden states. The recipe yields consistent WER improvements over from-scratch baselines in the 10h and 100h fine-tuning regimes at roughly $\mathbf{50\times}$ lower reported pretraining GPU-hours than wav2vec~2.0 Base, and we ablate the contribution of each codebook to validate the dual-vocabulary design.
 
 \paragraph{Contributions.}
-(i) A simple, teacher-free, spectrogram-domain SSL recipe that pretrains a 9M-parameter encoder in 42 GPU-hours --- two orders of magnitude less than waveform-based SSL baselines.
+(i) A simple, teacher-free, spectrogram-domain SSL recipe that pretrains a 9M-parameter encoder in an estimated 42 GPU-hours --- about $50\times$ lower reported GPU-hours than wav2vec~2.0 Base.
 (ii) A dual-codebook objective ($K_c{=}100$ + $K_f{=}500$) that we show outperforms either codebook alone via a controlled ablation.
-(iii) Empirical characterization of the labeled-data regime where compact-model spectrogram SSL is beneficial (10h, 100h) and where it diminishes (960h), consistent with the well-documented SSL scaling behavior on speech.
+(iii) Empirical characterization of the labeled-data regime where compact-model spectrogram SSL is beneficial (10h, 100h) and where the current fine-tuning recipe underperforms scratch (960h).
 
 
 \section{Methodology}
@@ -224,10 +225,11 @@ labeled split. \cref{alg:pipeline} summarizes the full procedure.
 The first stage of our pipeline converts the unlabeled corpus into discrete
 targets that the encoder will later learn to predict. Following the
 HuBERT~\citep{hubert} recipe, we obtain these targets by clustering
-acoustic features in an offline pass; unlike HuBERT, however, we operate
-\emph{entirely in the spectrogram domain} and avoid both the MFCC
-front-end and the iterative refinement loop, trading a small amount of
-target quality for a substantially cheaper pretraining setup.
+acoustic features in an offline pass; unlike HuBERT, however, the initial
+targets are derived directly from log-mel spectrogram chunks rather than
+from MFCCs or waveform-based representations. Our strongest model adds a
+second optional refinement stage that reclusters hidden states from the
+iter-1 encoder.
 
 Let $\mathcal{D} = \{x_i\}_{i=1}^{N}$ denote the unlabeled training corpus,
 where $x_i$ is a raw waveform. We compute log-mel spectrograms
@@ -294,6 +296,13 @@ This produces two aligned discrete sequences $\mathbf{z}_i^{(c)},
 will be trained to predict at masked positions (Sec.~\ref{sec:ssl}).
 Target generation is run once over the corpus and cached on disk, so its
 cost is amortized across every downstream experiment.
+
+\paragraph{Iter-2 refinement.}
+For the optional second iteration, we run the iter-1 encoder over the same
+unlabeled corpus, collect its hidden states at the target rate, and repeat
+the PCA+$K$-means procedure to obtain refined coarse and fine targets. The
+iter-2 encoder is initialized from iter-1 and trained with the same masked
+prediction loss.
 \subsection{SSL Pretraining}
 \label{sec:ssl}
 
@@ -317,9 +326,9 @@ sum of cross-entropy losses over masked positions:
 \end{equation}
 The two terms are weighted equally: the coarse term encourages broad
 phonetic discrimination, while the fine term forces the encoder to retain
-within-category detail. We pretrain with AdamW on LibriSpeech 960h for
-$150$k optimizer steps; full hyperparameters are listed in
-Sec.~\ref{sec:setup}.
+within-category detail. We pretrain iter-1 with AdamW on LibriSpeech 960h
+for $150$k optimizer steps and train the optional iter-2 stage for another
+$100$k steps; full hyperparameters are listed in Sec.~\ref{sec:setup}.
 
 \subsection{CTC Fine-tuning}
 \label{sec:ctc}
@@ -339,14 +348,15 @@ only difference is the encoder's initial weights.
 \subsection{Setup}
 \label{sec:setup}
 We evaluate on LibriSpeech~\citep{librispeech} under three labeled-data
-budgets: 10h (\textit{train-clean-10h}), 100h (\textit{train-clean-100}),
-and the full 960h. The baseline is a SqueezeFormer-XS CTC model trained
-from scratch for 150 epochs on each split; our method initializes the same
-SqueezeFormer from a spectrogram-domain SSL checkpoint and is fine-tuned
-for 150 epochs under an \emph{otherwise identical} recipe (same optimizer,
-schedule, batch size, and CTC loss). All numbers are greedy CTC decoding
-on \textit{test-clean} / \textit{test-other} without an external language
-model.
+budgets: a custom 10h subset sampled from \textit{train-clean-100} with
+seed 42, the full \textit{train-clean-100} split, and the full 960h
+training set. The 10h condition is therefore not the standard
+Libri-Light 10h benchmark. All rows use SqueezeFormer-XS and greedy CTC
+decoding on \textit{test-clean} / \textit{test-other} without an external
+language model. Implementation details are fixed across scratch and SSL:
+80-bin log-mels, chunk size/stride $8/4$, PCA dimension 64,
+$(K_c,K_f)=(100,500)$, mask probability/span $0.30/10$, 150k iter-1 SSL
+steps plus 100k iter-2 steps, and 150 CTC epochs for the 10h setting.
 
 \begin{table*}[t]
   \caption{LibriSpeech WER ($\downarrow$, \%) on \textit{test-clean} /
@@ -393,21 +403,16 @@ encoder's hidden states rather than raw log-mel chunks --- yields a
 small further improvement at both low-resource budgets, mirroring the
 iter-1/iter-2 gap reported by HuBERT~\citep{hubert}.
 
-The gains decrease as labeled data grows --- a well-documented
-diminishing-returns pattern for SSL on speech~\citep{wav2vec2,hubert}.
-At 960h, where the scratch model already receives dense transcript
-supervision over the full LibriSpeech training set and learns strong
-acoustic representations directly from the CTC objective, both SSL
-initializations slightly underperform scratch, and the iter-2
-refinement provides no benefit over iter-1 at this budget. This
-crossover behavior --- visible in \cref{fig:wer-vs-hours} --- confirms
-that the value of spectrogram-domain SSL is concentrated in the
-low- and mid-resource regimes, where pretraining is most consequential.
-The decisive contribution is therefore label efficiency: in the 10h
-regime, our recipe reduces test-clean WER by $39.2$ absolute points
+The gains decrease as labeled data grows. At 960h, both pretrained
+initializations underperform the scratch baseline under the current
+fine-tuning recipe, and iter-2 provides no benefit over iter-1. This
+high-resource degradation suggests that initialization or fine-tuning
+settings require further study when dense transcript supervision is
+available. The decisive contribution here is label efficiency: in the
+10h regime, our recipe reduces test-clean WER by $39.2$ absolute points
 relative to scratch. We treat the 960h scratch model as a high-resource
-supervised reference for the labeled-data axis, not as the primary
-target of the method.
+supervised reference for the labeled-data axis, not as the primary target
+of the method.
 
 
 
@@ -445,16 +450,16 @@ two vocabularies provide complementary supervision.
 
 \paragraph{Phone purity.}
 As a sanity check that our PCA+$K$-means clusters carry phonetic content,
-we compute frame-level phone purity~\citep{hsu2017hubert-phone} against
-forced-aligned LibriSpeech phoneme labels. $K_c{=}100$ achieves
-$\mathbf{XX.X\%}$ purity over 39 phones (random baseline: $\sim$2.6\%);
-$K_f{=}500$ achieves $\mathbf{YY.Y\%}$. Both substantially exceed chance,
-confirming that the clusters encode phonetic structure despite being
-derived directly from log-mel chunks without any forced alignment or
-acoustic-model bootstrapping.\footnote{Computed with
-\texttt{evaluate\_phone\_purity.py} on \textit{train-clean-100} using
-the publicly released LibriSpeech MFA alignments; silence and noise
-intervals excluded.}
+we compute frame-level cluster purity and normalized mutual information
+(NMI) against forced-aligned LibriSpeech phoneme labels. For each cluster,
+purity assigns the cluster to its majority phone and reports the fraction
+of frames covered by these majority assignments. Over 86.1M aligned chunks
+and 43 phone labels, the coarse codebook ($K_c{=}100$) reaches
+$\mathbf{28.4\%}$ purity (NMI $=0.187$), while the fine codebook
+($K_f{=}500$) reaches $\mathbf{32.0\%}$ purity (NMI $=0.1923$). Both are
+well above the random-label baseline of roughly $1/43 \approx 2.3\%$,
+indicating that the spectrogram-derived clusters encode nontrivial
+phonetic structure.
 
 \paragraph{Compute and parameter efficiency.}
 \cref{tab:abl-eff} contextualizes the cost of our recipe against published
@@ -463,10 +468,10 @@ rather than an accuracy comparison: the listed systems differ in model
 scale, hardware, and downstream recipes. Our entry sums both refinement
 stages used by the final model (150k iter-1 updates plus 100k iter-2
 updates) on two GPUs, yielding 42 GPU-hours.\footnote{Iter-1 was measured
-directly at 8.4 wall-hours per 100k steps on 2 GPUs; iter-2 was timed
-identically. Total GPU-hours follow as $2{\times}21$.} Under this
-accounting, the spectrogram-domain recipe pretrains in two orders of
-magnitude less compute than the waveform-based SSL references.
+directly at about 8.4 wall-hours per 100k steps on 2 GPUs; the 250k-step
+total is linearly estimated from this throughput.} Under this accounting,
+the spectrogram-domain recipe uses roughly $50\times$ lower reported
+pretraining GPU-hours than wav2vec~2.0 Base.
 
 \begin{table}[H]
   \caption{Reported pretraining footprint of SSL speech encoders. Params
@@ -511,9 +516,9 @@ reported in the original papers; a controlled matched-compute and
 matched-hardware comparison would strengthen the efficiency claim.
 Finally, the iter-2 refinement step is consistently helpful at
 $\leq$100h but does not improve over iter-1 at the full 960h budget;
-we attribute this to the diminishing value of cluster-refinement when
-the downstream supervised signal alone is sufficient to learn
-comparable representations.
+understanding this high-resource degradation, including whether it comes
+from initialization, optimization, or fine-tuning hyperparameters, is left
+for future work.
 
 \nocite{langley00}
 

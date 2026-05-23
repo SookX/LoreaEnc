@@ -3,6 +3,7 @@ import contextlib
 import json
 import math
 import os
+import random
 import shutil
 import socket
 import sys
@@ -37,6 +38,13 @@ def append_jsonl(path, record):
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def set_reproducibility_seed(seed):
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 def count_parameters(model):
@@ -164,6 +172,8 @@ def parse_args():
     p.add_argument("--train-subset-hours", type=float, default=None,
                    help="Use a reproducible random subset with approximately this many audio hours.")
     p.add_argument("--train-subset-seed", type=int, default=42)
+    p.add_argument("--seed", type=int, default=42,
+                   help="Seed for model initialization and DataLoader/DistributedSampler shuffling.")
     p.add_argument("--epochs", type=int, default=150)
     p.add_argument("--batch-size", type=int, default=128)
     p.add_argument("--grad-accum-steps", type=int, default=2)
@@ -399,6 +409,7 @@ def evaluate(model, loader, tokenizer, blank_id, ctc_loss, device, rank, show_pr
 def main():
     args = parse_args()
     rank, local_rank, world_size, device = setup_distributed()
+    set_reproducibility_seed(args.seed)
     os.makedirs(args.output_dir, exist_ok=True)
     if device.type == "cuda":
         torch.set_float32_matmul_precision("high")
@@ -406,21 +417,32 @@ def main():
 
     tokenizer = build_tokenizer(args.tokenizer_path)
     blank_id = tokenizer.pad_token_id
+    cmvn_path = args.cmvn_path
+    if cmvn_path is not None and cmvn_path.lower() in {"", "none", "null"}:
+        cmvn_path = None
     ssl_anchor_active = args.ssl_anchor_weight > 0.0
     ssl_targets_path = args.ssl_anchor_targets_dir if ssl_anchor_active else None
     train_dataset = CTCSpecDataset(
         args.data_root,
         args.train_splits,
         tokenizer,
-        cmvn_path=args.cmvn_path,
+        cmvn_path=cmvn_path,
         train_split=True,
         max_hours=args.train_subset_hours,
         subset_seed=args.train_subset_seed,
         ssl_targets_path=ssl_targets_path,
     )
-    dev_dataset = CTCSpecDataset(args.data_root, [args.eval_split], tokenizer, cmvn_path=args.cmvn_path, train_split=False)
-    train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True) if world_size > 1 else None
-    dev_sampler = DistributedSampler(dev_dataset, num_replicas=world_size, rank=rank, shuffle=False) if world_size > 1 else None
+    dev_dataset = CTCSpecDataset(args.data_root, [args.eval_split], tokenizer, cmvn_path=cmvn_path, train_split=False)
+    train_sampler = (
+        DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True, seed=args.seed)
+        if world_size > 1 else None
+    )
+    dev_sampler = (
+        DistributedSampler(dev_dataset, num_replicas=world_size, rank=rank, shuffle=False, seed=args.seed)
+        if world_size > 1 else None
+    )
+    loader_generator = torch.Generator()
+    loader_generator.manual_seed(args.seed)
     worker_kwargs = {"persistent_workers": True, "prefetch_factor": 4} if args.workers > 0 else {}
     train_loader = DataLoader(
         train_dataset,
@@ -432,6 +454,7 @@ def main():
         pin_memory=True,
         drop_last=True,
         timeout=args.dataloader_timeout,
+        generator=loader_generator,
         **worker_kwargs,
     )
     dev_loader = DataLoader(

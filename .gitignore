@@ -2,6 +2,7 @@
 CausalSpecUnit/librispeech_alignments/
 
 # Datasets and audio data
+data_local/
 dataset/datasets/
 dataset/dev-clean/
 dataset/test-clean/
@@ -17,6 +18,7 @@ dataset/figures/
 
 # Model checkpoints and outputs
 outputs/
+outputs_local/
 *.pt
 *.bin
 *.ckpt
@@ -36,6 +38,7 @@ build/
 .ipynb_checkpoints/
 
 # Logs
+logs/
 *.log
 
 # Zip files

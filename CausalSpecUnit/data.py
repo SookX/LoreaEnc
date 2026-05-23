@@ -107,7 +107,12 @@ class LogMelExtractor(torch.nn.Module):
         self.amp2db = T.AmplitudeToDB(top_db=80.0)
 
     def load_audio(self, path):
-        audio, sr = torchaudio.load(path, normalize=True)
+        try:
+            audio, sr = torchaudio.load(path, normalize=True)
+        except Exception:
+            import soundfile as sf
+            wav, sr = sf.read(path, dtype="float32", always_2d=True)
+            audio = torch.from_numpy(wav.T)
         if sr != self.sample_rate:
             audio = torchaudio.functional.resample(audio, orig_freq=sr, new_freq=self.sample_rate)
         if audio.size(0) > 1:

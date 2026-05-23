@@ -1,0 +1,234 @@
+\documentclass{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{amsmath}
+
+\title{Supplementary Material: Spectrogram-Only Self-Supervised Pretraining for Low-Resource Speech Recognition}
+\author{Anonymous Author}
+\date{}
+
+\newcommand{\todo}[1]{\textcolor{red}{TODO: #1}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\begin{document}
+\maketitle
+
+\section{Full Training Procedure}
+
+\subsection{Target Generation}
+The unlabeled corpus is LibriSpeech train-960, implemented as the
+\code{train-clean-100}, \code{train-clean-360}, and \code{train-other-500}
+splits in \code{slurm/causal\_specunit/01\_generate\_targets.sh}. Audio is
+loaded at 16 kHz, converted to mono, peak-normalized, pre-emphasized with
+coefficient 0.97, and transformed into 80-bin log-mel features. Global
+CMVN statistics are estimated over the unlabeled training corpus and then
+applied before chunking.
+
+For iter-1, normalized log-mel frames are grouped into chunks of size 8 and
+stride 4. A PCA projection with whitening maps chunk vectors to 64
+dimensions. MiniBatch $K$-means is then fit twice on up to 1,000,000
+sampled chunks, producing a coarse codebook with $K_c=100$ and a fine
+codebook with $K_f=500$. The assigned cluster IDs are cached per utterance
+and sharded for training.
+
+For iter-2, \code{slurm/causal\_specunit/04\_iter2\_pretrain\_chain.sh}
+loads the 150k-step iter-1 checkpoint, runs the encoder over the same
+LibriSpeech train-960 corpus, and repeats the PCA plus MiniBatch $K$-means
+procedure on encoder hidden states. The iter-2 codebooks use the same
+chunk/stride metadata, PCA dimension, and codebook sizes.
+
+\subsection{Self-Supervised Pretraining}
+The SSL model is SqueezeFormer-XS with dual prediction heads over the
+$K_c=100$ and $K_f=500$ codebooks. During pretraining, spans are sampled
+with mask probability 0.30 and mask length 10 target steps. Masked input
+frames are replaced by a learnable mask embedding. The loss is the sum of
+masked-position cross-entropies for the coarse and fine targets:
+\[
+  \mathcal{L}_{\mathrm{SSL}} =
+  \mathrm{CE}(\hat z^{(c)}, z^{(c)}) +
+  \mathrm{CE}(\hat z^{(f)}, z^{(f)}).
+\]
+Iter-1 is trained for 150k optimizer updates. Iter-2 is initialized from
+the iter-1 encoder and trained for 100k additional updates on the refined
+targets.
+
+\subsection{CTC Fine-Tuning}
+For ASR, the SSL prediction heads are discarded and a CTC projection head
+is attached to the SqueezeFormer encoder. The tokenizer is a 128-piece
+SentencePiece BPE model trained from LibriSpeech train-960 transcripts by
+\code{dataset/train\_tokenizer.py}; the pad token (ID 0) is used as the CTC
+blank. The 10h condition uses a reproducible random subset sampled from
+\code{train-clean-100} with seed 42, not the standard Libri-Light 10h
+split. The 100h condition uses all of \code{train-clean-100}. Test numbers
+are greedy CTC decoding on \code{test-clean} and \code{test-other}, with no
+external language model.
+
+\section{Hyperparameters}
+
+\begin{table}[h]
+\centering
+\small
+\caption{Feature extraction and target generation settings recovered from
+\code{CausalSpecUnit/data.py}, \code{generate\_targets.py}, and the Slurm
+target-generation scripts.}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Setting & Value \\
+\midrule
+Sample rate & 16 kHz \\
+Channels & Mono average if needed \\
+Waveform normalization & Peak normalization by max absolute value \\
+Pre-emphasis & 0.97 \\
+Mel bins & 80 \\
+FFT size & 512 \\
+Window / hop & 25 ms / 10 ms \\
+Mel range & 0--8 kHz \\
+Log compression & \code{torchaudio.transforms.AmplitudeToDB(top\_db=80)} \\
+Normalization & Global CMVN over pretraining corpus \\
+Chunk size / stride & 8 / 4 frames \\
+PCA dimension & 64, whitened \\
+PCA seed & 42 \\
+K-means implementation & \code{sklearn.cluster.MiniBatchKMeans} \\
+K-means fit sample & Up to 1,000,000 chunks or frames \\
+K-means batch size & 8192 \\
+K-means max iterations & 300 \\
+K-means initialization & \code{n\_init="auto"} \\
+Codebooks & $K_c=100$, $K_f=500$ \\
+K-means seeds & 42 for coarse, 43 for fine \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\small
+\caption{SSL pretraining settings recovered from
+\code{slurm/causal\_specunit/02\_pretrain\_ssl\_iter1\_960h\_fair.sh},
+\code{04\_iter2\_pretrain\_chain.sh}, and \code{CausalSpecUnit/pretrain\_ssl.py}.}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Setting & Value \\
+\midrule
+Encoder & SqueezeFormer-XS \\
+Encoder parameters & 9,007,782 \todo{confirm final reported rounding} \\
+Input dimension & 80 \\
+Encoder dimension / layers & 144 / 16 \\
+Attention heads & 4 \\
+FF / conv expansion & 4 / 2 \\
+Conv kernel size & 31 \\
+Reduce / recover layers & 7 / 15 \\
+Dropout & 0.1 \\
+Optimizer & AdamW, betas=(0.9, 0.98), eps=$10^{-9}$ \\
+Learning rate & $10^{-3}$ \\
+Weight decay & $5\times10^{-4}$ \\
+Warmup / hold & 20 epochs / 20 epochs \\
+Noam decay rate & 1.0 \\
+Batch per process & 128 \\
+Distributed processes & 2 \\
+Gradient accumulation & 1 \\
+Effective batch & 256 utterances \\
+Mask probability / span & 0.30 / 10 target steps \\
+Gradient clipping & 1.0 \\
+Matmul precision & \code{torch.set\_float32\_matmul\_precision("high")} \\
+Mixed precision & Not enabled in \code{pretrain\_ssl.py} \\
+Iter-1 updates & 150k \\
+Iter-2 updates & 100k \\
+Training seed policy & \todo{confirm whether model initialization seed is fixed} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\small
+\caption{CTC fine-tuning settings recovered from
+\code{slurm/causal\_specunit/06\_test\_table.sh} and
+\code{CausalSpecUnit/train\_ctc.py}.}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Setting & Value \\
+\midrule
+Tokenizer & SentencePiece BPE, 128 pieces \\
+CTC blank & Pad token, ID 0 \\
+10h split & Custom subset from \code{train-clean-100}, seed 42 \\
+100h split & Full \code{train-clean-100} \\
+960h split & \todo{confirm exact 960h fine-tuning command/script} \\
+10h epochs / batch / accum & 150 / 64 / 1 \\
+100h epochs / batch / accum & 100 / 128 / 2 \\
+Distributed processes & 2 \\
+10h effective batch & 128 utterances \\
+100h effective batch & 512 utterances \\
+Optimizer & AdamW, betas=(0.9, 0.98), eps=$10^{-9}$ \\
+Base / encoder / head LR & $10^{-3}$ / $3\times10^{-4}$ / $10^{-3}$ \\
+Weight decay & $5\times10^{-4}$ \\
+Warmup / peak epochs & 10 / 50 \\
+Noam decay rate & 0.5 \\
+Gradient clipping & 1.0 \\
+SpecAugment & time=30, freq=20, two masks each \\
+SpecAugment schedule & Disabled for final 10 epochs \\
+Precision & bfloat16 autocast on CUDA \\
+Validation split & \code{dev-other} during training \\
+Test decoding & Greedy CTC, no external LM \\
+Test sets & \code{test-clean}, \code{test-other} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Dataset Split Specification}
+The unlabeled pretraining corpus is LibriSpeech train-960:
+\code{train-clean-100}, \code{train-clean-360}, and \code{train-other-500}.
+The 100h labeled condition is \code{train-clean-100}. The 10h labeled
+condition is not a separate official split in this repository; it is
+constructed by shuffling utterances from \code{train-clean-100} with
+\code{random.Random(42)} and adding utterances until the accumulated audio
+duration reaches 10 hours, as implemented by
+\code{CausalSpecUnit/data.py::subset\_items\_by\_hours}. The 960h labeled
+condition is reported in the main paper, but the exact local launch command
+for all 960h rows was not found in the inspected scripts.
+
+\section{Compute Accounting}
+The main paper reports 42 GPU-hours for the final two-stage method. The
+accounting is:
+\[
+  \mathrm{GPU\mbox{-}hours} =
+  \mathrm{wall\mbox{-}hours} \times \mathrm{number\ of\ GPUs}.
+\]
+The available scripts use two GPUs for SSL pretraining. The 42 GPU-hour
+number is a linear estimate for 250k total SSL updates (150k iter-1 plus
+100k iter-2) from a measured 100k-step throughput of about 8.4 wall-hours
+on two GPUs. Thus $8.4 \times 2 \times 2.5 \approx 42$ GPU-hours.
+The exact GPU model is not recoverable from the local repository:
+\todo{confirm GPU model and whether the 8.4h timing came from the final
+hardware used for the reported result}. External wav2vec~2.0 and HuBERT
+compute values in the main table are published-report figures and are not
+matched-hardware measurements.
+
+\section{Additional Results and Robustness}
+No multi-seed result table, training-curve export, or completed
+phone-purity output file was found in the local repository snapshot. The
+main paper should therefore be read as reporting single-run WER values
+unless additional logs are added before submission.
+
+\section{Reproducibility Checklist}
+\begin{tabular}{@{}p{0.45\linewidth}p{0.45\linewidth}@{}}
+\toprule
+Item & Status \\
+\midrule
+Dataset splits defined & Partially; 960h fine-tune launch needs confirmation \\
+Preprocessing parameters reported & Yes \\
+Target-generation parameters reported & Yes \\
+Model architecture specified & Yes \\
+SSL optimization specified & Yes, except model seed policy \\
+CTC optimization specified & Yes for 10h/100h scripts \\
+Decoding specified & Yes, greedy CTC without LM \\
+Hardware/accounting specified & Partially; GPU model TODO \\
+Seeds reported & Target and 10h subset seeds reported; training seed TODO \\
+Code/checkpoint release status & \todo{state anonymous release plan for camera-ready} \\
+\bottomrule
+\end{tabular}
+
+\end{document}

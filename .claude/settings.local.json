@@ -2,7 +2,24 @@
   "permissions": {
     "allow": [
       "Bash(python -m py_compile pretrain_wav2vec2.py)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(chmod +x /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/02_pretrain_ssl_v3_distill_150k_c8.sh)",
+      "Bash(bash -n /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/02_pretrain_ssl_v3_distill_150k_c8.sh)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('/Users/vasilvasilev/Desktop/Projects/LoreaEnc/CausalSpecUnit/pretrain_ssl.py'\\).read\\(\\)\\); ast.parse\\(open\\('/Users/vasilvasilev/Desktop/Projects/LoreaEnc/CausalSpecUnit/model.py'\\).read\\(\\)\\); print\\('parses'\\)\")",
+      "Bash(chmod +x /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/03_train_ctc_150ep_anchored.sh)",
+      "Bash(bash -n /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/03_train_ctc_150ep_anchored.sh)",
+      "Bash(python3 -c ' *)",
+      "Bash(chmod +x /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/02_pretrain_ssl_200k_c8.sh)",
+      "Bash(bash -n /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/02_pretrain_ssl_200k_c8.sh)",
+      "Bash(grep -E \"^-.*\\\\.sh$\")",
+      "Bash(awk '{print $NF}')",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('/Users/vasilvasilev/Desktop/Projects/LoreaEnc/CausalSpecUnit/data.py'\\).read\\(\\)\\); ast.parse\\(open\\('/Users/vasilvasilev/Desktop/Projects/LoreaEnc/CausalSpecUnit/evaluate_ctc.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(chmod +x /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/04_iter2_pretrain_chain.sh /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/05_iter2_finetune.sh)",
+      "Bash(bash -n /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/04_iter2_pretrain_chain.sh)",
+      "Bash(bash -n /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/05_iter2_finetune.sh)",
+      "Bash(chmod +x /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/06_test_table.sh)",
+      "Bash(bash -n /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/06_test_table.sh)",
+      "Bash(bash -n /Users/vasilvasilev/Desktop/Projects/LoreaEnc/slurm/causal_specunit/06_test_table_scratch_960h.sh)"
     ]
   }
 }
