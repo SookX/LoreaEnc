@@ -127,7 +127,7 @@ for CONDITION in "${CONDITIONS[@]}"; do
                 --output-dir "${OUT_DIR}" \
                 --variant xs \
                 --epochs 150 \
-                --batch-size 64 \
+                --batch-size 8 \
                 --grad-accum-steps 1 \
                 --eval-batch-size 128 \
                 --eval-split dev-other \
