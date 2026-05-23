@@ -44,7 +44,7 @@ VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="${DATA_ROOT:-dataset/datasets/librispeech/LibriSpeech}"
 TARGETS_DIR="${TARGETS_DIR:-outputs/causal_specunit/targets_960h_c8}"
 TOKENIZER_PATH="${TOKENIZER_PATH:-dataset/bpe128.model}"
-OUTPUT_ROOT="${OUTPUT_ROOT:-outputs/causal_specunit/asr_poc_4gpu_tuned}"
+OUTPUT_ROOT="${OUTPUT_ROOT:-outputs/causal_specunit/asr_poc_4gpu_test_table_ref}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
 
 if [ -n "${SUBSETS:-}" ]; then
@@ -103,42 +103,42 @@ resolve_ssl_ckpt() {
 configure_recipe() {
     case "${SUBSET}" in
         librilight_10min)
-            # Mirror of the ~94% WER recipe (batch=8 on 2 GPUs = effective 16),
-            # now redistributed as batch=4 × 4 GPUs = effective 16 — identical
-            # gradient noise and optimizer step counts. Adds *light* SpecAug
-            # on top: small masks, single time/freq mask per utterance, turned
-            # off for the final epochs so the model settles on clean inputs.
+            # 06_test_table.sh reference recipe, with only the batch reduced
+            # from the 10h setting. The earlier good 10min run used batch=8
+            # on 2 GPUs (effective 16); on this 4-GPU job that is batch=4.
             EPOCHS="150"
             BATCH_SIZE="4"
             GRAD_ACCUM_STEPS="1"
             EVAL_EVERY="1"
             SAVE_EVERY="10"
-            ENCODER_LR="5e-5"
+            ENCODER_LR="3e-4"
             HEAD_LR="1e-3"
             WARMUP_EPOCHS="10"
             PEAK_EPOCHS="50"
-            MAX_GRAD_NORM="5.0"
-            SPECAUG_TIME_MASK_PARAM="10"
-            SPECAUG_FREQ_MASK_PARAM="5"
-            SPECAUG_TIME_MASKS="1"
-            SPECAUG_FREQ_MASKS="1"
-            SPECAUG_DISABLE_LAST_EPOCHS="15"
+            MAX_GRAD_NORM="1.0"
+            SPECAUG_TIME_MASK_PARAM="30"
+            SPECAUG_FREQ_MASK_PARAM="20"
+            SPECAUG_TIME_MASKS="2"
+            SPECAUG_FREQ_MASKS="2"
+            SPECAUG_DISABLE_LAST_EPOCHS="10"
             ;;
         librilight_1h)
+            # Same 06_test_table.sh recipe. Batch=8 on 4 GPUs gives effective
+            # 32, still intentionally smaller than the 10h effective batch 128.
             EPOCHS="150"
             BATCH_SIZE="8"
             GRAD_ACCUM_STEPS="1"
             EVAL_EVERY="1"
             SAVE_EVERY="10"
-            ENCODER_LR="1e-4"
+            ENCODER_LR="3e-4"
             HEAD_LR="1e-3"
             WARMUP_EPOCHS="10"
             PEAK_EPOCHS="50"
-            MAX_GRAD_NORM="5.0"
-            SPECAUG_TIME_MASK_PARAM="15"
-            SPECAUG_FREQ_MASK_PARAM="10"
-            SPECAUG_TIME_MASKS="1"
-            SPECAUG_FREQ_MASKS="1"
+            MAX_GRAD_NORM="1.0"
+            SPECAUG_TIME_MASK_PARAM="30"
+            SPECAUG_FREQ_MASK_PARAM="20"
+            SPECAUG_TIME_MASKS="2"
+            SPECAUG_FREQ_MASKS="2"
             SPECAUG_DISABLE_LAST_EPOCHS="10"
             ;;
         librilight_10h)
