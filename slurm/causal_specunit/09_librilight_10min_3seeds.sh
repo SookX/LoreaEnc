@@ -1,11 +1,11 @@
 #!/bin/bash
-# Single-job sweep: all low-resource ASR conditions, 3 initializations x
-# 3 seeds per dataset, all in one 24h slurm allocation on 4 GPUs.
+# Proof-of-concept sweep: 10min + 1h, 3 initializations x 1 seed,
+# all in one 24h slurm allocation on 4 GPUs.
 #
-# Default layout: 4 datasets x 3 initializations x 3 seeds = 36 fine-tunes.
-#   datasets:   librilight_10min, librilight_1h, librilight_10h, train-clean-100
+# Default layout: 2 datasets x 3 initializations x 1 seed = 6 fine-tunes.
+#   datasets:   librilight_10min, librilight_1h
 #   conditions: scratch, iter1, iter2
-#   seeds:      42, 43, 44
+#   seeds:      42
 #
 # Each (condition, seed) cell:
 #   1) Trains with size-scaled hparams selected by SUBSET
@@ -15,20 +15,21 @@
 # Idempotent: any cell whose eval_results.json already exists is skipped on resubmit.
 #
 # Optional:
-#   SUBSETS="librilight_10min librilight_1h" sbatch ...
+#   SUBSETS="librilight_10min librilight_1h librilight_10h" sbatch ...
+#   SEED_LIST="42 43 44" sbatch ...
 
 #SBATCH --partition=common
 #SBATCH --qos=bg-eng-01
 #SBATCH --account=bg-eng-01
-#SBATCH --job-name=csu_asr_all4
+#SBATCH --job-name=csu_asr_poc4
 #SBATCH --time=24:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=64
 #SBATCH --mem=256G
 #SBATCH --gres=gpu:4
-#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_asr_all4.%j.out
-#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_asr_all4.%j.err
+#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_asr_poc4.%j.out
+#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_asr_poc4.%j.err
 
 set -euo pipefail
 
@@ -41,16 +42,20 @@ VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="${DATA_ROOT:-dataset/datasets/librispeech/LibriSpeech}"
 TARGETS_DIR="${TARGETS_DIR:-outputs/causal_specunit/targets_960h_c8}"
 TOKENIZER_PATH="${TOKENIZER_PATH:-dataset/bpe128.model}"
-OUTPUT_ROOT="${OUTPUT_ROOT:-outputs/causal_specunit/asr_all_4gpu_size_scaled}"
+OUTPUT_ROOT="${OUTPUT_ROOT:-outputs/causal_specunit/asr_poc_4gpu_tuned}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
 
 if [ -n "${SUBSETS:-}" ]; then
     read -r -a DATASETS <<< "${SUBSETS}"
 else
-    DATASETS=(librilight_10min librilight_1h librilight_10h train-clean-100)
+    DATASETS=(librilight_10min librilight_1h)
 fi
 CONDITIONS=(scratch iter1 iter2)
-SEEDS=(42 43 44)
+if [ -n "${SEED_LIST:-}" ]; then
+    read -r -a SEEDS <<< "${SEED_LIST}"
+else
+    SEEDS=(42)
+fi
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
@@ -97,23 +102,24 @@ configure_recipe() {
     case "${SUBSET}" in
         librilight_10min)
             EPOCHS="150"
-            BATCH_SIZE="1"
+            BATCH_SIZE="2"
             GRAD_ACCUM_STEPS="1"
             EVAL_EVERY="1"
             SAVE_EVERY="10"
             ENCODER_LR="5e-5"
-            HEAD_LR="2e-3"
+            HEAD_LR="1e-3"
             WARMUP_EPOCHS="10"
             PEAK_EPOCHS="50"
-            SPECAUG_TIME_MASK_PARAM="15"
-            SPECAUG_FREQ_MASK_PARAM="10"
-            SPECAUG_TIME_MASKS="1"
-            SPECAUG_FREQ_MASKS="1"
-            SPECAUG_DISABLE_LAST_EPOCHS="10"
+            MAX_GRAD_NORM="5.0"
+            SPECAUG_TIME_MASK_PARAM="0"
+            SPECAUG_FREQ_MASK_PARAM="0"
+            SPECAUG_TIME_MASKS="0"
+            SPECAUG_FREQ_MASKS="0"
+            SPECAUG_DISABLE_LAST_EPOCHS="0"
             ;;
         librilight_1h)
             EPOCHS="150"
-            BATCH_SIZE="4"
+            BATCH_SIZE="8"
             GRAD_ACCUM_STEPS="1"
             EVAL_EVERY="1"
             SAVE_EVERY="10"
@@ -121,8 +127,9 @@ configure_recipe() {
             HEAD_LR="1e-3"
             WARMUP_EPOCHS="10"
             PEAK_EPOCHS="50"
-            SPECAUG_TIME_MASK_PARAM="20"
-            SPECAUG_FREQ_MASK_PARAM="15"
+            MAX_GRAD_NORM="5.0"
+            SPECAUG_TIME_MASK_PARAM="15"
+            SPECAUG_FREQ_MASK_PARAM="10"
             SPECAUG_TIME_MASKS="1"
             SPECAUG_FREQ_MASKS="1"
             SPECAUG_DISABLE_LAST_EPOCHS="10"
@@ -137,6 +144,7 @@ configure_recipe() {
             HEAD_LR="1e-3"
             WARMUP_EPOCHS="10"
             PEAK_EPOCHS="50"
+            MAX_GRAD_NORM="1.0"
             SPECAUG_TIME_MASK_PARAM="30"
             SPECAUG_FREQ_MASK_PARAM="20"
             SPECAUG_TIME_MASKS="2"
@@ -153,6 +161,7 @@ configure_recipe() {
             HEAD_LR="1e-3"
             WARMUP_EPOCHS="10"
             PEAK_EPOCHS="50"
+            MAX_GRAD_NORM="1.0"
             SPECAUG_TIME_MASK_PARAM="40"
             SPECAUG_FREQ_MASK_PARAM="30"
             SPECAUG_TIME_MASKS="2"
@@ -167,7 +176,6 @@ configure_recipe() {
 
     LR="${LR:-1e-3}"
     NOAM_DECAY_RATE="${NOAM_DECAY_RATE:-0.5}"
-    MAX_GRAD_NORM="${MAX_GRAD_NORM:-1.0}"
     FREEZE_ENCODER_EPOCHS="${FREEZE_ENCODER_EPOCHS:-0}"
     ENCODER_REWARMUP_EPOCHS="${ENCODER_REWARMUP_EPOCHS:-0}"
     EVAL_BATCH_SIZE="${EVAL_BATCH_SIZE:-128}"
@@ -180,7 +188,7 @@ log_phase "START datasets=${DATASETS[*]} conditions=${CONDITIONS[*]} seeds=${SEE
 
 for SUBSET in "${DATASETS[@]}"; do
     configure_recipe
-    log_phase "RECIPE ${SUBSET}: epochs=${EPOCHS} per_gpu_batch=${BATCH_SIZE} accum=${GRAD_ACCUM_STEPS} encoder_lr=${ENCODER_LR} head_lr=${HEAD_LR} specaug=${SPECAUG_TIME_MASK_PARAM}/${SPECAUG_FREQ_MASK_PARAM}x${SPECAUG_TIME_MASKS}/${SPECAUG_FREQ_MASKS}"
+    log_phase "RECIPE ${SUBSET}: epochs=${EPOCHS} per_gpu_batch=${BATCH_SIZE} accum=${GRAD_ACCUM_STEPS} encoder_lr=${ENCODER_LR} head_lr=${HEAD_LR} max_grad=${MAX_GRAD_NORM} specaug=${SPECAUG_TIME_MASK_PARAM}/${SPECAUG_FREQ_MASK_PARAM}x${SPECAUG_TIME_MASKS}/${SPECAUG_FREQ_MASKS}"
 
     for CONDITION in "${CONDITIONS[@]}"; do
         SSL_CHECKPOINT=$(resolve_ssl_ckpt "${CONDITION}")
