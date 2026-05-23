@@ -22,10 +22,12 @@ VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 TARGETS_DIR="${TARGETS_DIR:-outputs/causal_specunit/targets_960h_c8}"
 TEXTGRID_DIR="${TEXTGRID_DIR:-CausalSpecUnit/librispeech_alignments}"
 OUTPUT_PATH="${OUTPUT_PATH:-outputs/causal_specunit/phone_purity_c8.npz}"
+MAX_UTTERANCES="${MAX_UTTERANCES:-}"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
 export PYTHONFAULTHANDLER=1
+export PYTHONUNBUFFERED=1
 
 cd "${PROJECT_DIR}"
 mkdir -p logs outputs/causal_specunit
@@ -42,15 +44,33 @@ if [ ! -d "${TEXTGRID_DIR}" ]; then
     exit 1
 fi
 
-python -m CausalSpecUnit.evaluate_phone_purity \
+echo "Job id: ${SLURM_JOB_ID}"
+echo "Started: $(date)"
+echo "Targets: ${TARGETS_DIR}"
+echo "TextGrids: ${TEXTGRID_DIR}"
+echo "Max utterances: ${MAX_UTTERANCES:-all}"
+echo "Phase 1/2: phone purity including silence -> ${OUTPUT_PATH}"
+
+EXTRA_ARGS=()
+if [ -n "${MAX_UTTERANCES}" ]; then
+    EXTRA_ARGS+=(--max-utterances "${MAX_UTTERANCES}")
+fi
+
+python -u -m CausalSpecUnit.evaluate_phone_purity \
     --targets-dir "${TARGETS_DIR}" \
     --textgrid-dir "${TEXTGRID_DIR}" \
     --tier phones \
-    --output "${OUTPUT_PATH}"
+    --output "${OUTPUT_PATH}" \
+    "${EXTRA_ARGS[@]}"
 
-python -m CausalSpecUnit.evaluate_phone_purity \
+echo "Phase 2/2: phone purity excluding silence -> outputs/causal_specunit/phone_purity_c8_no_silence.npz"
+
+python -u -m CausalSpecUnit.evaluate_phone_purity \
     --targets-dir "${TARGETS_DIR}" \
     --textgrid-dir "${TEXTGRID_DIR}" \
     --tier phones \
     --exclude-silence \
-    --output "outputs/causal_specunit/phone_purity_c8_no_silence.npz"
+    --output "outputs/causal_specunit/phone_purity_c8_no_silence.npz" \
+    "${EXTRA_ARGS[@]}"
+
+echo "Finished: $(date)"

@@ -362,13 +362,13 @@ model.
       \begin{sc}
         \begin{tabular}{lcccccc}
           \toprule
-                                              & \multicolumn{2}{c}{10h} & \multicolumn{2}{c}{100h} & \multicolumn{2}{c}{960h}                                                              \\
+                                              & \multicolumn{2}{c}{10h} & \multicolumn{2}{c}{100h} & \multicolumn{2}{c}{960h} \\
           \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
-          Method                              & clean                   & other                    & clean                    & other         & clean         & other         \\
+          Method                              & clean          & other          & clean          & other          & clean         & other         \\
           \midrule
-          SqueezeFormer-XS (scratch)          & x.xx                    & 80.1                     & x.x                      & 55.1          & x.xx           & xx.x          \\
-          \quad + SSL (iter-1)                & x.xx                    & 53.6                     & x.x                      & 44.4          & x.xx           & xx.x          \\
-          \quad \textbf{+ SSL (iter-2, ours)} & \textbf{x.xx}           & \textbf{49.8}            & \textbf{x.x}             & \textbf{39.1} & \textbf{x.x}  & \textbf{x.xx} \\
+          SqueezeFormer-XS (scratch)          & 71.28          & 82.48          & 21.51          & 44.96          & \textbf{5.12} & \textbf{13.57} \\
+          \quad + SSL (iter-1)                & 36.23          & 55.67          & 18.36          & 40.21          & 5.69          & 14.39         \\
+          \quad \textbf{+ SSL (iter-2, ours)} & \textbf{32.11} & \textbf{50.21} & \textbf{17.43} & \textbf{37.32} & 6.90          & 16.86         \\
           \bottomrule
         \end{tabular}
       \end{sc}
@@ -381,27 +381,33 @@ model.
 \cref{tab:main} reports WER on LibriSpeech \textit{test-clean} and
 \textit{test-other} at the three labeled-data budgets, and
 \cref{fig:wer-vs-hours} visualizes the same numbers across the
-labeled-data axis. Our SSL-pretrained SqueezeFormer improves over the
-from-scratch baseline at every low-resource budget, with the largest
-relative gain in the 10h regime. A second iteration of cluster
-refinement --- where targets are re-derived from the pretrained
+labeled-data axis. Spectrogram-domain SSL improves over the
+from-scratch baseline by a large margin in the low-resource regime:
+at 10h, iter-2 cuts test-clean WER from $71.3\%$ to $\mathbf{32.1\%}$
+(a $55\%$ relative reduction), and test-other from $82.5\%$ to
+$\mathbf{50.2\%}$ ($39\%$ relative). At 100h the gap narrows but
+remains positive ($21.5\%\rightarrow17.4\%$ on test-clean,
+$45.0\%\rightarrow37.3\%$ on test-other). A second iteration of
+cluster refinement --- where targets are re-derived from the iter-1
 encoder's hidden states rather than raw log-mel chunks --- yields a
-further improvement, mirroring the iter-1/iter-2 gap reported by
-HuBERT~\citep{hubert}.
+small further improvement at both low-resource budgets, mirroring the
+iter-1/iter-2 gap reported by HuBERT~\citep{hubert}.
 
-The gains decrease as the amount of labeled data grows --- a
-well-documented diminishing-returns pattern for SSL on
-speech~\citep{wav2vec2,hubert}. In the 960h regime, the scratch model
-already receives dense transcript supervision over the full LibriSpeech
-training set and learns strong acoustic representations directly from
-the CTC objective. The decisive contribution of spectrogram-domain SSL
-is therefore label efficiency: in the 10h regime, where pretraining
-matters most, our recipe reduces test-other WER by 30.3 absolute points
-relative to scratch. We treat the 960h scratch model as a
-high-resource supervised reference for the labeled-data axis, not as the
-primary target of the method. For compact models, this crossover regime
-between SSL benefit and supervised saturation has not, to our knowledge,
-been previously characterized at this model scale.
+The gains decrease as labeled data grows --- a well-documented
+diminishing-returns pattern for SSL on speech~\citep{wav2vec2,hubert}.
+At 960h, where the scratch model already receives dense transcript
+supervision over the full LibriSpeech training set and learns strong
+acoustic representations directly from the CTC objective, both SSL
+initializations slightly underperform scratch, and the iter-2
+refinement provides no benefit over iter-1 at this budget. This
+crossover behavior --- visible in \cref{fig:wer-vs-hours} --- confirms
+that the value of spectrogram-domain SSL is concentrated in the
+low- and mid-resource regimes, where pretraining is most consequential.
+The decisive contribution is therefore label efficiency: in the 10h
+regime, our recipe reduces test-clean WER by $39.2$ absolute points
+relative to scratch. We treat the 960h scratch model as a high-resource
+supervised reference for the labeled-data axis, not as the primary
+target of the method.
 
 
 
@@ -503,6 +509,11 @@ multilingual transfer, or decoding with an external language model. Our
 compute comparison against HuBERT and wav2vec~2.0 is based on figures
 reported in the original papers; a controlled matched-compute and
 matched-hardware comparison would strengthen the efficiency claim.
+Finally, the iter-2 refinement step is consistently helpful at
+$\leq$100h but does not improve over iter-1 at the full 960h budget;
+we attribute this to the diminishing value of cluster-refinement when
+the downstream supervised signal alone is sufficient to learn
+comparable representations.
 
 \nocite{langley00}
 
