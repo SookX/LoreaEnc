@@ -1,10 +1,16 @@
 #!/bin/bash
-#SBATCH --job-name=prep_librilight
-#SBATCH --output=logs/prep_librilight.%j.out
-#SBATCH --error=logs/prep_librilight.%j.err
+#SBATCH --partition=common
+#SBATCH --qos=bg-eng-01
+#SBATCH --account=bg-eng-01
+#SBATCH --job-name=csu_prep_librilight
 #SBATCH --time=04:00:00
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --gres=gpu:1
+#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_prep_librilight.%j.out
+#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_prep_librilight.%j.err
 
 set -euo pipefail
 
