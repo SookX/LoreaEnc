@@ -17,6 +17,8 @@
 # Optional:
 #   SUBSETS="librilight_10min librilight_1h librilight_10h" sbatch ...
 #   SEED_LIST="42 43 44" sbatch ...
+#   CLEAN_FIRST=1 sbatch ...   # wipe each cell's output dir before training
+#                              # (NFS-safe: ignores .nfs* busy-file handles)
 
 #SBATCH --partition=common
 #SBATCH --qos=bg-eng-01
@@ -101,21 +103,27 @@ resolve_ssl_ckpt() {
 configure_recipe() {
     case "${SUBSET}" in
         librilight_10min)
-            EPOCHS="150"
-            BATCH_SIZE="2"
-            GRAD_ACCUM_STEPS="1"
+            # 60 utterances total. Previous recipe (batch=2, lr=5e-5, no SpecAug)
+            # collapsed to blank-heavy outputs (WER ~100%). Updated recipe:
+            #   - Effective batch 32 (4 × 4 GPUs × 2 accum) for stable gradients
+            #   - 4x higher encoder LR so SSL features actually adapt
+            #   - Mild SpecAug — augmentation isn't optional at 60 utterances
+            #   - 2x epochs since each is tiny
+            EPOCHS="300"
+            BATCH_SIZE="4"
+            GRAD_ACCUM_STEPS="2"
             EVAL_EVERY="1"
             SAVE_EVERY="10"
-            ENCODER_LR="5e-5"
+            ENCODER_LR="2e-4"
             HEAD_LR="1e-3"
-            WARMUP_EPOCHS="10"
-            PEAK_EPOCHS="50"
-            MAX_GRAD_NORM="5.0"
-            SPECAUG_TIME_MASK_PARAM="0"
-            SPECAUG_FREQ_MASK_PARAM="0"
-            SPECAUG_TIME_MASKS="0"
-            SPECAUG_FREQ_MASKS="0"
-            SPECAUG_DISABLE_LAST_EPOCHS="0"
+            WARMUP_EPOCHS="20"
+            PEAK_EPOCHS="100"
+            MAX_GRAD_NORM="1.0"
+            SPECAUG_TIME_MASK_PARAM="10"
+            SPECAUG_FREQ_MASK_PARAM="5"
+            SPECAUG_TIME_MASKS="1"
+            SPECAUG_FREQ_MASKS="1"
+            SPECAUG_DISABLE_LAST_EPOCHS="30"
             ;;
         librilight_1h)
             EPOCHS="150"
@@ -208,6 +216,16 @@ for SUBSET in "${DATASETS[@]}"; do
             mkdir -p "${OUT_DIR}"
 
             log_phase "CELL ${CELL_IDX}/${TOTAL_CELLS}: ${SUBSET} | ${CONDITION} | seed=${SEED}"
+
+            # CLEAN_FIRST=1 wipes the cell directory before retraining. Use
+            # this when a previous run produced broken checkpoints/metrics
+            # (e.g. the collapse-to-blanks failure on librilight_10min).
+            # NFS-safe: '.nfs*' busy-file handles are silently skipped instead
+            # of crashing the entire rm.
+            if [ "${CLEAN_FIRST:-0}" = "1" ] && [ -d "${OUT_DIR}" ]; then
+                log_phase "  CLEAN_FIRST=1 → wiping ${OUT_DIR}"
+                find "${OUT_DIR}" -mindepth 1 ! -name ".nfs*" -delete 2>/dev/null || true
+            fi
 
             if [ -f "${OUT_DIR}/eval_results.json" ]; then
                 log_phase "SKIP — eval_results.json exists at ${OUT_DIR}"
