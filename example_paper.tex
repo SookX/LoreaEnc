@@ -67,7 +67,7 @@
 \printAffiliationsAndNotice{}
 
 \begin{abstract}
-Automatic speech recognition (ASR) systems depend on large amounts of labeled data, a constraint that self-supervised pretraining (SSL) aims to alleviate. While existing SSL methods such as wav2vec~2.0 and HuBERT achieve state-of-the-art performance, they operate on raw waveforms and require thousands of GPU-hours of pretraining, making them impractical in compute-constrained and edge-deployment settings. In this paper, we reformulate self-supervised speech representation learning to operate entirely in the spectrogram domain, using a HuBERT-style masked-prediction objective over dual-codebook discrete units derived from short log-mel chunks. Applied to a 9M-parameter SqueezeFormer-XS encoder, our recipe reduces test-other WER from 80.1\% to 49.8\% (30.3 absolute, 38\% relative) when fine-tuned on 10 hours of labeled data, and from 55.1\% to 39.1\% (16.0 absolute, 29\% relative) on 100 hours --- at \emph{42 GPU-hours} of total pretraining, roughly $\mathbf{50\times}$ less than wav2vec~2.0 Base.
+Automatic speech recognition (ASR) systems depend on large amounts of labeled data, a constraint that self-supervised pretraining (SSL) aims to alleviate. While existing SSL methods such as wav2vec~2.0 and HuBERT achieve state-of-the-art performance, they operate on raw waveforms and require thousands of GPU-hours of pretraining, making them impractical in compute-constrained and edge-deployment settings. In this paper, we reformulate self-supervised speech representation learning to operate entirely in the spectrogram domain, using a HuBERT-style masked-prediction objective over dual-codebook discrete units derived from short log-mel chunks. Applied to a 9M-parameter SqueezeFormer-XS encoder, our recipe reduces test-clean WER from 71.3\% to \textbf{32.1\%} (39.2 absolute, \textbf{55\% relative}) when fine-tuned on 10 hours of labeled data, and from 21.5\% to 17.4\% (4.1 absolute, 19\% relative) on 100 hours --- at \emph{42 GPU-hours} of total pretraining, roughly $\mathbf{50\times}$ less than wav2vec~2.0 Base.
 \end{abstract}
 
 \begin{figure}[t!]
@@ -114,33 +114,32 @@ Automatic speech recognition (ASR) systems depend on large amounts of labeled da
       % --- Shaded "low-resource regime" band ---
       \fill[plotBand] (axis cs:7,5) rectangle (axis cs:316,92);
 
-      % --- Scratch baseline (placeholder values) ---
+      % --- Scratch baseline ---
       \addplot[color=plotScratch, dashed, mark=square*,
                mark options={fill=white, draw=plotScratch}]
-        coordinates {(10, 80.1) (100, 55.1) (960, 13.4)};
+        coordinates {(10, 82.48) (100, 44.96) (960, 13.57)};
       \addlegendentry{Scratch}
 
-      % --- SSL iter-1 (placeholder values) ---
+      % --- SSL iter-1 ---
       \addplot[color=plotIter1, mark=triangle*]
-        coordinates {(10, 53.6) (100, 44.4) (960, 15.6)};
+        coordinates {(10, 55.67) (100, 40.21) (960, 14.39)};
       \addlegendentry{+ SSL (iter-1)}
 
-      % --- SSL iter-2 (placeholder values) — highlighted as the result ---
+      % --- SSL iter-2 (ours) — highlighted ---
       \addplot[color=plotIter2, mark=*, line width=1.6pt]
-        coordinates {(10, 49.8) (100, 39.1) (960, 14.0)};
+        coordinates {(10, 50.21) (100, 37.32) (960, 16.86)};
       \addlegendentry{\textbf{+ SSL (iter-2, ours)}}
 
-      % --- Inline data labels on the iter-2 line: pinned above each marker
-      % with a white background so they "punch through" any nearby line.
+      % --- Inline data labels on the iter-2 line ---
       \node[font=\scriptsize\bfseries, plotIter2, fill=white, inner sep=1.2pt,
             anchor=south, yshift=4pt]
-        at (axis cs:10,49.8)  {49.8};
+        at (axis cs:10,50.21)  {50.2};
       \node[font=\scriptsize\bfseries, plotIter2, fill=white, inner sep=1.2pt,
             anchor=south, yshift=4pt]
-        at (axis cs:100,39.1) {39.1};
+        at (axis cs:100,37.32) {37.3};
       \node[font=\scriptsize\bfseries, plotIter2, fill=white, inner sep=1.2pt,
             anchor=south, yshift=8pt]
-        at (axis cs:960,14.0) {14.0};
+        at (axis cs:960,16.86) {16.9};
 
       % --- Region annotation: italic label inside the shaded band, kept
       % well above any line via a large yshift so nothing overlaps.
@@ -151,9 +150,8 @@ Automatic speech recognition (ASR) systems depend on large amounts of labeled da
   \vskip -1ex
   \caption{Test-other WER vs.\ labeled fine-tuning data on LibriSpeech.
     Spectrogram-domain SSL delivers large absolute WER reductions in the
-    low-resource regime (shaded band). \emph{Values are placeholders
-    matching Table~\ref{tab:main}; final numbers will replace these in
-    the camera-ready.}}
+    low-resource regime (shaded band). At 960h, where dense supervision
+    already dominates, the gain disappears.}
   \label{fig:wer-vs-hours}
 \end{figure}
 

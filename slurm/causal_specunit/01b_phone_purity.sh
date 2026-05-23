@@ -8,6 +8,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
+#SBATCH --gres=gpu:1
 #SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_purity.%j.out
 #SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_purity.%j.err
 
@@ -18,9 +19,9 @@ module load anaconda3
 
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
-TARGETS_DIR="outputs/causal_specunit/targets_960h_c8"
+TARGETS_DIR="${TARGETS_DIR:-outputs/causal_specunit/targets_960h_c8}"
 TEXTGRID_DIR="${TEXTGRID_DIR:-CausalSpecUnit/librispeech_alignments}"
-OUTPUT_PATH="outputs/causal_specunit/phone_purity_c8.npz"
+OUTPUT_PATH="${OUTPUT_PATH:-outputs/causal_specunit/phone_purity_c8.npz}"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
