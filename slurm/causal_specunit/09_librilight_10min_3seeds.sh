@@ -103,27 +103,26 @@ resolve_ssl_ckpt() {
 configure_recipe() {
     case "${SUBSET}" in
         librilight_10min)
-            # 60 utterances total. Previous recipe (batch=2, lr=5e-5, no SpecAug)
-            # collapsed to blank-heavy outputs (WER ~100%). Updated recipe:
-            #   - Effective batch 32 (4 × 4 GPUs × 2 accum) for stable gradients
-            #   - 4x higher encoder LR so SSL features actually adapt
-            #   - Mild SpecAug — augmentation isn't optional at 60 utterances
-            #   - 2x epochs since each is tiny
-            EPOCHS="300"
+            # Mirror of the ~94% WER recipe (batch=8 on 2 GPUs = effective 16),
+            # now redistributed as batch=4 × 4 GPUs = effective 16 — identical
+            # gradient noise and optimizer step counts. Adds *light* SpecAug
+            # on top: small masks, single time/freq mask per utterance, turned
+            # off for the final epochs so the model settles on clean inputs.
+            EPOCHS="150"
             BATCH_SIZE="4"
-            GRAD_ACCUM_STEPS="2"
+            GRAD_ACCUM_STEPS="1"
             EVAL_EVERY="1"
             SAVE_EVERY="10"
-            ENCODER_LR="2e-4"
+            ENCODER_LR="5e-5"
             HEAD_LR="1e-3"
-            WARMUP_EPOCHS="20"
-            PEAK_EPOCHS="100"
-            MAX_GRAD_NORM="1.0"
+            WARMUP_EPOCHS="10"
+            PEAK_EPOCHS="50"
+            MAX_GRAD_NORM="5.0"
             SPECAUG_TIME_MASK_PARAM="10"
             SPECAUG_FREQ_MASK_PARAM="5"
             SPECAUG_TIME_MASKS="1"
             SPECAUG_FREQ_MASKS="1"
-            SPECAUG_DISABLE_LAST_EPOCHS="30"
+            SPECAUG_DISABLE_LAST_EPOCHS="15"
             ;;
         librilight_1h)
             EPOCHS="150"
