@@ -103,24 +103,29 @@ resolve_ssl_ckpt() {
 configure_recipe() {
     case "${SUBSET}" in
         librilight_10min)
-            # 06_test_table.sh reference recipe, with only the batch reduced
-            # from the 10h setting. The earlier good 10min run used batch=8
-            # on 2 GPUs (effective 16); on this 4-GPU job that is batch=4.
-            EPOCHS="150"
-            BATCH_SIZE="4"
+            # 60 utterances. Previous test_table-style recipe produced WER 98%
+            # with collapse to blank-heavy outputs ("theooo", deletion 72%).
+            # Two targeted changes vs the test_table baseline:
+            #   1) batch=2 with 4 GPUs (effective batch 8) → ~7 opt-steps/epoch
+            #      × 300 epochs ≈ 2100 total steps, ~5× the previous 450 steps.
+            #   2) Light SpecAug (10×1 / 5×1 instead of 30×2 / 20×2). At 60 utt,
+            #      heavy masking removes more signal than the model can recover.
+            # LR / clipping unchanged so the comparison vs 1h remains principled.
+            EPOCHS="300"
+            BATCH_SIZE="2"
             GRAD_ACCUM_STEPS="1"
             EVAL_EVERY="1"
-            SAVE_EVERY="10"
+            SAVE_EVERY="20"
             ENCODER_LR="3e-4"
             HEAD_LR="1e-3"
-            WARMUP_EPOCHS="10"
-            PEAK_EPOCHS="50"
+            WARMUP_EPOCHS="20"
+            PEAK_EPOCHS="80"
             MAX_GRAD_NORM="1.0"
-            SPECAUG_TIME_MASK_PARAM="30"
-            SPECAUG_FREQ_MASK_PARAM="20"
-            SPECAUG_TIME_MASKS="2"
-            SPECAUG_FREQ_MASKS="2"
-            SPECAUG_DISABLE_LAST_EPOCHS="10"
+            SPECAUG_TIME_MASK_PARAM="10"
+            SPECAUG_FREQ_MASK_PARAM="5"
+            SPECAUG_TIME_MASKS="1"
+            SPECAUG_FREQ_MASKS="1"
+            SPECAUG_DISABLE_LAST_EPOCHS="30"
             ;;
         librilight_1h)
             # Same 06_test_table.sh recipe. Batch=8 on 4 GPUs gives effective
