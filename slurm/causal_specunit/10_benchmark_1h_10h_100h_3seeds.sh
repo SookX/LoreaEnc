@@ -1,20 +1,26 @@
 #!/bin/bash
-# Benchmark ASR fine-tunes for:
-#   - Libri-Light 1h
-#   - Libri-Light 10h
-#   - LibriSpeech train-clean-100
+# One Slurm job for the full benchmark:
+#   3 data variants x 3 models x 3 seeds = 27 fine-tunes.
 #
-# Array layout: 3 splits x 3 initializations x 3 seeds = 27 jobs.
+# Data variants:
+#   librilight_1h, librilight_10h, train-clean-100
 #
-# Submit the full benchmark:
-#   sbatch --array=0-26 slurm/causal_specunit/10_benchmark_1h_10h_100h_3seeds.sh
+# Models:
+#   scratch, iter1, iter2
 #
-# Or run one explicit cell:
-#   sbatch --export=ALL,SUBSET=librilight_1h,CONDITION=iter1,SEED=42 \
-#     slurm/causal_specunit/10_benchmark_1h_10h_100h_3seeds.sh
+# Seeds:
+#   42, 43, 44
 #
-# Only the per-GPU batch size changes by split. Optimizer, schedule,
-# SpecAugment, epochs, eval, and checkpoint settings are shared.
+# Submit:
+#   sbatch slurm/causal_specunit/10_benchmark_1h_10h_100h_3seeds.sh
+#
+# Optional filters:
+#   SUBSETS="librilight_1h librilight_10h" sbatch ...
+#   CONDITIONS="scratch iter1 iter2" sbatch ...
+#   SEED_LIST="42" sbatch ...
+#   CLEAN_FIRST=1 sbatch ...
+#
+# Shared recipe across all cells. Only per-GPU batch size changes by split.
 
 #SBATCH --partition=common
 #SBATCH --qos=bg-eng-01
@@ -26,8 +32,8 @@
 #SBATCH --cpus-per-task=64
 #SBATCH --mem=256G
 #SBATCH --gres=gpu:4
-#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_asr_bench.%A_%a.out
-#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_asr_bench.%A_%a.err
+#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_asr_bench.%j.out
+#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_asr_bench.%j.err
 
 set -euo pipefail
 
@@ -43,60 +49,26 @@ TOKENIZER_PATH="${TOKENIZER_PATH:-dataset/bpe128.model}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-outputs/causal_specunit/benchmark_1h_10h_100h_4gpu}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
 
-SUBSETS_DEFAULT=(librilight_1h librilight_10h train-clean-100)
-CONDITIONS_DEFAULT=(scratch iter1 iter2)
-SEEDS_DEFAULT=(42 43 44)
-
-if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then
-    TASK_ID="${SLURM_ARRAY_TASK_ID:-0}"
-    NUM_SEEDS="${#SEEDS_DEFAULT[@]}"
-    NUM_CONDITIONS="${#CONDITIONS_DEFAULT[@]}"
-    SEED_INDEX=$((TASK_ID % NUM_SEEDS))
-    CONDITION_INDEX=$(((TASK_ID / NUM_SEEDS) % NUM_CONDITIONS))
-    SUBSET_INDEX=$((TASK_ID / (NUM_SEEDS * NUM_CONDITIONS)))
-
-    if [ "${SUBSET_INDEX}" -ge "${#SUBSETS_DEFAULT[@]}" ]; then
-        echo "Invalid SLURM_ARRAY_TASK_ID=${TASK_ID}; expected 0-26"
-        exit 1
-    fi
-
-    SUBSET="${SUBSETS_DEFAULT[${SUBSET_INDEX}]}"
-    CONDITION="${CONDITIONS_DEFAULT[${CONDITION_INDEX}]}"
-    SEED="${SEEDS_DEFAULT[${SEED_INDEX}]}"
-elif [ -n "${SUBSET:-}" ] || [ -n "${CONDITION:-}" ] || [ -n "${SEED:-}" ]; then
-    : "${SUBSET:?Required when running an explicit cell}"
-    : "${CONDITION:?Required when running an explicit cell}"
-    : "${SEED:?Required when running an explicit cell}"
+if [ -n "${SUBSETS:-}" ]; then
+    read -r -a DATASETS <<< "${SUBSETS}"
 else
-    SUBSET="${SUBSETS_DEFAULT[0]}"
-    CONDITION="${CONDITIONS_DEFAULT[0]}"
-    SEED="${SEEDS_DEFAULT[0]}"
+    DATASETS=(librilight_1h librilight_10h train-clean-100)
 fi
 
-case "${SUBSET}" in
-    librilight_1h)
-        BATCH_SIZE="${BATCH_SIZE_1H:-8}"
-        ;;
-    librilight_10h)
-        BATCH_SIZE="${BATCH_SIZE_10H:-32}"
-        ;;
-    train-clean-100)
-        BATCH_SIZE="${BATCH_SIZE_100H:-128}"
-        ;;
-    *)
-        echo "Invalid SUBSET=${SUBSET}; expected librilight_1h, librilight_10h, or train-clean-100"
-        exit 1
-        ;;
-esac
+if [ -n "${CONDITIONS:-}" ]; then
+    read -r -a MODEL_CONDITIONS <<< "${CONDITIONS}"
+else
+    MODEL_CONDITIONS=(scratch iter1 iter2)
+fi
 
-case "${CONDITION}" in
-    scratch) SSL_CHECKPOINT="" ;;
-    iter1)   SSL_CHECKPOINT="outputs/causal_specunit/pretrain_ssl_v2_150k_c8/checkpoint_step150000/checkpoint.pt" ;;
-    iter2)   SSL_CHECKPOINT="outputs/causal_specunit/pretrain_ssl_iter2_from_v2_c8/checkpoint_step100000/checkpoint.pt" ;;
-    *)       echo "Invalid CONDITION=${CONDITION}; expected scratch, iter1, or iter2"; exit 1 ;;
-esac
+if [ -n "${SEED_LIST:-}" ]; then
+    read -r -a SEEDS <<< "${SEED_LIST}"
+else
+    SEEDS=(42 43 44)
+fi
 
-# Shared recipe. Do not specialize by split except BATCH_SIZE above.
+# Shared recipe. Do not specialize by split except BATCH_SIZE in
+# batch_size_for_split().
 EPOCHS="${EPOCHS:-150}"
 GRAD_ACCUM_STEPS="${GRAD_ACCUM_STEPS:-1}"
 EVAL_BATCH_SIZE="${EVAL_BATCH_SIZE:-128}"
@@ -115,8 +87,6 @@ SPECAUG_FREQ_MASKS="${SPECAUG_FREQ_MASKS:-2}"
 SPECAUG_DISABLE_LAST_EPOCHS="${SPECAUG_DISABLE_LAST_EPOCHS:-10}"
 SAVE_EVERY="${SAVE_EVERY:-10}"
 
-OUT_DIR="${OUTPUT_ROOT}/${SUBSET}/${CONDITION}_seed${SEED}"
-
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
 export PYTHONFAULTHANDLER=1
@@ -128,100 +98,164 @@ export NCCL_SOCKET_IFNAME="${NCCL_SOCKET_IFNAME:-^lo,docker}"
 export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 
 cd "${PROJECT_DIR}"
-mkdir -p logs "${OUT_DIR}"
+mkdir -p logs
 
+log_phase() {
+    echo ""
+    echo "===================================================="
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    echo "===================================================="
+}
+
+batch_size_for_split() {
+    case "$1" in
+        librilight_1h)   echo "${BATCH_SIZE_1H:-8}" ;;
+        librilight_10h)  echo "${BATCH_SIZE_10H:-32}" ;;
+        train-clean-100) echo "${BATCH_SIZE_100H:-128}" ;;
+        *) echo "ERROR"; return 1 ;;
+    esac
+}
+
+resolve_ssl_ckpt() {
+    case "$1" in
+        scratch) echo "" ;;
+        iter1)   echo "outputs/causal_specunit/pretrain_ssl_v2_150k_c8/checkpoint_step150000/checkpoint.pt" ;;
+        iter2)   echo "outputs/causal_specunit/pretrain_ssl_iter2_from_v2_c8/checkpoint_step100000/checkpoint.pt" ;;
+        *)       echo "ERROR"; return 1 ;;
+    esac
+}
+
+# Sanity checks
 [ -d "${VIRTUAL_ENV}" ]          || { echo "Missing venv: ${VIRTUAL_ENV}"; exit 1; }
-[ -d "${DATA_ROOT}/${SUBSET}" ]  || { echo "Missing train split: ${DATA_ROOT}/${SUBSET}"; exit 1; }
 [ -d "${DATA_ROOT}/dev-other" ]  || { echo "Missing eval split: ${DATA_ROOT}/dev-other"; exit 1; }
 [ -f "${TARGETS_DIR}/cmvn.pt" ]  || { echo "Missing CMVN: ${TARGETS_DIR}/cmvn.pt"; exit 1; }
 [ -f "${TOKENIZER_PATH}" ]       || { echo "Missing tokenizer: ${TOKENIZER_PATH}"; exit 1; }
-if [ -n "${SSL_CHECKPOINT}" ] && [ ! -f "${SSL_CHECKPOINT}" ]; then
-    echo "Missing SSL checkpoint for ${CONDITION}: ${SSL_CHECKPOINT}"
-    exit 1
-fi
 
-SSL_ARGS=()
-if [ -n "${SSL_CHECKPOINT}" ]; then
-    SSL_ARGS=(--ssl-checkpoint "${SSL_CHECKPOINT}")
-fi
+for DATASET in "${DATASETS[@]}"; do
+    case "${DATASET}" in
+        librilight_1h|librilight_10h|train-clean-100) ;;
+        *) echo "Invalid split ${DATASET}; expected librilight_1h, librilight_10h, or train-clean-100"; exit 1 ;;
+    esac
+    [ -d "${DATA_ROOT}/${DATASET}" ] || { echo "Missing train split: ${DATA_ROOT}/${DATASET}"; exit 1; }
+done
 
-PORT_BASE=$((31000 + (SLURM_JOB_ID % 4000)))
+for CONDITION in "${MODEL_CONDITIONS[@]}"; do
+    SSL_CHECKPOINT=$(resolve_ssl_ckpt "${CONDITION}")
+    if [ "${SSL_CHECKPOINT}" = "ERROR" ]; then
+        echo "Invalid condition ${CONDITION}; expected scratch, iter1, or iter2"
+        exit 1
+    fi
+    if [ -n "${SSL_CHECKPOINT}" ] && [ ! -f "${SSL_CHECKPOINT}" ]; then
+        echo "Missing SSL checkpoint for ${CONDITION}: ${SSL_CHECKPOINT}"
+        exit 1
+    fi
+done
+
+PORT_BASE=$((31000 + (SLURM_JOB_ID % 3000)))
 export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
 
-echo "Benchmark cell:"
-echo "  subset=${SUBSET}"
-echo "  condition=${CONDITION}"
-echo "  seed=${SEED}"
-echo "  output=${OUT_DIR}"
-echo "  nproc=${NPROC_PER_NODE}"
-echo "  epochs=${EPOCHS}"
-echo "  batch_size=${BATCH_SIZE}"
-echo "  grad_accum=${GRAD_ACCUM_STEPS}"
-echo "  lr=${BASE_LR} encoder_lr=${ENCODER_LR} head_lr=${HEAD_LR}"
+TOTAL_CELLS=$((${#DATASETS[@]} * ${#MODEL_CONDITIONS[@]} * ${#SEEDS[@]}))
+CELL_IDX=0
 
-if [ "${CLEAN_FIRST:-0}" = "1" ] && [ -d "${OUT_DIR}" ]; then
-    find "${OUT_DIR}" -mindepth 1 ! -name ".nfs*" -delete 2>/dev/null || true
-fi
+log_phase "START variants=${DATASETS[*]} models=${MODEL_CONDITIONS[*]} seeds=${SEEDS[*]} nproc=${NPROC_PER_NODE} total_cells=${TOTAL_CELLS}"
 
-if [ ! -f "${OUT_DIR}/checkpoint_best/checkpoint.pt" ]; then
-    torchrun \
-        --nproc_per_node="${NPROC_PER_NODE}" \
-        --master_addr="${MASTER_ADDR}" \
-        --master_port="${PORT_BASE}" \
-        -m CausalSpecUnit.train_ctc \
-        --data-root "${DATA_ROOT}" \
-        --cmvn-path "${TARGETS_DIR}/cmvn.pt" \
-        --tokenizer-path "${TOKENIZER_PATH}" \
-        --train-splits "${SUBSET}" \
-        ${SSL_ARGS[@]+"${SSL_ARGS[@]}"} \
-        --output-dir "${OUT_DIR}" \
-        --variant xs \
-        --epochs "${EPOCHS}" \
-        --batch-size "${BATCH_SIZE}" \
-        --grad-accum-steps "${GRAD_ACCUM_STEPS}" \
-        --eval-batch-size "${EVAL_BATCH_SIZE}" \
-        --eval-split dev-other \
-        --eval-every 1 \
-        --workers 8 \
-        --dataloader-timeout 120 \
-        --lr "${BASE_LR}" \
-        --encoder-lr "${ENCODER_LR}" \
-        --head-lr "${HEAD_LR}" \
-        --warmup-epochs "${WARMUP_EPOCHS}" \
-        --peak-epochs "${PEAK_EPOCHS}" \
-        --noam-decay-rate "${NOAM_DECAY_RATE}" \
-        --max-grad-norm "${MAX_GRAD_NORM}" \
-        --specaug \
-        --specaug-time-mask-param "${SPECAUG_TIME_MASK_PARAM}" \
-        --specaug-freq-mask-param "${SPECAUG_FREQ_MASK_PARAM}" \
-        --specaug-time-masks "${SPECAUG_TIME_MASKS}" \
-        --specaug-freq-masks "${SPECAUG_FREQ_MASKS}" \
-        --specaug-disable-last-epochs "${SPECAUG_DISABLE_LAST_EPOCHS}" \
-        --seed "${SEED}" \
-        --progress off \
-        --log-every 0 \
-        --save-every "${SAVE_EVERY}"
-else
-    echo "SKIP train: checkpoint_best exists at ${OUT_DIR}/checkpoint_best/checkpoint.pt"
-fi
+for SUBSET in "${DATASETS[@]}"; do
+    BATCH_SIZE=$(batch_size_for_split "${SUBSET}")
 
-if [ ! -f "${OUT_DIR}/eval_results.json" ]; then
-    torchrun \
-        --nproc_per_node="${NPROC_PER_NODE}" \
-        --master_addr="${MASTER_ADDR}" \
-        --master_port="$((PORT_BASE + 1))" \
-        -m CausalSpecUnit.evaluate_ctc \
-        --checkpoint "${OUT_DIR}/checkpoint_best/checkpoint.pt" \
-        --data-root "${DATA_ROOT}" \
-        --cmvn-path "${TARGETS_DIR}/cmvn.pt" \
-        --tokenizer-path "${TOKENIZER_PATH}" \
-        --variant xs \
-        --splits test-clean test-other \
-        --batch-size "${EVAL_TEST_BATCH_SIZE}" \
-        --workers 4 \
-        --output "${OUT_DIR}/eval_results.json"
-else
-    echo "SKIP eval: eval_results.json exists at ${OUT_DIR}/eval_results.json"
-fi
+    for CONDITION in "${MODEL_CONDITIONS[@]}"; do
+        SSL_CHECKPOINT=$(resolve_ssl_ckpt "${CONDITION}")
+        SSL_ARGS=()
+        if [ -n "${SSL_CHECKPOINT}" ]; then
+            SSL_ARGS=(--ssl-checkpoint "${SSL_CHECKPOINT}")
+        fi
 
-echo "DONE subset=${SUBSET} condition=${CONDITION} seed=${SEED} output=${OUT_DIR}"
+        for SEED in "${SEEDS[@]}"; do
+            OUT_DIR="${OUTPUT_ROOT}/${SUBSET}/${CONDITION}_seed${SEED}"
+            mkdir -p "${OUT_DIR}"
+
+            log_phase "CELL ${CELL_IDX}/${TOTAL_CELLS}: variant=${SUBSET} model=${CONDITION} seed=${SEED} batch=${BATCH_SIZE}"
+
+            if [ "${CLEAN_FIRST:-0}" = "1" ] && [ -d "${OUT_DIR}" ]; then
+                find "${OUT_DIR}" -mindepth 1 ! -name ".nfs*" -delete 2>/dev/null || true
+            fi
+
+            if [ -f "${OUT_DIR}/eval_results.json" ]; then
+                echo "SKIP cell: eval_results.json exists at ${OUT_DIR}/eval_results.json"
+                CELL_IDX=$((CELL_IDX + 1))
+                continue
+            fi
+
+            TRAIN_PORT=$((PORT_BASE + CELL_IDX * 2 + 1))
+            EVAL_PORT=$((PORT_BASE + CELL_IDX * 2 + 2))
+
+            if [ ! -f "${OUT_DIR}/checkpoint_best/checkpoint.pt" ]; then
+                torchrun \
+                    --nproc_per_node="${NPROC_PER_NODE}" \
+                    --master_addr="${MASTER_ADDR}" \
+                    --master_port="${TRAIN_PORT}" \
+                    -m CausalSpecUnit.train_ctc \
+                    --data-root "${DATA_ROOT}" \
+                    --cmvn-path "${TARGETS_DIR}/cmvn.pt" \
+                    --tokenizer-path "${TOKENIZER_PATH}" \
+                    --train-splits "${SUBSET}" \
+                    ${SSL_ARGS[@]+"${SSL_ARGS[@]}"} \
+                    --output-dir "${OUT_DIR}" \
+                    --variant xs \
+                    --epochs "${EPOCHS}" \
+                    --batch-size "${BATCH_SIZE}" \
+                    --grad-accum-steps "${GRAD_ACCUM_STEPS}" \
+                    --eval-batch-size "${EVAL_BATCH_SIZE}" \
+                    --eval-split dev-other \
+                    --eval-every 1 \
+                    --workers 8 \
+                    --dataloader-timeout 120 \
+                    --lr "${BASE_LR}" \
+                    --encoder-lr "${ENCODER_LR}" \
+                    --head-lr "${HEAD_LR}" \
+                    --warmup-epochs "${WARMUP_EPOCHS}" \
+                    --peak-epochs "${PEAK_EPOCHS}" \
+                    --noam-decay-rate "${NOAM_DECAY_RATE}" \
+                    --max-grad-norm "${MAX_GRAD_NORM}" \
+                    --specaug \
+                    --specaug-time-mask-param "${SPECAUG_TIME_MASK_PARAM}" \
+                    --specaug-freq-mask-param "${SPECAUG_FREQ_MASK_PARAM}" \
+                    --specaug-time-masks "${SPECAUG_TIME_MASKS}" \
+                    --specaug-freq-masks "${SPECAUG_FREQ_MASKS}" \
+                    --specaug-disable-last-epochs "${SPECAUG_DISABLE_LAST_EPOCHS}" \
+                    --seed "${SEED}" \
+                    --progress off \
+                    --log-every 0 \
+                    --save-every "${SAVE_EVERY}"
+            else
+                echo "SKIP train: checkpoint_best exists at ${OUT_DIR}/checkpoint_best/checkpoint.pt"
+            fi
+
+            torchrun \
+                --nproc_per_node="${NPROC_PER_NODE}" \
+                --master_addr="${MASTER_ADDR}" \
+                --master_port="${EVAL_PORT}" \
+                -m CausalSpecUnit.evaluate_ctc \
+                --checkpoint "${OUT_DIR}/checkpoint_best/checkpoint.pt" \
+                --data-root "${DATA_ROOT}" \
+                --cmvn-path "${TARGETS_DIR}/cmvn.pt" \
+                --tokenizer-path "${TOKENIZER_PATH}" \
+                --variant xs \
+                --splits test-clean test-other \
+                --batch-size "${EVAL_TEST_BATCH_SIZE}" \
+                --workers 4 \
+                --output "${OUT_DIR}/eval_results.json"
+
+            CELL_IDX=$((CELL_IDX + 1))
+        done
+    done
+done
+
+log_phase "DONE all ${TOTAL_CELLS} cells"
+echo "Results:"
+for SUBSET in "${DATASETS[@]}"; do
+    for CONDITION in "${MODEL_CONDITIONS[@]}"; do
+        for SEED in "${SEEDS[@]}"; do
+            echo "  ${OUTPUT_ROOT}/${SUBSET}/${CONDITION}_seed${SEED}/eval_results.json"
+        done
+    done
+done
