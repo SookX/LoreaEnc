@@ -44,7 +44,7 @@ VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="${DATA_ROOT:-dataset/datasets/librispeech/LibriSpeech}"
 TARGETS_DIR="${TARGETS_DIR:-outputs/causal_specunit/targets_960h_c8}"
 TOKENIZER_PATH="${TOKENIZER_PATH:-dataset/bpe128.model}"
-OUTPUT_ROOT="${OUTPUT_ROOT:-outputs/causal_specunit/asr_poc_4gpu_test_table_ref}"
+OUTPUT_ROOT="${OUTPUT_ROOT:-outputs/causal_specunit/asr_poc_4gpu_34dbc86_ref}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
 
 if [ -n "${SUBSETS:-}" ]; then
@@ -105,36 +105,25 @@ configure_recipe() {
     ENCODER_REWARMUP_EPOCHS="0"
     case "${SUBSET}" in
         librilight_10min)
-            # 60 utterances + 9M-param encoder = guaranteed catastrophic overfit
-            # under full fine-tuning. Previous attempts hit train_loss=0.1 with
-            # dev_loss=10.7 — model memorized training characters, learned no
-            # generalization. The wav2vec2 / HuBERT recipe at this scale is
-            # LINEAR PROBING: freeze the encoder, train only the linear CTC head
-            # (~18k params, finally a sane param/data ratio).
-            #
-            #   - FREEZE_ENCODER_EPOCHS=400 keeps the encoder frozen for the
-            #     entire training; only the head learns.
-            #   - ENCODER_LR is irrelevant under freeze but kept low for safety
-            #     against accidental thaw.
-            #   - HEAD_LR remains 1e-3 to drive the head to convergence.
-            #   - Strong SpecAug since the head must be robust to perturbations
-            #     even on this tiny set.
-            EPOCHS="200"
+            # Commit 34dbc86 10min recipe, translated from 2 GPUs to 4 GPUs.
+            # Original: batch=8 on 2 GPUs -> effective batch 16.
+            # Current:  batch=4 on 4 GPUs -> effective batch 16.
+            # All optimizer/schedule/SpecAug settings match 34dbc86.
+            EPOCHS="150"
             BATCH_SIZE="4"
             GRAD_ACCUM_STEPS="1"
             EVAL_EVERY="1"
-            SAVE_EVERY="20"
-            ENCODER_LR="1e-5"
+            SAVE_EVERY="10"
+            ENCODER_LR="3e-4"
             HEAD_LR="1e-3"
             WARMUP_EPOCHS="10"
-            PEAK_EPOCHS="80"
+            PEAK_EPOCHS="50"
             MAX_GRAD_NORM="1.0"
             SPECAUG_TIME_MASK_PARAM="30"
             SPECAUG_FREQ_MASK_PARAM="20"
             SPECAUG_TIME_MASKS="2"
             SPECAUG_FREQ_MASKS="2"
-            SPECAUG_DISABLE_LAST_EPOCHS="20"
-            FREEZE_ENCODER_EPOCHS="400"  # keep encoder frozen for the full run
+            SPECAUG_DISABLE_LAST_EPOCHS="10"
             ;;
         librilight_1h)
             # Same 06_test_table.sh recipe. Batch=8 on 4 GPUs gives effective
