@@ -44,7 +44,7 @@ VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="${DATA_ROOT:-dataset/datasets/librispeech/LibriSpeech}"
 TARGETS_DIR="${TARGETS_DIR:-outputs/causal_specunit/targets_960h_c8}"
 TOKENIZER_PATH="${TOKENIZER_PATH:-dataset/bpe128.model}"
-OUTPUT_ROOT="${OUTPUT_ROOT:-outputs/causal_specunit/asr_poc_4gpu_34dbc86_ref}"
+OUTPUT_ROOT="${OUTPUT_ROOT:-outputs/causal_specunit/asr_poc_4gpu_iter2_tuned}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
 
 if [ -n "${SUBSETS:-}" ]; then
@@ -190,15 +190,34 @@ configure_recipe() {
     EVAL_TEST_BATCH_SIZE="${EVAL_TEST_BATCH_SIZE:-64}"
 }
 
+apply_condition_overrides() {
+    if [ "${SUBSET}" = "librilight_10min" ] && [ "${CONDITION}" = "iter2" ]; then
+        # Iter-2 was still deletion-heavy around 0.96-0.98 WER with the exact
+        # 34dbc86 150-epoch schedule on 4 GPUs. Keep the known-good LR family,
+        # but give this tiny split more optimizer steps and lighter masking.
+        EPOCHS="300"
+        BATCH_SIZE="2"
+        SAVE_EVERY="20"
+        WARMUP_EPOCHS="20"
+        PEAK_EPOCHS="80"
+        SPECAUG_TIME_MASK_PARAM="10"
+        SPECAUG_FREQ_MASK_PARAM="5"
+        SPECAUG_TIME_MASKS="1"
+        SPECAUG_FREQ_MASKS="1"
+        SPECAUG_DISABLE_LAST_EPOCHS="30"
+    fi
+}
+
 CELL_IDX=0
 TOTAL_CELLS=$((${#DATASETS[@]} * ${#CONDITIONS[@]} * ${#SEEDS[@]}))
 log_phase "START datasets=${DATASETS[*]} conditions=${CONDITIONS[*]} seeds=${SEEDS[*]} nproc=${NPROC_PER_NODE} total_cells=${TOTAL_CELLS}"
 
 for SUBSET in "${DATASETS[@]}"; do
-    configure_recipe
-    log_phase "RECIPE ${SUBSET}: epochs=${EPOCHS} per_gpu_batch=${BATCH_SIZE} accum=${GRAD_ACCUM_STEPS} encoder_lr=${ENCODER_LR} head_lr=${HEAD_LR} max_grad=${MAX_GRAD_NORM} specaug=${SPECAUG_TIME_MASK_PARAM}/${SPECAUG_FREQ_MASK_PARAM}x${SPECAUG_TIME_MASKS}/${SPECAUG_FREQ_MASKS}"
-
     for CONDITION in "${CONDITIONS[@]}"; do
+        configure_recipe
+        apply_condition_overrides
+        log_phase "RECIPE ${SUBSET}/${CONDITION}: epochs=${EPOCHS} per_gpu_batch=${BATCH_SIZE} accum=${GRAD_ACCUM_STEPS} encoder_lr=${ENCODER_LR} head_lr=${HEAD_LR} warmup=${WARMUP_EPOCHS} peak=${PEAK_EPOCHS} max_grad=${MAX_GRAD_NORM} specaug=${SPECAUG_TIME_MASK_PARAM}/${SPECAUG_FREQ_MASK_PARAM}x${SPECAUG_TIME_MASKS}/${SPECAUG_FREQ_MASKS} disable_last=${SPECAUG_DISABLE_LAST_EPOCHS}"
+
         SSL_CHECKPOINT=$(resolve_ssl_ckpt "${CONDITION}")
         if [ -n "${SSL_CHECKPOINT}" ] && [ ! -f "${SSL_CHECKPOINT}" ]; then
             echo "Missing SSL checkpoint for ${CONDITION}: ${SSL_CHECKPOINT}"
