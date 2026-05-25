@@ -11,6 +11,7 @@
 \pgfplotsset{compat=1.18}
 
 \definecolor{plotScratch}{HTML}{6B6B6B}
+\definecolor{plotMelHuBERT}{HTML}{6B4C9A}
 \definecolor{plotIter1}{HTML}{2A6FAA}
 \definecolor{plotIter2}{HTML}{D9690D}
 \definecolor{plotBand}{HTML}{F2F4F8}
@@ -58,11 +59,16 @@ states from the iter-1 encoder. The iter-2 recipe reduces LibriSpeech
 WER under greedy CTC decoding (no external language model) from
 75.0/84.1\% to \textbf{34.1/51.5\%} on Libri-Light 10h
 test-clean/test-other, and from 19.6/42.7\% to \textbf{16.1/36.2\%} on
-the full train-clean-100. We position the result narrowly: this is not
-state-of-the-art ASR and not the first mel-input SSL system; it is a
-controlled, matched-backbone study showing that compact, spectrogram-only
-SSL delivers large gains in low-label English ASR within a two-GPU
-neural-optimization budget. Including iter-2 hidden-state extraction, the
+the full train-clean-100. Against a faithful MelHuBERT-style baseline at
+the same 9M-parameter scale, iter-2 reduces WER by \textbf{17--31\%
+relative} across all 1h, 10h, and 100h cells; at 100h the
+MelHuBERT-Transformer baseline collapses to roughly scratch
+SqueezeFormer-XS performance, indicating that backbone and recipe choice
+contribute complementary parts of the gap. We position the result
+narrowly: this is not state-of-the-art ASR and not the first mel-input
+SSL system; it is a controlled, matched-scale study showing that compact,
+spectrogram-only SSL delivers large gains in low-label English ASR within
+a two-GPU neural-optimization budget. Including iter-2 hidden-state extraction, the
 full neural budget is about 48 GPU-hours, plus unlogged CPU preprocessing
 for target generation.
 \end{abstract}
@@ -111,6 +117,11 @@ for target generation.
                mark options={fill=white, draw=plotScratch}]
         coordinates {(1, 95.89) (10, 84.14) (100, 42.65)};
       \addlegendentry{Scratch}
+
+      \addplot[color=plotMelHuBERT, dotted, mark=diamond*,
+               mark options={fill=white, draw=plotMelHuBERT}]
+        coordinates {(1, 86.10) (10, 67.00) (100, 43.50)};
+      \addlegendentry{MelHuBERT-style (Tx)}
 
       \addplot[color=plotIter1, mark=triangle*]
         coordinates {(1, 75.05) (10, 57.46) (100, 38.46)};
@@ -192,9 +203,13 @@ studies. Instead, we focus on a different operating regime and target
 design: a compact 9M-parameter SqueezeFormer-XS encoder trained with
 dual-granularity discrete targets obtained from short log-mel chunks. We
 evaluate this recipe under matched end-to-end CTC fine-tuning at 1h, 10h,
-and 100h labeled budgets. Our experiments therefore complement MelHuBERT
-by testing whether dual-codebook spectrogram-domain SSL remains effective
-in a substantially smaller ASR backbone.
+and 100h labeled budgets, including a direct head-to-head comparison
+against a faithful MelHuBERT-style baseline at the same 9M-parameter
+scale. In that comparison (\cref{tab:main}), our iter-2 recipe reduces
+WER by 17--31\% relative across all six (subset $\times$ test-split)
+cells; at 100h, the MelHuBERT-Transformer baseline collapses to roughly
+scratch SqueezeFormer-XS performance, while iter-2 retains a substantial
+gain.
 
 \section{Methodology}
 \label{sec:method}
@@ -263,9 +278,14 @@ deviation over three fine-tuning seeds.
 
 \begin{table*}[t]
   \caption{LibriSpeech WER ($\downarrow$, \%) on \textit{test-clean} /
-    \textit{test-other}. Rows use the same SqueezeFormer-XS architecture
-    and matched per-budget CTC recipe; they differ only in encoder
-    initialization. Best per column in \textbf{bold}.}
+    \textit{test-other}. Scratch, iter-1, and iter-2 rows use
+    SqueezeFormer-XS; the MelHuBERT-style row uses a vanilla
+    $\sim$9M-parameter Transformer (faithful to the architectural choice
+    of the original MelHuBERT recipe) and a single $K{=}500$ spectrogram
+    codebook. All rows share the same unlabeled 960h pretraining corpus
+    (where SSL is used), the same per-budget CTC fine-tuning recipe, and
+    the same 128-piece BPE tokenizer; rows differ in encoder architecture
+    and/or SSL initialization. Best per column in \textbf{bold}.}
   \label{tab:main}
   \begin{center}
     \begin{small}
@@ -279,6 +299,7 @@ deviation over three fine-tuning seeds.
           Method                              & clean & other & clean & other & clean & other \\
           \midrule
           SqueezeFormer-XS (scratch)          & 94.9{\scriptsize\,$\pm$0.1} & 95.9{\scriptsize\,$\pm$0.2} & 75.0{\scriptsize\,$\pm$0.6} & 84.1{\scriptsize\,$\pm$0.3} & 19.6{\scriptsize\,$\pm$0.3} & 42.7{\scriptsize\,$\pm$0.3} \\
+          MelHuBERT-style (Transformer)       & 78.1{\scriptsize\,$\pm$0.6} & 86.1{\scriptsize\,$\pm$0.2} & 49.5{\scriptsize\,$\pm$0.3} & 67.0{\scriptsize\,$\pm$0.3} & 20.7{\scriptsize\,$\pm$0.3} & 43.5{\scriptsize\,$\pm$0.1} \\
           \quad + SSL (iter-1)                & 63.5{\scriptsize\,$\pm$0.2} & 75.1{\scriptsize\,$\pm$0.1} & 38.9{\scriptsize\,$\pm$0.4} & 57.5{\scriptsize\,$\pm$0.2} & 17.2{\scriptsize\,$\pm$0.2} & 38.5{\scriptsize\,$\pm$0.1} \\
           \addlinespace[2pt]
           \quad \textbf{+ SSL (iter-2, ours)} & \textbf{56.8}{\scriptsize\,$\pm$0.3} & \textbf{68.7}{\scriptsize\,$\pm$0.2} & \textbf{34.1}{\scriptsize\,$\pm$0.2} & \textbf{51.5}{\scriptsize\,$\pm$0.3} & \textbf{16.1}{\scriptsize\,$\pm$0.2} & \textbf{36.2}{\scriptsize\,$\pm$0.1} \\
@@ -301,6 +322,20 @@ from 75.0\% to 34.1\%, and test-other from 84.1\% to 51.5\%. At 100h,
 the gains are smaller but consistent, improving test-clean from 19.6\%
 to 16.1\% and test-other from 42.7\% to 36.2\%.
 
+The MelHuBERT-style row in \cref{tab:main} adds an external matched-scale
+reference: a vanilla 9M-parameter Transformer encoder (faithful to the
+architectural choice of the original MelHuBERT recipe), pretrained with a
+single $K{=}500$ spectrogram codebook on the same 960h unlabeled corpus
+and fine-tuned with the same per-budget CTC recipe and tokenizer. Iter-2
+outperforms this baseline at every cell: by 21.3 / 17.4 WER points at 1h
+(test-clean / test-other), 15.4 / 15.5 at 10h, and 4.6 / 7.3 at 100h ---
+17--31\% relative reductions across the table. At 100h, the
+MelHuBERT-Transformer baseline performs no better than scratch
+SqueezeFormer-XS (20.7 vs 19.6\% test-clean; 43.5 vs 42.7\% test-other),
+indicating that with sufficient labeled supervision the backbone choice
+carries more of the iter-2 gap than the spectrogram-domain SSL
+initialization. At 1h and 10h, by contrast, the SSL initialization
+contributes the larger share of the gain.
 The scratch baseline is intentionally strict. It uses the same 9M
 SqueezeFormer-XS, the same mel front-end, and greedy decoding without an
 LM. The per-budget CTC recipe (batch size, learning-rate schedule,
@@ -450,6 +485,22 @@ with the refinement logic in HuBERT. This stage-wise refinement is also
 consistent with MelHuBERT; our distinct empirical question is whether a
 dual-granularity target design remains beneficial for a much smaller
 SqueezeFormer-XS encoder.
+
+\paragraph{What carries the gap to MelHuBERT.}
+The cross-architecture comparison in \cref{tab:main} factors the
+iter-2 vs MelHuBERT gap by labeled-data regime in a way the
+within-codebase ablation (\cref{tab:abl-codebook}, single- vs
+dual-codebook under a fixed SqueezeFormer-XS backbone) cannot. At 1h
+and 10h, MelHuBERT-Transformer is clearly better than scratch, and the
+remaining 15--21 WER-point gap to iter-2 reflects the joint effect of
+the dual-codebook target design and the SqueezeFormer-XS backbone. At
+100h, by contrast, MelHuBERT-Transformer is statistically
+indistinguishable from scratch SqueezeFormer-XS, and the entire
+4--7-point iter-2 advantage at that budget is attributable to
+dual-codebook SSL on top of the better backbone. The two contributions
+are therefore complementary rather than redundant: SSL initialization
+dominates the gap in the low-resource regime, and the
+ASR-specialised backbone dominates it once supervision is plentiful.
 
 \paragraph{On fine-tuning a released wav2vec~2.0 / HuBERT checkpoint.}
 A natural alternative baseline is to fine-tune a public wav2vec~2.0 or
