@@ -449,6 +449,9 @@ def main():
     loader_generator = torch.Generator()
     loader_generator.manual_seed(args.seed)
     worker_kwargs = {"persistent_workers": True, "prefetch_factor": 4} if args.workers > 0 else {}
+    # PyTorch's single-process DataLoaderIter requires timeout=0; the
+    # --dataloader-timeout flag only applies to worker-based loaders.
+    effective_timeout = args.dataloader_timeout if args.workers > 0 else 0
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.batch_size,
@@ -458,7 +461,7 @@ def main():
         collate_fn=collate_ctc,
         pin_memory=True,
         drop_last=True,
-        timeout=args.dataloader_timeout,
+        timeout=effective_timeout,
         generator=loader_generator,
         **worker_kwargs,
     )
@@ -470,7 +473,7 @@ def main():
         num_workers=args.workers,
         collate_fn=collate_eval,
         pin_memory=True,
-        timeout=args.dataloader_timeout,
+        timeout=effective_timeout,
         **worker_kwargs,
     )
 
