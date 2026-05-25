@@ -43,6 +43,9 @@ VARIANT="${VARIANT:-mh9m}"
 CODEBOOK_MODE="${CODEBOOK_MODE:-fine}"
 MAX_STEPS="${MAX_STEPS:-150000}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
+PRETRAIN_NPROC_PER_NODE="${PRETRAIN_NPROC_PER_NODE:-${NPROC_PER_NODE}}"
+FT_NPROC_PER_NODE="${FT_NPROC_PER_NODE:-${NPROC_PER_NODE}}"
+EVAL_NPROC_PER_NODE="${EVAL_NPROC_PER_NODE:-${FT_NPROC_PER_NODE}}"
 
 SSL_OUTPUT_DIR="${SSL_OUTPUT_DIR:-outputs/causal_specunit/melhubert_transformer_mh9m/ssl_${CODEBOOK_MODE}_${MAX_STEPS}}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-outputs/causal_specunit/melhubert_transformer_mh9m/benchmark_${CODEBOOK_MODE}_${MAX_STEPS}}"
@@ -78,7 +81,8 @@ PEAK_EPOCHS="${PEAK_EPOCHS:-50}"
 NOAM_DECAY_RATE="${NOAM_DECAY_RATE:-0.5}"
 MAX_GRAD_NORM="${MAX_GRAD_NORM:-1.0}"
 SPECAUG_DISABLE_LAST_EPOCHS="${SPECAUG_DISABLE_LAST_EPOCHS:-10}"
-SAVE_EVERY="${SAVE_EVERY:-10}"
+SAVE_EVERY="${SAVE_EVERY:-0}"
+KEEP_CHECKPOINTS="${KEEP_CHECKPOINTS:-1}"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
@@ -132,7 +136,7 @@ if [ -f "${SSL_CKPT}" ]; then
 else
     log_phase "PRETRAIN ${VARIANT} Transformer | codebook=${CODEBOOK_MODE} | steps=${MAX_STEPS}"
     torchrun \
-        --nproc_per_node="${NPROC_PER_NODE}" \
+        --nproc_per_node="${PRETRAIN_NPROC_PER_NODE}" \
         --master_addr="${MASTER_ADDR}" \
         --master_port="$((PORT_BASE + 1))" \
         -m CausalSpecUnit.pretrain_ssl \
@@ -169,12 +173,14 @@ TOTAL_CELLS=$((${#DATASETS[@]} * ${#SEEDS[@]}))
 CELL_IDX=0
 
 log_phase "FINE-TUNE ${VARIANT} baseline subsets=${DATASETS[*]} seeds=${SEEDS[*]} total_cells=${TOTAL_CELLS}"
+echo "Processes: pretrain=${PRETRAIN_NPROC_PER_NODE} finetune=${FT_NPROC_PER_NODE} eval=${EVAL_NPROC_PER_NODE}"
 
 for SUBSET in "${DATASETS[@]}"; do
     BATCH_SIZE=$(batch_size_for_split "${SUBSET}")
 
     for SEED in "${SEEDS[@]}"; do
         OUT_DIR="${OUTPUT_ROOT}/${SUBSET}/melhubert_tx_${CODEBOOK_MODE}_seed${SEED}"
+        TRAIN_DONE="${OUT_DIR}/train.done"
         mkdir -p "${OUT_DIR}"
 
         log_phase "CELL ${CELL_IDX}/${TOTAL_CELLS}: subset=${SUBSET} seed=${SEED} batch=${BATCH_SIZE}"
@@ -188,9 +194,10 @@ for SUBSET in "${DATASETS[@]}"; do
         TRAIN_PORT=$((PORT_BASE + 10 + CELL_IDX * 2))
         EVAL_PORT=$((PORT_BASE + 11 + CELL_IDX * 2))
 
-        if [ ! -f "${OUT_DIR}/checkpoint_best/checkpoint.pt" ]; then
+        if [ ! -f "${OUT_DIR}/checkpoint_best/checkpoint.pt" ] || [ ! -f "${TRAIN_DONE}" ]; then
+            rm -f "${TRAIN_DONE}"
             torchrun \
-                --nproc_per_node="${NPROC_PER_NODE}" \
+                --nproc_per_node="${FT_NPROC_PER_NODE}" \
                 --master_addr="${MASTER_ADDR}" \
                 --master_port="${TRAIN_PORT}" \
                 -m CausalSpecUnit.train_ctc \
@@ -225,13 +232,15 @@ for SUBSET in "${DATASETS[@]}"; do
                 --seed "${SEED}" \
                 --progress off \
                 --log-every 0 \
-                --save-every "${SAVE_EVERY}"
+                --save-every "${SAVE_EVERY}" \
+                --keep-checkpoints "${KEEP_CHECKPOINTS}"
+            touch "${TRAIN_DONE}"
         else
-            echo "SKIP train: checkpoint_best exists at ${OUT_DIR}/checkpoint_best/checkpoint.pt"
+            echo "SKIP train: train.done and checkpoint_best exist at ${OUT_DIR}"
         fi
 
         torchrun \
-            --nproc_per_node="${NPROC_PER_NODE}" \
+            --nproc_per_node="${EVAL_NPROC_PER_NODE}" \
             --master_addr="${MASTER_ADDR}" \
             --master_port="${EVAL_PORT}" \
             -m CausalSpecUnit.evaluate_ctc \

@@ -225,7 +225,8 @@ def parse_args():
     p.add_argument("--noam-decay-rate", type=float, default=1.0)
     p.add_argument("--eval-split", type=str, default=DEV_SPLIT)
     p.add_argument("--eval-every", type=int, default=1)
-    p.add_argument("--save-every", type=int, default=10)
+    p.add_argument("--save-every", type=int, default=10,
+                   help="Save periodic checkpoint_epNNN snapshots every N epochs. Set 0 to disable periodic snapshots.")
     p.add_argument("--keep-checkpoints", type=int, default=5)
     p.add_argument("--log-every", type=int, default=0)
     p.add_argument("--max-train-batches", type=int, default=None)
@@ -905,17 +906,18 @@ def main():
                         "elapsed_hours": (time.time() - run_start) / 3600,
                     })
             barrier()
-            if epoch % args.save_every == 0 and is_main_process(rank):
-                save_checkpoint(
-                    os.path.join(args.output_dir, f"checkpoint_ep{epoch:03d}"),
-                    model,
-                    optimizer,
-                    scheduler,
-                    epoch,
-                    extra={"best_wer": best_wer, "optimizer_steps": optimizer_steps},
-                )
-                cleanup_epoch_checkpoints(args.output_dir, args.keep_checkpoints)
-            barrier()
+            if args.save_every > 0 and epoch % args.save_every == 0:
+                if is_main_process(rank):
+                    save_checkpoint(
+                        os.path.join(args.output_dir, f"checkpoint_ep{epoch:03d}"),
+                        model,
+                        optimizer,
+                        scheduler,
+                        epoch,
+                        extra={"best_wer": best_wer, "optimizer_steps": optimizer_steps},
+                    )
+                    cleanup_epoch_checkpoints(args.output_dir, args.keep_checkpoints)
+                barrier()
     finally:
         cleanup_distributed()
 
