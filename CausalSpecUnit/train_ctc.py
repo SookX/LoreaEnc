@@ -494,17 +494,23 @@ def main():
             print0(rank, "  SSL anchor heads warm-started from SSL checkpoint")
     model.to(device)
     if world_size > 1:
-        # nn.TransformerEncoderLayer can produce unused-parameter gradients
-        # under certain attention mask patterns, which deadlocks plain DDP's
-        # all_reduce. Enable find_unused_parameters for the MelHuBERT-style
-        # Transformer variant; SqueezeFormer keeps the default fast path.
-        ddp_find_unused = is_melhubert_transformer_variant(args.variant)
-        model = DDP(
-            model,
-            device_ids=[local_rank],
-            output_device=local_rank,
-            find_unused_parameters=ddp_find_unused,
-        )
+        # The MelHuBERT-style Transformer (nn.TransformerEncoderLayer with
+        # src_key_padding_mask) interacts badly with vanilla DDP under
+        # variable-length speech batches: the autograd graph used by
+        # different ranks can take different shapes, and the resulting
+        # ALLREDUCE order is non-deterministic, which deadlocks. We force
+        # a static graph (one-iter graph capture, then locked) for the
+        # Transformer path; SqueezeFormer keeps the default fast path
+        # because it already trains cleanly under plain DDP in script 10.
+        is_mh_tx = is_melhubert_transformer_variant(args.variant)
+        ddp_kwargs = dict(device_ids=[local_rank], output_device=local_rank)
+        if is_mh_tx:
+            ddp_kwargs.update(
+                find_unused_parameters=False,
+                static_graph=True,
+                broadcast_buffers=False,
+            )
+        model = DDP(model, **ddp_kwargs)
 
     metrics_path = os.path.join(args.output_dir, "ctc_metrics.jsonl")
     run_info_path = os.path.join(args.output_dir, "ctc_run_info.json")
