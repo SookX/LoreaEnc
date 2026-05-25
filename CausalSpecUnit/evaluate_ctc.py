@@ -39,7 +39,7 @@ from CausalSpecUnit.common import (
     strip_state_prefixes,
 )
 from CausalSpecUnit.data import CTCSpecDataset, collate_eval
-from CausalSpecUnit.model import CausalSpecUnitCTC
+from CausalSpecUnit.model import CausalSpecUnitCTC, MODEL_VARIANTS
 from CausalSpecUnit.train_ctc import evaluate, unwrap_model
 
 
@@ -50,7 +50,7 @@ def parse_args():
     p.add_argument("--data-root", type=str, default="dataset/datasets/librispeech/LibriSpeech")
     p.add_argument("--cmvn-path", type=str, default="outputs/causal_specunit/targets_960h_c8/cmvn.pt")
     p.add_argument("--tokenizer-path", type=str, default="dataset/bpe128.model")
-    p.add_argument("--variant", type=str, default="xs", choices=["xs", "s", "sm", "m", "ml", "l"])
+    p.add_argument("--variant", type=str, default="xs", choices=list(MODEL_VARIANTS))
     p.add_argument("--splits", nargs="+", default=["test-clean", "test-other"],
                    help="LibriSpeech splits to evaluate on.")
     p.add_argument("--batch-size", type=int, default=64)

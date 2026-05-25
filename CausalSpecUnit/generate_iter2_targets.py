@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 from CausalSpecUnit.common import TRAIN_SPLITS, strip_state_prefixes
 from CausalSpecUnit.data import LogMelExtractor, apply_cmvn, iter_librispeech_items, load_cmvn
-from CausalSpecUnit.model import CausalSpecUnitSSL
+from CausalSpecUnit.model import CausalSpecUnitSSL, MODEL_VARIANTS
 
 
 def parse_args():
@@ -26,7 +26,7 @@ def parse_args():
     p.add_argument("--cmvn-path", type=str, required=True)
     p.add_argument("--ssl-checkpoint", type=str, required=True)
     p.add_argument("--output-dir", type=str, default="outputs/causal_specunit/targets_iter2_c8")
-    p.add_argument("--variant", type=str, default="xs", choices=["xs", "s", "sm", "m", "ml", "l"])
+    p.add_argument("--variant", type=str, default="xs", choices=list(MODEL_VARIANTS))
     p.add_argument("--chunk-size", type=int, default=8)
     p.add_argument("--chunk-stride", type=int, default=4)
     p.add_argument("--pca-dim", type=int, default=64,

@@ -30,7 +30,7 @@ from CausalSpecUnit.common import (
     unwrap_model,
 )
 from CausalSpecUnit.data import BatchSpecAugment, SpecUnitDataset, collate_ssl
-from CausalSpecUnit.model import CausalSpecUnitSSL
+from CausalSpecUnit.model import CausalSpecUnitSSL, MODEL_VARIANTS
 
 
 def append_jsonl(path, record):
@@ -75,7 +75,7 @@ def parse_args():
     p.add_argument("--dataloader-timeout", type=int, default=120)
     p.add_argument("--prefetch-factor", type=int, default=2,
                    help="Number of batches prefetched per DataLoader worker.")
-    p.add_argument("--variant", type=str, default="xs", choices=["xs", "s", "sm", "m", "ml", "l"])
+    p.add_argument("--variant", type=str, default="xs", choices=list(MODEL_VARIANTS))
     p.add_argument("--chunk-size", type=int, default=4,
                    help="Frames per target chunk. Must match target generation.")
     p.add_argument("--chunk-stride", type=int, default=4,

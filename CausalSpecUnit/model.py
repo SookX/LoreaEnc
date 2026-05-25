@@ -1,9 +1,170 @@
 import copy
+from dataclasses import dataclass
+from typing import Dict, Iterable, Optional, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torch import Tensor
 
 from CausalSpecUnit.squeezeformer_baseline import Squeezeformer, get_config
+from CausalSpecUnit.squeezeformer_baseline.convolution import DepthwiseConv2dSubsampling
+
+
+SQUEEZEFORMER_VARIANTS = ("xs", "s", "sm", "m", "ml", "l")
+MELHUBERT_TRANSFORMER_VARIANTS = ("mh9m",)
+MODEL_VARIANTS = SQUEEZEFORMER_VARIANTS + MELHUBERT_TRANSFORMER_VARIANTS
+
+
+@dataclass(frozen=True)
+class MelHuBERTTransformerConfig:
+    input_dim: int = 80
+    encoder_dim: int = 240
+    num_encoder_layers: int = 10
+    num_attention_heads: int = 4
+    feed_forward_dim: int = 960
+    dropout_p: float = 0.1
+    conv_pos_kernel: int = 128
+    conv_pos_groups: int = 16
+
+
+MELHUBERT_TRANSFORMER_CONFIGS = {
+    # Roughly 9M parameters with the CTC head, depending on vocab size.
+    # This is intentionally a compact Transformer baseline, not the original
+    # MelHuBERT Base-size architecture.
+    "mh9m": MelHuBERTTransformerConfig(),
+}
+
+
+def is_melhubert_transformer_variant(variant: str) -> bool:
+    return variant.lower() in MELHUBERT_TRANSFORMER_CONFIGS
+
+
+def get_encoder_dim(variant: str) -> int:
+    variant = variant.lower()
+    if is_melhubert_transformer_variant(variant):
+        return MELHUBERT_TRANSFORMER_CONFIGS[variant].encoder_dim
+    return get_config(variant).encoder_dim
+
+
+class ConvPositionalEmbedding(nn.Module):
+    """HuBERT/MelHuBERT-style convolutional positional embedding."""
+
+    def __init__(self, dim: int, kernel_size: int = 128, groups: int = 16, dropout_p: float = 0.1):
+        super().__init__()
+        self.conv = nn.Conv1d(
+            dim,
+            dim,
+            kernel_size=kernel_size,
+            padding=kernel_size // 2,
+            groups=groups,
+        )
+        self.activation = nn.GELU()
+        self.dropout = nn.Dropout(dropout_p)
+
+    def forward(self, inputs: Tensor) -> Tensor:
+        pos = self.conv(inputs.transpose(1, 2)).transpose(1, 2)
+        pos = pos[:, : inputs.size(1), :]
+        return inputs + self.dropout(self.activation(pos))
+
+
+class MelHuBERTTransformerEncoder(nn.Module):
+    """Compact mel-input Transformer encoder for the MelHuBERT-style baseline.
+
+    The 2-D convolutional subsampler keeps the output rate aligned with the
+    existing chunk-size/stride 8/4 targets. Above that, the stack is deliberately
+    plain Transformer: linear mel projection, convolutional positional
+    embedding, and self-attention/FFN blocks.
+    """
+
+    def __init__(
+        self,
+        config: MelHuBERTTransformerConfig,
+        layer_drop_p: float = 0.0,
+    ):
+        super().__init__()
+        self.num_layers = config.num_encoder_layers
+        self.layer_drop_p = float(layer_drop_p)
+        self.encoder_dim = config.encoder_dim
+        self.reduce_layer_index = -1
+        self.recover_layer_index = -1
+
+        self.conv_subsample = DepthwiseConv2dSubsampling(
+            in_channels=1,
+            out_channels=config.encoder_dim,
+        )
+        subsampled_freq = (config.input_dim + 3) // 4
+        self.input_proj = nn.Sequential(
+            nn.Linear(config.encoder_dim * subsampled_freq, config.encoder_dim),
+            nn.Dropout(config.dropout_p),
+        )
+        self.input_layer_norm = nn.LayerNorm(config.encoder_dim)
+        self.pos_conv = ConvPositionalEmbedding(
+            config.encoder_dim,
+            kernel_size=config.conv_pos_kernel,
+            groups=config.conv_pos_groups,
+            dropout_p=config.dropout_p,
+        )
+        self.layers = nn.ModuleList([
+            nn.TransformerEncoderLayer(
+                d_model=config.encoder_dim,
+                nhead=config.num_attention_heads,
+                dim_feedforward=config.feed_forward_dim,
+                dropout=config.dropout_p,
+                activation="gelu",
+                batch_first=True,
+                norm_first=False,
+            )
+            for _ in range(config.num_encoder_layers)
+        ])
+        self.final_layer_norm = nn.LayerNorm(config.encoder_dim)
+
+    @staticmethod
+    def _padding_mask(lengths: Tensor, max_length: int) -> Tensor:
+        steps = torch.arange(max_length, device=lengths.device)
+        return steps.unsqueeze(0) >= lengths.unsqueeze(1)
+
+    def forward(
+        self,
+        inputs: Tensor,
+        input_lengths: Tensor,
+        intermediate_layers: Optional[Iterable[int]] = None,
+    ) -> Tuple[Tensor, Tensor, Optional[Dict[int, Tuple[Tensor, Tensor]]]]:
+        outputs, output_lengths = self.conv_subsample(inputs, input_lengths)
+        outputs = self.input_layer_norm(self.input_proj(outputs))
+        outputs = self.pos_conv(outputs)
+
+        wanted = set(intermediate_layers) if intermediate_layers else None
+        intermediates: Optional[Dict[int, Tuple[Tensor, Tensor]]] = (
+            {} if wanted is not None else None
+        )
+
+        for idx, layer in enumerate(self.layers):
+            mask = self._padding_mask(output_lengths, outputs.size(1))
+            drop_this_layer = (
+                self.training
+                and self.layer_drop_p > 0.0
+                and torch.rand((), device=outputs.device).item() < self.layer_drop_p
+            )
+            if not drop_this_layer:
+                outputs = layer(outputs, src_key_padding_mask=mask)
+            outputs = outputs.masked_fill(mask.unsqueeze(-1), 0.0)
+            if wanted is not None and idx in wanted:
+                intermediates[idx] = (outputs.clone(), output_lengths.clamp(max=outputs.size(1)))
+
+        outputs = self.final_layer_norm(outputs)
+        output_lengths = output_lengths.clamp(max=outputs.size(1))
+        return outputs, output_lengths, intermediates
+
+
+def build_melhubert_transformer_encoder(variant: str, layer_drop_p: float = 0.0):
+    variant = variant.lower()
+    if variant not in MELHUBERT_TRANSFORMER_CONFIGS:
+        raise ValueError(f"Unknown MelHuBERT-style Transformer variant: {variant}")
+    return MelHuBERTTransformerEncoder(
+        MELHUBERT_TRANSFORMER_CONFIGS[variant],
+        layer_drop_p=layer_drop_p,
+    )
 
 
 def build_copied_squeezeformer(variant, num_classes, layer_drop_p: float = 0.0):
@@ -28,6 +189,13 @@ def build_copied_squeezeformer(variant, num_classes, layer_drop_p: float = 0.0):
         adaptive_scale=cfg.adaptive_scale,
         layer_drop_p=layer_drop_p,
     )
+
+
+def build_encoder(variant: str, layer_drop_p: float = 0.0):
+    variant = variant.lower()
+    if is_melhubert_transformer_variant(variant):
+        return build_melhubert_transformer_encoder(variant, layer_drop_p=layer_drop_p)
+    return build_copied_squeezeformer(variant, num_classes=1, layer_drop_p=layer_drop_p).encoder
 
 
 class CausalSpecUnitSSL(nn.Module):
@@ -57,13 +225,11 @@ class CausalSpecUnitSSL(nn.Module):
         teacher_momentum: float = 0.0,
     ):
         super().__init__()
-        cfg = get_config(variant)
-        backbone = build_copied_squeezeformer(variant, num_classes=k_fine, layer_drop_p=layer_drop_p)
         self.variant = variant
-        self.encoder_dim = cfg.encoder_dim
-        self.encoder = backbone.encoder
-        self.head_coarse = nn.Linear(cfg.encoder_dim, k_coarse)
-        self.head_fine = nn.Linear(cfg.encoder_dim, k_fine)
+        self.encoder_dim = get_encoder_dim(variant)
+        self.encoder = build_encoder(variant, layer_drop_p=layer_drop_p)
+        self.head_coarse = nn.Linear(self.encoder_dim, k_coarse)
+        self.head_fine = nn.Linear(self.encoder_dim, k_fine)
         # Learnable mask vector applied to masked mel frames during SSL.
         # Initialized small so early gradients flow naturally.
         self.mask_emb = nn.Parameter(torch.empty(n_mels).normal_(mean=0.0, std=0.1))
@@ -74,8 +240,8 @@ class CausalSpecUnitSSL(nn.Module):
         self.aux_head_fine: nn.ModuleDict = nn.ModuleDict()
         for idx in self.aux_layer_indices:
             key = str(int(idx))
-            self.aux_head_coarse[key] = nn.Linear(cfg.encoder_dim, k_coarse)
-            self.aux_head_fine[key] = nn.Linear(cfg.encoder_dim, k_fine)
+            self.aux_head_coarse[key] = nn.Linear(self.encoder_dim, k_coarse)
+            self.aux_head_fine[key] = nn.Linear(self.encoder_dim, k_fine)
         # EMA teacher for data2vec-style continuous-feature distillation. The
         # teacher is a (non-trainable) deepcopy of the encoder updated each
         # optimizer step toward the student with momentum ``teacher_momentum``.
@@ -181,18 +347,60 @@ class CausalSpecUnitCTC(nn.Module):
     ):
         super().__init__()
         self.variant = variant
-        self.model = build_copied_squeezeformer(variant, num_classes=vocab_size, layer_drop_p=layer_drop_p)
-        self.encoder = self.model.encoder
         self.inter_ctc_layers = tuple(int(i) for i in (inter_ctc_layers or ()))
-        if self.inter_ctc_layers:
-            self.model.add_inter_ctc_heads(self.inter_ctc_layers)
         self.ssl_anchor = bool(ssl_anchor)
+        self.is_transformer_baseline = is_melhubert_transformer_variant(variant)
+        self.inter_ctc_heads = nn.ModuleDict()
+        self.fc = None
+        if self.is_transformer_baseline:
+            self.model = None
+            self.encoder = build_melhubert_transformer_encoder(variant, layer_drop_p=layer_drop_p)
+            self.fc = nn.Linear(get_encoder_dim(variant), vocab_size, bias=True)
+            if self.inter_ctc_layers:
+                self.add_inter_ctc_heads(self.inter_ctc_layers)
+        else:
+            self.model = build_copied_squeezeformer(variant, num_classes=vocab_size, layer_drop_p=layer_drop_p)
+            self.encoder = self.model.encoder
+            if self.inter_ctc_layers:
+                self.model.add_inter_ctc_heads(self.inter_ctc_layers)
         if self.ssl_anchor:
-            encoder_dim = self.model.fc.in_features
+            encoder_dim = get_encoder_dim(variant)
             self.ssl_head_coarse = nn.Linear(encoder_dim, ssl_k_coarse)
             self.ssl_head_fine = nn.Linear(encoder_dim, ssl_k_fine)
 
+    def add_inter_ctc_heads(self, layer_indices):
+        if not self.is_transformer_baseline:
+            self.model.add_inter_ctc_heads(layer_indices)
+            return
+        encoder_dim = get_encoder_dim(self.variant)
+        for idx in layer_indices:
+            key = str(int(idx))
+            if key not in self.inter_ctc_heads:
+                self.inter_ctc_heads[key] = nn.Linear(encoder_dim, self.fc.out_features, bias=True)
+
     def forward(self, mel, lengths, return_inter: bool = False, return_ssl: bool = False):
+        if self.is_transformer_baseline:
+            wanted = sorted(int(k) for k in self.inter_ctc_heads.keys()) if return_inter else None
+            encoder_outputs, out_lengths, intermediates = self.encoder(
+                mel,
+                lengths,
+                intermediate_layers=wanted,
+            )
+            log_probs = F.log_softmax(self.fc(encoder_outputs), dim=-1)
+            inter_outputs = None
+            if intermediates is not None:
+                inter_outputs = {}
+                for idx, (feat, feat_lengths) in intermediates.items():
+                    head = self.inter_ctc_heads[str(idx)]
+                    inter_outputs[idx] = (F.log_softmax(head(feat), dim=-1), feat_lengths)
+            ssl_outputs = None
+            if return_ssl and self.ssl_anchor:
+                ssl_outputs = (
+                    self.ssl_head_coarse(encoder_outputs),
+                    self.ssl_head_fine(encoder_outputs),
+                )
+            return log_probs, out_lengths, inter_outputs, ssl_outputs
+
         return_features = return_ssl and self.ssl_anchor
         log_probs, out_lengths, inter_outputs, encoder_features = self.model(
             mel, lengths,
@@ -236,4 +444,3 @@ class CausalSpecUnitCTC(nn.Module):
             if ssl_head_fine_state:
                 self.ssl_head_fine.load_state_dict(ssl_head_fine_state, strict=True)
         return missing, unexpected
-

@@ -31,7 +31,7 @@ from CausalSpecUnit.common import (
     setup_distributed,
 )
 from CausalSpecUnit.data import BatchSpecAugment, CTCSpecDataset, collate_ctc, collate_eval
-from CausalSpecUnit.model import CausalSpecUnitCTC
+from CausalSpecUnit.model import CausalSpecUnitCTC, MODEL_VARIANTS
 
 
 def append_jsonl(path, record):
@@ -180,7 +180,7 @@ def parse_args():
     p.add_argument("--eval-batch-size", type=int, default=128)
     p.add_argument("--workers", type=int, default=8)
     p.add_argument("--dataloader-timeout", type=int, default=120)
-    p.add_argument("--variant", type=str, default="xs", choices=["xs", "s", "sm", "m", "ml", "l"])
+    p.add_argument("--variant", type=str, default="xs", choices=list(MODEL_VARIANTS))
     p.add_argument("--lr", type=float, default=2e-3)
     p.add_argument("--encoder-lr", type=float, default=None,
                    help="Optional peak LR for encoder parameters, useful for SSL fine-tuning.")
