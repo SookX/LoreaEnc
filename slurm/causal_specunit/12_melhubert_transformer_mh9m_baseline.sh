@@ -110,6 +110,8 @@ SPECAUG_TIME_MASKS="${SPECAUG_TIME_MASKS:-2}"
 SPECAUG_FREQ_MASKS="${SPECAUG_FREQ_MASKS:-2}"
 SPECAUG_DISABLE_LAST_EPOCHS="${SPECAUG_DISABLE_LAST_EPOCHS:-10}"
 SAVE_EVERY="${SAVE_EVERY:-10}"
+WORKERS="${WORKERS:-8}"
+DATALOADER_TIMEOUT="${DATALOADER_TIMEOUT:-120}"
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
@@ -256,8 +258,8 @@ for SUBSET in "${DATASETS[@]}"; do
                 --eval-batch-size "${EVAL_BATCH_SIZE}" \
                 --eval-split dev-other \
                 --eval-every 1 \
-                --workers 8 \
-                --dataloader-timeout 120 \
+                --workers "${WORKERS}" \
+                --dataloader-timeout "${DATALOADER_TIMEOUT}" \
                 --lr "${BASE_LR}" \
                 --encoder-lr "${ENCODER_LR}" \
                 --head-lr "${HEAD_LR}" \
