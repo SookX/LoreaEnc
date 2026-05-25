@@ -31,7 +31,11 @@ from CausalSpecUnit.common import (
     setup_distributed,
 )
 from CausalSpecUnit.data import BatchSpecAugment, CTCSpecDataset, collate_ctc, collate_eval
-from CausalSpecUnit.model import CausalSpecUnitCTC, MODEL_VARIANTS
+from CausalSpecUnit.model import (
+    CausalSpecUnitCTC,
+    MODEL_VARIANTS,
+    is_melhubert_transformer_variant,
+)
 
 
 def append_jsonl(path, record):
@@ -487,7 +491,17 @@ def main():
             print0(rank, "  SSL anchor heads warm-started from SSL checkpoint")
     model.to(device)
     if world_size > 1:
-        model = DDP(model, device_ids=[local_rank], output_device=local_rank)
+        # nn.TransformerEncoderLayer can produce unused-parameter gradients
+        # under certain attention mask patterns, which deadlocks plain DDP's
+        # all_reduce. Enable find_unused_parameters for the MelHuBERT-style
+        # Transformer variant; SqueezeFormer keeps the default fast path.
+        ddp_find_unused = is_melhubert_transformer_variant(args.variant)
+        model = DDP(
+            model,
+            device_ids=[local_rank],
+            output_device=local_rank,
+            find_unused_parameters=ddp_find_unused,
+        )
 
     metrics_path = os.path.join(args.output_dir, "ctc_metrics.jsonl")
     run_info_path = os.path.join(args.output_dir, "ctc_run_info.json")
