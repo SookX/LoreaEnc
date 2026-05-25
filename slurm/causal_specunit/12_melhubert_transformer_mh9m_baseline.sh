@@ -22,9 +22,9 @@
 #SBATCH --time=48:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=40
+#SBATCH --cpus-per-task=64
 #SBATCH --mem=256G
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:4
 #SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_mh9m.%j.out
 #SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_mh9m.%j.err
 
@@ -42,7 +42,7 @@ TOKENIZER_PATH="${TOKENIZER_PATH:-dataset/bpe128.model}"
 VARIANT="${VARIANT:-mh9m}"
 CODEBOOK_MODE="${CODEBOOK_MODE:-fine}"
 MAX_STEPS="${MAX_STEPS:-150000}"
-NPROC_PER_NODE="${NPROC_PER_NODE:-2}"
+NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
 PRETRAIN_NPROC_PER_NODE="${PRETRAIN_NPROC_PER_NODE:-${NPROC_PER_NODE}}"
 FT_NPROC_PER_NODE="${FT_NPROC_PER_NODE:-${NPROC_PER_NODE}}"
 EVAL_NPROC_PER_NODE="${EVAL_NPROC_PER_NODE:-${FT_NPROC_PER_NODE}}"
@@ -69,21 +69,6 @@ PRETRAIN_MASK_PROB="${PRETRAIN_MASK_PROB:-0.80}"
 PRETRAIN_MASK_LENGTH="${PRETRAIN_MASK_LENGTH:-10}"
 PRETRAIN_WORKERS="${PRETRAIN_WORKERS:-8}"
 
-EPOCHS="${EPOCHS:-150}"
-GRAD_ACCUM_STEPS="${GRAD_ACCUM_STEPS:-1}"
-EVAL_BATCH_SIZE="${EVAL_BATCH_SIZE:-128}"
-EVAL_TEST_BATCH_SIZE="${EVAL_TEST_BATCH_SIZE:-64}"
-BASE_LR="${BASE_LR:-1e-3}"
-ENCODER_LR="${ENCODER_LR:-3e-4}"
-HEAD_LR="${HEAD_LR:-1e-3}"
-WARMUP_EPOCHS="${WARMUP_EPOCHS:-10}"
-PEAK_EPOCHS="${PEAK_EPOCHS:-50}"
-NOAM_DECAY_RATE="${NOAM_DECAY_RATE:-0.5}"
-MAX_GRAD_NORM="${MAX_GRAD_NORM:-1.0}"
-SPECAUG_DISABLE_LAST_EPOCHS="${SPECAUG_DISABLE_LAST_EPOCHS:-10}"
-SAVE_EVERY="${SAVE_EVERY:-0}"
-KEEP_CHECKPOINTS="${KEEP_CHECKPOINTS:-1}"
-
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
 export PYTHONFAULTHANDLER=1
@@ -104,13 +89,91 @@ log_phase() {
     echo "===================================================="
 }
 
-batch_size_for_split() {
-    case "$1" in
-        librilight_1h)   echo "${BATCH_SIZE_1H:-64}" ;;
-        librilight_10h)  echo "${BATCH_SIZE_10H:-64}" ;;
-        train-clean-100) echo "${BATCH_SIZE_100H:-64}" ;;
-        *) echo "ERROR"; return 1 ;;
+configure_recipe() {
+    case "${SUBSET}" in
+        librilight_10min)
+            EPOCHS="150"
+            BATCH_SIZE="4"
+            GRAD_ACCUM_STEPS="1"
+            EVAL_EVERY="1"
+            SAVE_EVERY="10"
+            BASE_LR="1e-3"
+            ENCODER_LR="3e-4"
+            HEAD_LR="1e-3"
+            WARMUP_EPOCHS="10"
+            PEAK_EPOCHS="50"
+            NOAM_DECAY_RATE="0.5"
+            MAX_GRAD_NORM="1.0"
+            SPECAUG_TIME_MASK_PARAM="30"
+            SPECAUG_FREQ_MASK_PARAM="20"
+            SPECAUG_TIME_MASKS="2"
+            SPECAUG_FREQ_MASKS="2"
+            SPECAUG_DISABLE_LAST_EPOCHS="10"
+            ;;
+        librilight_1h)
+            EPOCHS="150"
+            BATCH_SIZE="8"
+            GRAD_ACCUM_STEPS="1"
+            EVAL_EVERY="1"
+            SAVE_EVERY="10"
+            BASE_LR="1e-3"
+            ENCODER_LR="3e-4"
+            HEAD_LR="1e-3"
+            WARMUP_EPOCHS="10"
+            PEAK_EPOCHS="50"
+            NOAM_DECAY_RATE="0.5"
+            MAX_GRAD_NORM="1.0"
+            SPECAUG_TIME_MASK_PARAM="30"
+            SPECAUG_FREQ_MASK_PARAM="20"
+            SPECAUG_TIME_MASKS="2"
+            SPECAUG_FREQ_MASKS="2"
+            SPECAUG_DISABLE_LAST_EPOCHS="10"
+            ;;
+        librilight_10h)
+            EPOCHS="150"
+            BATCH_SIZE="16"
+            GRAD_ACCUM_STEPS="1"
+            EVAL_EVERY="1"
+            SAVE_EVERY="10"
+            BASE_LR="1e-3"
+            ENCODER_LR="2e-4"
+            HEAD_LR="1e-3"
+            WARMUP_EPOCHS="10"
+            PEAK_EPOCHS="50"
+            NOAM_DECAY_RATE="0.5"
+            MAX_GRAD_NORM="1.0"
+            SPECAUG_TIME_MASK_PARAM="30"
+            SPECAUG_FREQ_MASK_PARAM="20"
+            SPECAUG_TIME_MASKS="2"
+            SPECAUG_FREQ_MASKS="2"
+            SPECAUG_DISABLE_LAST_EPOCHS="10"
+            ;;
+        train-clean-100)
+            EPOCHS="150"
+            BATCH_SIZE="64"
+            GRAD_ACCUM_STEPS="2"
+            EVAL_EVERY="1"
+            SAVE_EVERY="10"
+            BASE_LR="1e-3"
+            ENCODER_LR="3e-4"
+            HEAD_LR="1e-3"
+            WARMUP_EPOCHS="10"
+            PEAK_EPOCHS="50"
+            NOAM_DECAY_RATE="0.5"
+            MAX_GRAD_NORM="1.0"
+            SPECAUG_TIME_MASK_PARAM="40"
+            SPECAUG_FREQ_MASK_PARAM="30"
+            SPECAUG_TIME_MASKS="2"
+            SPECAUG_FREQ_MASKS="2"
+            SPECAUG_DISABLE_LAST_EPOCHS="15"
+            ;;
+        *)
+            echo "Unsupported SUBSET=${SUBSET}; expected librilight_10min, librilight_1h, librilight_10h, or train-clean-100"
+            exit 1
+            ;;
     esac
+    EVAL_BATCH_SIZE="${EVAL_BATCH_SIZE:-128}"
+    EVAL_TEST_BATCH_SIZE="${EVAL_TEST_BATCH_SIZE:-64}"
 }
 
 [ -d "${VIRTUAL_ENV}" ]            || { echo "Missing venv: ${VIRTUAL_ENV}"; exit 1; }
@@ -121,8 +184,8 @@ batch_size_for_split() {
 
 for DATASET in "${DATASETS[@]}"; do
     case "${DATASET}" in
-        librilight_1h|librilight_10h|train-clean-100) ;;
-        *) echo "Invalid split ${DATASET}; expected librilight_1h, librilight_10h, or train-clean-100"; exit 1 ;;
+        librilight_10min|librilight_1h|librilight_10h|train-clean-100) ;;
+        *) echo "Invalid split ${DATASET}; expected librilight_10min, librilight_1h, librilight_10h, or train-clean-100"; exit 1 ;;
     esac
     [ -d "${DATA_ROOT}/${DATASET}" ] || { echo "Missing train split: ${DATA_ROOT}/${DATASET}"; exit 1; }
 done
@@ -176,14 +239,18 @@ log_phase "FINE-TUNE ${VARIANT} baseline subsets=${DATASETS[*]} seeds=${SEEDS[*]
 echo "Processes: pretrain=${PRETRAIN_NPROC_PER_NODE} finetune=${FT_NPROC_PER_NODE} eval=${EVAL_NPROC_PER_NODE}"
 
 for SUBSET in "${DATASETS[@]}"; do
-    BATCH_SIZE=$(batch_size_for_split "${SUBSET}")
+    configure_recipe
+    log_phase "RECIPE ${SUBSET}: epochs=${EPOCHS} per_gpu_batch=${BATCH_SIZE} accum=${GRAD_ACCUM_STEPS} encoder_lr=${ENCODER_LR} head_lr=${HEAD_LR} warmup=${WARMUP_EPOCHS} peak=${PEAK_EPOCHS} max_grad=${MAX_GRAD_NORM} specaug=${SPECAUG_TIME_MASK_PARAM}/${SPECAUG_FREQ_MASK_PARAM}x${SPECAUG_TIME_MASKS}/${SPECAUG_FREQ_MASKS} disable_last=${SPECAUG_DISABLE_LAST_EPOCHS}"
 
     for SEED in "${SEEDS[@]}"; do
         OUT_DIR="${OUTPUT_ROOT}/${SUBSET}/melhubert_tx_${CODEBOOK_MODE}_seed${SEED}"
-        TRAIN_DONE="${OUT_DIR}/train.done"
         mkdir -p "${OUT_DIR}"
 
         log_phase "CELL ${CELL_IDX}/${TOTAL_CELLS}: subset=${SUBSET} seed=${SEED} batch=${BATCH_SIZE}"
+
+        if [ "${CLEAN_FIRST:-0}" = "1" ] && [ -d "${OUT_DIR}" ]; then
+            find "${OUT_DIR}" -mindepth 1 ! -name ".nfs*" -delete 2>/dev/null || true
+        fi
 
         if [ -f "${OUT_DIR}/eval_results.json" ]; then
             echo "SKIP cell: eval_results.json exists at ${OUT_DIR}/eval_results.json"
@@ -194,8 +261,7 @@ for SUBSET in "${DATASETS[@]}"; do
         TRAIN_PORT=$((PORT_BASE + 10 + CELL_IDX * 2))
         EVAL_PORT=$((PORT_BASE + 11 + CELL_IDX * 2))
 
-        if [ ! -f "${OUT_DIR}/checkpoint_best/checkpoint.pt" ] || [ ! -f "${TRAIN_DONE}" ]; then
-            rm -f "${TRAIN_DONE}"
+        if [ ! -f "${OUT_DIR}/checkpoint_best/checkpoint.pt" ]; then
             torchrun \
                 --nproc_per_node="${FT_NPROC_PER_NODE}" \
                 --master_addr="${MASTER_ADDR}" \
@@ -213,7 +279,7 @@ for SUBSET in "${DATASETS[@]}"; do
                 --grad-accum-steps "${GRAD_ACCUM_STEPS}" \
                 --eval-batch-size "${EVAL_BATCH_SIZE}" \
                 --eval-split dev-other \
-                --eval-every 1 \
+                --eval-every "${EVAL_EVERY}" \
                 --workers 8 \
                 --dataloader-timeout 120 \
                 --lr "${BASE_LR}" \
@@ -224,19 +290,17 @@ for SUBSET in "${DATASETS[@]}"; do
                 --noam-decay-rate "${NOAM_DECAY_RATE}" \
                 --max-grad-norm "${MAX_GRAD_NORM}" \
                 --specaug \
-                --specaug-time-mask-param 30 \
-                --specaug-freq-mask-param 20 \
-                --specaug-time-masks 2 \
-                --specaug-freq-masks 2 \
+                --specaug-time-mask-param "${SPECAUG_TIME_MASK_PARAM}" \
+                --specaug-freq-mask-param "${SPECAUG_FREQ_MASK_PARAM}" \
+                --specaug-time-masks "${SPECAUG_TIME_MASKS}" \
+                --specaug-freq-masks "${SPECAUG_FREQ_MASKS}" \
                 --specaug-disable-last-epochs "${SPECAUG_DISABLE_LAST_EPOCHS}" \
                 --seed "${SEED}" \
                 --progress off \
                 --log-every 0 \
-                --save-every "${SAVE_EVERY}" \
-                --keep-checkpoints "${KEEP_CHECKPOINTS}"
-            touch "${TRAIN_DONE}"
+                --save-every "${SAVE_EVERY}"
         else
-            echo "SKIP train: train.done and checkpoint_best exist at ${OUT_DIR}"
+            echo "SKIP train: checkpoint_best exists at ${OUT_DIR}/checkpoint_best/checkpoint.pt"
         fi
 
         torchrun \

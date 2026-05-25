@@ -167,7 +167,11 @@ backbone is deliberate. In the original matched comparison,
 SqueezeFormer-XS outperformed Conformer-CTC-S on LibriSpeech while
 reducing FLOPs by 1.66$\times$. We therefore use it as a compact encoder
 for studying whether spectrogram-domain SSL remains effective in the
-sub-10M-parameter regime.
+sub-10M-parameter regime. This regime is not a trivial downscaling of
+larger SSL encoders: a 9M-parameter model has much less capacity to
+absorb noisy or overly fine discrete targets, so successful
+dual-granularity pretraining is an empirical question rather than a
+foregone conclusion.
 
 A parallel line of work uses spectrograms directly. Masked Spectrogram
 Prediction~\citep{msp}, AST~\citep{ast}, and SSAST~\citep{ssast} show
@@ -371,7 +375,11 @@ is substantially faster than the V100s used in the reported wav2vec~2.0
 and HuBERT Base numbers, the cross-system GPU-hour ratio in
 \cref{tab:abl-eff} overstates the algorithm-level efficiency advantage;
 the absolute wall-clock budget on a single 2-GPU workstation remains the
-operationally relevant quantity. Iter-2
+operationally relevant quantity. As a rough hardware reference, H200
+advertises on the order of 700--1000 dense FP16/BF16 Tensor-TFLOP/s
+depending on form factor, versus about 125 FP16 Tensor-TFLOP/s for V100,
+so the table should be read as a footprint comparison rather than a
+same-hardware speedup claim. Iter-2
 hidden-state extraction adds about 6 GPU-hours. Mel extraction, CMVN,
 PCA, MiniBatch $K$-means, target assignment, and sharding were CPU
 preprocessing jobs and were not separately timed in the original logs.
