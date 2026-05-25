@@ -107,11 +107,15 @@ for SUBSET in "${DATASETS[@]}"; do
 
         EVAL_PORT=$((PORT_BASE + CELL_IDX))
 
+        # Use eval_mh9m.py (matches MH9MCTCModel head naming). evaluate_ctc.py
+        # builds CausalSpecUnitCTC which uses self.fc instead of self.head,
+        # so it would load the encoder but leave the CTC head randomly
+        # initialised, producing nonsense hypotheses and WER > 100%.
         torchrun \
             --nproc_per_node="${NPROC_PER_NODE}" \
             --master_addr="${MASTER_ADDR}" \
             --master_port="${EVAL_PORT}" \
-            -m CausalSpecUnit.evaluate_ctc \
+            -m CausalSpecUnit.eval_mh9m \
             --checkpoint "${CKPT}" \
             --data-root "${DATA_ROOT}" \
             --cmvn-path "${TARGETS_DIR}/cmvn.pt" \
