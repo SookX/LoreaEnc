@@ -22,9 +22,9 @@
 #SBATCH --time=48:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=64
+#SBATCH --cpus-per-task=40
 #SBATCH --mem=256G
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:2
 #SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_mh9m.%j.out
 #SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/csu_mh9m.%j.err
 
@@ -42,7 +42,7 @@ TOKENIZER_PATH="${TOKENIZER_PATH:-dataset/bpe128.model}"
 VARIANT="${VARIANT:-mh9m}"
 CODEBOOK_MODE="${CODEBOOK_MODE:-fine}"
 MAX_STEPS="${MAX_STEPS:-150000}"
-NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
+NPROC_PER_NODE="${NPROC_PER_NODE:-2}"
 PRETRAIN_NPROC_PER_NODE="${PRETRAIN_NPROC_PER_NODE:-${NPROC_PER_NODE}}"
 FT_NPROC_PER_NODE="${FT_NPROC_PER_NODE:-${NPROC_PER_NODE}}"
 EVAL_NPROC_PER_NODE="${EVAL_NPROC_PER_NODE:-${FT_NPROC_PER_NODE}}"
@@ -106,9 +106,9 @@ log_phase() {
 
 batch_size_for_split() {
     case "$1" in
-        librilight_1h)   echo "${BATCH_SIZE_1H:-8}" ;;
-        librilight_10h)  echo "${BATCH_SIZE_10H:-32}" ;;
-        train-clean-100) echo "${BATCH_SIZE_100H:-128}" ;;
+        librilight_1h)   echo "${BATCH_SIZE_1H:-64}" ;;
+        librilight_10h)  echo "${BATCH_SIZE_10H:-64}" ;;
+        train-clean-100) echo "${BATCH_SIZE_100H:-64}" ;;
         *) echo "ERROR"; return 1 ;;
     esac
 }
