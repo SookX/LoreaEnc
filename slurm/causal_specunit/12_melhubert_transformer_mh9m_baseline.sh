@@ -14,6 +14,7 @@
 # Useful filters:
 #   SEED_LIST="42" SUBSETS="librilight_10h" sbatch ...
 #   MAX_STEPS=50000 sbatch ...   # smoke/proof-of-concept pretrain
+#   FORCE_TRAIN=1 sbatch ...      # wipe fine-tune cell dirs and retrain
 
 #SBATCH --partition=common
 #SBATCH --qos=bg-eng-01
@@ -244,11 +245,13 @@ for SUBSET in "${DATASETS[@]}"; do
 
     for SEED in "${SEEDS[@]}"; do
         OUT_DIR="${OUTPUT_ROOT}/${SUBSET}/melhubert_tx_${CODEBOOK_MODE}_seed${SEED}"
+        TRAIN_DONE="${OUT_DIR}/train.done"
         mkdir -p "${OUT_DIR}"
 
         log_phase "CELL ${CELL_IDX}/${TOTAL_CELLS}: subset=${SUBSET} seed=${SEED} batch=${BATCH_SIZE}"
 
-        if [ "${CLEAN_FIRST:-0}" = "1" ] && [ -d "${OUT_DIR}" ]; then
+        if [ "${CLEAN_FIRST:-0}" = "1" ] || [ "${FORCE_TRAIN:-0}" = "1" ]; then
+            log_phase "  cleaning ${OUT_DIR} before training"
             find "${OUT_DIR}" -mindepth 1 ! -name ".nfs*" -delete 2>/dev/null || true
         fi
 
@@ -261,7 +264,9 @@ for SUBSET in "${DATASETS[@]}"; do
         TRAIN_PORT=$((PORT_BASE + 10 + CELL_IDX * 2))
         EVAL_PORT=$((PORT_BASE + 11 + CELL_IDX * 2))
 
-        if [ ! -f "${OUT_DIR}/checkpoint_best/checkpoint.pt" ]; then
+        if [ ! -f "${OUT_DIR}/checkpoint_best/checkpoint.pt" ] || [ ! -f "${TRAIN_DONE}" ]; then
+            rm -f "${TRAIN_DONE}"
+            log_phase "  train melhubert_tx_${CODEBOOK_MODE} seed=${SEED}"
             torchrun \
                 --nproc_per_node="${FT_NPROC_PER_NODE}" \
                 --master_addr="${MASTER_ADDR}" \
@@ -299,10 +304,12 @@ for SUBSET in "${DATASETS[@]}"; do
                 --progress off \
                 --log-every 0 \
                 --save-every "${SAVE_EVERY}"
+            touch "${TRAIN_DONE}"
         else
-            echo "SKIP train: checkpoint_best exists at ${OUT_DIR}/checkpoint_best/checkpoint.pt"
+            log_phase "  SKIP train: checkpoint_best and train.done exist"
         fi
 
+        log_phase "  eval melhubert_tx_${CODEBOOK_MODE} seed=${SEED}"
         torchrun \
             --nproc_per_node="${EVAL_NPROC_PER_NODE}" \
             --master_addr="${MASTER_ADDR}" \
