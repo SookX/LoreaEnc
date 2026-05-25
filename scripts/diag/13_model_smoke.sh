@@ -36,6 +36,7 @@ export PYTHONFAULTHANDLER=1
 export PYTHONUNBUFFERED=1
 
 cd "${PROJECT_DIR}"
+export PYTHONPATH="${PROJECT_DIR}:${PYTHONPATH:-}"
 
 python scripts/diag/13_model_smoke.py \
     --ssl-checkpoint "${SSL_CKPT}" \
