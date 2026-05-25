@@ -313,7 +313,7 @@ def main():
     log(rank, f"train={args.train_split} epochs={args.epochs} batch={args.batch_size} workers={args.workers}")
 
     tokenizer = build_tokenizer(args.tokenizer_path)
-    vocab_size = tokenizer.get_piece_size()
+    vocab_size = tokenizer.vocab_size
     blank_id = vocab_size  # blank is the EXTRA token beyond the BPE vocab
 
     log(rank, f"tokenizer vocab={vocab_size} blank_id={blank_id}")
