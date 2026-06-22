@@ -81,10 +81,19 @@ def parse_args():
     p.add_argument("--chunk-stride", type=int, default=4,
                    help="Frame stride between target chunks. Must match target generation.")
     p.add_argument("--codebook-mode", choices=["coarse", "fine", "both"], default="both",
-                   help="Which k-means codebook(s) the SSL model predicts. 'coarse' uses only K_c=100, "
-                        "'fine' uses only K_f=500, 'both' (default) uses K_c+K_f as the joint objective. "
-                        "Used for the dual-codebook ablation. The unused head still exists in the module "
-                        "(DDP find_unused_parameters=True handles it) but receives no loss.")
+                   help="Which codebook(s) the SSL model predicts. 'coarse' uses only K_c, "
+                        "'fine' uses only K_f, 'both' (default) uses K_c+K_f as the joint objective. "
+                        "Used for the dual-codebook ablation and for single-stream VQ cells. The "
+                        "unused head still exists in the module (DDP find_unused_parameters=True "
+                        "handles it) but receives no loss.")
+    p.add_argument("--k-coarse", type=int, default=100,
+                   help="Coarse codebook size. Must match k_coarse in targets/metadata.json. "
+                        "Default 100 matches the k-means cells; learned-VQ single-stream cells "
+                        "pass dummy z100=zeros and keep this at 100.")
+    p.add_argument("--k-fine", type=int, default=500,
+                   help="Fine codebook size. Must match k_fine in targets/metadata.json. "
+                        "Default 500 matches the k-means cells; learned-VQ flat-600 single-stream "
+                        "cells pass --k-fine 600.")
     p.add_argument("--mask-prob", type=float, default=0.065,
                    help="HuBERT-style probability of starting a time mask span over target steps.")
     p.add_argument("--mask-length", type=int, default=10,
@@ -172,8 +181,8 @@ def validate_target_metadata(targets_dir, args):
     expected = {
         "chunk_size": args.chunk_size,
         "chunk_stride": args.chunk_stride,
-        "k_coarse": 100,
-        "k_fine": 500,
+        "k_coarse": args.k_coarse,
+        "k_fine": args.k_fine,
     }
     for key, value in expected.items():
         if int(metadata[key]) != int(value):
@@ -434,6 +443,8 @@ def main():
 
     model = CausalSpecUnitSSL(
         variant=args.variant,
+        k_coarse=args.k_coarse,
+        k_fine=args.k_fine,
         layer_drop_p=args.layer_drop_p,
         aux_layer_indices=args.aux_layers,
         teacher_momentum=args.teacher_momentum if args.teacher_distill_weight > 0.0 else 0.0,
