@@ -1,44 +1,31 @@
 #!/bin/bash
-# Full 9M-parameter parallel-VQ sweep at SqueezeFormer-XS scale.
+# Parallel-VQ 9M sweep at 1h budget only.
 #
-# Submits 18 fine-tune + eval cells as a slurm array:
-#   {iter-1, iter-2} parallel-VQ x {1h, 10h, 100h} x {seed 42, 43, 44}
+# Array of 6 cells = {iter-1, iter-2} x {seed 42, 43, 44} on Libri-Light 1h.
+# Each cell is fine-tune + eval (no SSL pretrain; checkpoints reused).
 #
-# This is the publication-grade table for the 9M parallel-VQ recipe.
-# After this completes you have mean +/- std across 3 seeds for every
-# (iter, budget) cell, ready for direct comparison against HuBERT-Base /
-# wav2vec2-Base (when you build the larger-variant comparison).
+# Auto-skips seed 42 cell already done.
 #
-# All cells reuse the existing SSL pretrained checkpoints:
-#   iter-1: outputs/causal_specunit/ssl_parallel_iter1_150k/checkpoint_step150000/checkpoint.pt
-#   iter-2: outputs/causal_specunit/ssl_parallel_iter2_100k/checkpoint_step100000/checkpoint.pt
-#
-# Stages skipped (already done in 21_/22_ smokes):
-#   A. VQ target generation
-#   B. SSL pretrain
-# Stages run per cell:
-#   D. CTC fine-tune (auto-batch-size per budget)
-#   E. Evaluate on test-clean / test-other
-#
-# Auto-skips cells whose eval_results.json already exists (the seed-42
-# cells you already ran).
+# Cell mapping (--array index):
+#   0: iter1 seed=42 | 1: iter1 seed=43 | 2: iter1 seed=44
+#   3: iter2 seed=42 | 4: iter2 seed=43 | 5: iter2 seed=44
 #
 # Submit:
-#   sbatch slurm/causal_specunit/23_vq_parallel_full_sweep.sh
+#   sbatch slurm/causal_specunit/23_vq_parallel_sweep_1h.sh
 
 #SBATCH --partition=common
 #SBATCH --qos=bg-eng-01
 #SBATCH --account=bg-eng-01
-#SBATCH --job-name=vq_par_sw
-#SBATCH --array=0-17
-#SBATCH --time=06:00:00
+#SBATCH --job-name=vq_p_1h
+#SBATCH --array=0-5
+#SBATCH --time=02:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=128G
 #SBATCH --gres=gpu:2
-#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/vq_par_sw.%A_%a.out
-#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/vq_par_sw.%A_%a.err
+#SBATCH -o /valhalla/projects/bg-eng-01/LoreaEnc/logs/vq_p_1h.%A_%a.out
+#SBATCH -e /valhalla/projects/bg-eng-01/LoreaEnc/logs/vq_p_1h.%A_%a.err
 
 set -euo pipefail
 
@@ -46,34 +33,15 @@ module purge
 module load anaconda3
 module load nvidia/cuda/12
 
-# -------------------- Cell mapping --------------------
-# Array index 0..17 -> (iter, budget, seed)
-# Layout: ITER outer (2), BUDGET middle (3), SEED inner (3). So 2*3*3 = 18.
+SUBSET="librilight_1h"
+FT_BATCH_SIZE=16   # 2 GPUs * 16 = 32 effective, matches script 10's 1h cell
+
 ITERS=(iter1 iter2)
-BUDGETS=(librilight_1h librilight_10h train-clean-100)
 SEEDS=(42 43 44)
+IDX="${SLURM_ARRAY_TASK_ID:?must be a slurm array task}"
+ITER="${ITERS[$((IDX / 3))]}"
+SEED="${SEEDS[$((IDX % 3))]}"
 
-IDX="${SLURM_ARRAY_TASK_ID:?must be run as a slurm array job}"
-ITER_IDX=$((IDX / 9))
-REMAINDER=$((IDX % 9))
-BUDGET_IDX=$((REMAINDER / 3))
-SEED_IDX=$((REMAINDER % 3))
-
-ITER="${ITERS[${ITER_IDX}]}"
-SUBSET="${BUDGETS[${BUDGET_IDX}]}"
-SEED="${SEEDS[${SEED_IDX}]}"
-
-# Per-budget batch size on 2 GPUs to match script 10's effective batches.
-# 1h: 32 eff, 10h: 128 eff, 100h: 512 eff.
-case "${SUBSET}" in
-    librilight_1h)   FT_BATCH_SIZE=16 ;;
-    librilight_10h)  FT_BATCH_SIZE=64 ;;
-    train-clean-100) FT_BATCH_SIZE=256 ;;
-    *) echo "Unknown SUBSET=${SUBSET}"; exit 1 ;;
-esac
-
-# Per-iter SSL checkpoint + output root (must match the layout the
-# 21_/22_ smoke scripts already used).
 if [ "${ITER}" = "iter1" ]; then
     SSL_CKPT="outputs/causal_specunit/ssl_parallel_iter1_150k/checkpoint_step150000/checkpoint.pt"
     OUTPUT_ROOT="outputs/causal_specunit/vq_smoke/parallel"
@@ -81,10 +49,9 @@ else
     SSL_CKPT="outputs/causal_specunit/ssl_parallel_iter2_100k/checkpoint_step100000/checkpoint.pt"
     OUTPUT_ROOT="outputs/causal_specunit/vq_iter2/parallel"
 fi
-
 FT_OUT_DIR="${OUTPUT_ROOT}/${SUBSET}/seed${SEED}"
 
-# -------------------- Shared config --------------------
+# Shared config
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
@@ -117,26 +84,23 @@ log_phase() {
     echo "===================================================="
 }
 
-log_phase "CELL ${IDX} | iter=${ITER} subset=${SUBSET} seed=${SEED} batch=${FT_BATCH_SIZE} (eff. $((FT_BATCH_SIZE * NPROC_PER_NODE)))"
+log_phase "CELL ${IDX} | 1h iter=${ITER} seed=${SEED} batch=${FT_BATCH_SIZE} (eff. $((FT_BATCH_SIZE * NPROC_PER_NODE)))"
 echo "SSL checkpoint: ${SSL_CKPT}"
 echo "Output dir:     ${FT_OUT_DIR}"
 
-# -------------------- Sanity checks --------------------
-[ -d "${VIRTUAL_ENV}" ]                          || { echo "Missing venv: ${VIRTUAL_ENV}"; exit 1; }
-[ -d "${DATA_ROOT}" ]                            || { echo "Missing data root: ${DATA_ROOT}"; exit 1; }
-[ -f "${SOURCE_TARGETS_DIR}/cmvn.pt" ]           || { echo "Missing CMVN"; exit 1; }
-[ -f "${SSL_CKPT}" ]                             || { echo "Missing SSL checkpoint: ${SSL_CKPT}"; exit 1; }
-[ -f "${TOKENIZER_PATH}" ]                       || { echo "Missing tokenizer: ${TOKENIZER_PATH}"; exit 1; }
+[ -d "${VIRTUAL_ENV}" ]                 || { echo "Missing venv"; exit 1; }
+[ -d "${DATA_ROOT}" ]                   || { echo "Missing data root"; exit 1; }
+[ -f "${SOURCE_TARGETS_DIR}/cmvn.pt" ]  || { echo "Missing CMVN"; exit 1; }
+[ -f "${SSL_CKPT}" ]                    || { echo "Missing SSL checkpoint: ${SSL_CKPT}"; exit 1; }
+[ -f "${TOKENIZER_PATH}" ]              || { echo "Missing tokenizer"; exit 1; }
 
-# -------------------- Skip-if-done --------------------
 if [ -f "${FT_OUT_DIR}/eval_results.json" ]; then
     log_phase "SKIP cell: ${FT_OUT_DIR}/eval_results.json already exists"
     exit 0
 fi
 
-PORT_BASE=$((39000 + (SLURM_JOB_ID % 2500) + IDX * 7))
+PORT_BASE=$((40000 + (SLURM_JOB_ID % 2500) + IDX * 7))
 
-# -------------------- Stage D: CTC fine-tune --------------------
 if [ ! -f "${FT_OUT_DIR}/checkpoint_best/checkpoint.pt" ]; then
     log_phase "Stage D: CTC fine-tune"
     torchrun \
@@ -180,7 +144,6 @@ else
     log_phase "Stage D: SKIP (best checkpoint already exists)"
 fi
 
-# -------------------- Stage E: Evaluate --------------------
 log_phase "Stage E: evaluate test-clean + test-other"
 torchrun \
     --nproc_per_node="${NPROC_PER_NODE}" \
@@ -197,5 +160,4 @@ torchrun \
     --workers 4 \
     --output "${FT_OUT_DIR}/eval_results.json"
 
-log_phase "DONE cell ${IDX}: iter=${ITER} subset=${SUBSET} seed=${SEED}"
-echo "Result: ${FT_OUT_DIR}/eval_results.json"
+log_phase "DONE 1h iter=${ITER} seed=${SEED}"
