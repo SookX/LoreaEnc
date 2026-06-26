@@ -46,7 +46,7 @@ SSL_CKPT="${SSL_CKPT:-outputs/causal_specunit/ssl_m95_iter1_400k/checkpoint_step
 OUTPUT_ROOT="outputs/causal_specunit/m95_smoke/iter1"
 SUBSET="${SUBSET:-librilight_1h}"
 SEED="${SEED:-42}"
-FT_BATCH_SIZE="${FT_BATCH_SIZE:-8}"   # 2 GPUs x 8 = 16 effective, conservative for 95M at 1h split
+FT_BATCH_SIZE="${FT_BATCH_SIZE:-16}"   # 2 GPUs x 16 = 32 effective, matches 9M iter-2 1h recipe (script 10)
 FT_EPOCHS="${FT_EPOCHS:-150}"
 
 FT_OUT_DIR="${OUTPUT_ROOT}/${SUBSET}/seed${SEED}"

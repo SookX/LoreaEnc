@@ -147,6 +147,12 @@ def parse_args():
     p.add_argument("--log-every", type=int, default=0)
     p.add_argument("--save-every", type=int, default=10)
     p.add_argument("--keep-checkpoints", type=int, default=5)
+    p.add_argument("--save-at-steps", type=int, nargs="*", default=None,
+                   help="Optimizer step counts at which to save a 'milestone' checkpoint "
+                        "(in addition to the per-epoch saves controlled by --save-every). "
+                        "Useful for keeping intermediate snapshots like 150000 300000 for "
+                        "downstream experiments. Milestone checkpoints write a `.milestone` "
+                        "marker so they survive --keep-checkpoints cleanup.")
     p.add_argument("--max-steps", type=int, default=None,
                    help="Stop after this many optimizer steps.")
     p.add_argument("--max-train-batches", type=int, default=None)
@@ -197,13 +203,20 @@ def cleanup_checkpoints(output_dir, keep):
     if keep <= 0 or not os.path.isdir(output_dir):
         return
     ckpts = []
+    milestones = []
     for name in os.listdir(output_dir):
         if name.startswith("checkpoint_step"):
             try:
                 step = int(name.replace("checkpoint_step", ""))
             except ValueError:
                 continue
-            ckpts.append((step, name))
+            ckpt_path = os.path.join(output_dir, name)
+            if os.path.exists(os.path.join(ckpt_path, ".milestone")):
+                milestones.append((step, name))
+            else:
+                ckpts.append((step, name))
+    # Keep the most recent `keep` non-milestone checkpoints; milestones are
+    # always preserved.
     ckpts.sort()
     for _, name in ckpts[:-keep]:
         shutil.rmtree(os.path.join(output_dir, name), ignore_errors=True)
@@ -559,6 +572,11 @@ def main():
         m, s = divmod(m, 60)
         return f"{h}h{m:02d}m" if h else f"{m}m{s:02d}s"
 
+    # Track the optimizer-step count at the last save so we can detect when a
+    # --save-at-steps milestone was crossed during the just-ended epoch.
+    last_save_step = optimizer_steps
+    milestone_targets = sorted(set(args.save_at_steps or []))
+
     try:
         for epoch in range(start_epoch, args.epochs + 1):
             if args.max_steps is not None and optimizer_steps >= args.max_steps:
@@ -840,10 +858,19 @@ def main():
                 print(f"[ssl warn] epoch {epoch}: average masked fraction is <1% — check mask_prob/mask_length settings", flush=True)
             trace(args.trace_startup or args.trace_every > 0, rank, f"epoch={epoch} entering barrier")
             barrier()
-            if is_main_process(rank) and (epoch % args.save_every == 0 or (args.max_steps is not None and optimizer_steps >= args.max_steps)):
-                trace(args.trace_startup or args.trace_every > 0, rank, f"epoch={epoch} saving checkpoint step={optimizer_steps}")
+            # Detect whether this epoch crossed any --save-at-steps milestones.
+            crossed_milestones = [t for t in milestone_targets
+                                  if last_save_step < t <= optimizer_steps]
+            should_save = (
+                epoch % args.save_every == 0
+                or (args.max_steps is not None and optimizer_steps >= args.max_steps)
+                or bool(crossed_milestones)
+            )
+            if is_main_process(rank) and should_save:
+                trace(args.trace_startup or args.trace_every > 0, rank, f"epoch={epoch} saving checkpoint step={optimizer_steps} milestones={crossed_milestones}")
+                ckpt_path = os.path.join(args.output_dir, f"checkpoint_step{optimizer_steps:06d}")
                 save_checkpoint(
-                    os.path.join(args.output_dir, f"checkpoint_step{optimizer_steps:06d}"),
+                    ckpt_path,
                     model,
                     optimizer,
                     scheduler,
@@ -854,8 +881,17 @@ def main():
                         "ssl_c500": avg_c500,
                         "ssl_masked_fraction": avg_masked,
                         "optimizer_steps": optimizer_steps,
+                        "milestones_crossed": crossed_milestones or None,
                     },
                 )
+                # Write a .milestone marker so this checkpoint survives
+                # --keep-checkpoints cleanup.
+                if crossed_milestones:
+                    with open(os.path.join(ckpt_path, ".milestone"), "w", encoding="utf-8") as f:
+                        json.dump({"target_steps_crossed": crossed_milestones,
+                                   "actual_step": optimizer_steps,
+                                   "epoch": epoch}, f)
+                last_save_step = optimizer_steps
                 cleanup_checkpoints(args.output_dir, args.keep_checkpoints)
             trace(args.trace_startup or args.trace_every > 0, rank, f"epoch={epoch} leaving checkpoint barrier")
             barrier()

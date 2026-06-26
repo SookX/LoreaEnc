@@ -156,7 +156,9 @@ torchrun \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --prefetch-factor 4 \
     --log-every 50 \
-    --save-every 5 \
+    --save-every 10 \
+    --save-at-steps 150000 300000 \
+    --keep-checkpoints 5 \
     --trace-startup \
     --progress off \
     "${RESUME_ARGS[@]}"
