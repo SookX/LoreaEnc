@@ -98,11 +98,27 @@ SQUEEZEFORMER_L = SqueezeFormerConfig(
     recover_layer_index=21,
 )
 
+# Custom variant targeting ~95M parameters for matched-scale comparison
+# with wav2vec2-Base / HuBERT-Base (both 95M). Sits between SqueezeFormer-M
+# (measured 55.8M in this codebase) and SqueezeFormer-ML. Head dim 64
+# (384/6) follows standard transformer practice.
+SQUEEZEFORMER_M95 = SqueezeFormerConfig(
+    encoder_dim=384,
+    num_encoder_layers=24,
+    num_attention_heads=6,
+    feed_forward_expansion_factor=4,
+    conv_expansion_factor=2,
+    conv_kernel_size=31,
+    reduce_layer_index=11,
+    recover_layer_index=23,
+)
+
 VARIANTS = {
     "xs": SQUEEZEFORMER_XS,
     "s": SQUEEZEFORMER_S,
     "sm": SQUEEZEFORMER_SM,
     "m": SQUEEZEFORMER_M,
+    "m95": SQUEEZEFORMER_M95,
     "ml": SQUEEZEFORMER_ML,
     "l": SQUEEZEFORMER_L,
 }

@@ -11,7 +11,7 @@ from CausalSpecUnit.squeezeformer_baseline import Squeezeformer, get_config
 from CausalSpecUnit.squeezeformer_baseline.convolution import DepthwiseConv2dSubsampling
 
 
-SQUEEZEFORMER_VARIANTS = ("xs", "s", "sm", "m", "ml", "l")
+SQUEEZEFORMER_VARIANTS = ("xs", "s", "sm", "m", "m95", "ml", "l")
 MELHUBERT_TRANSFORMER_VARIANTS = ("mh9m",)
 MODEL_VARIANTS = SQUEEZEFORMER_VARIANTS + MELHUBERT_TRANSFORMER_VARIANTS
 
