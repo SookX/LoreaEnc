@@ -105,9 +105,21 @@ def load_checkpoint(path, model, optimizer=None, scheduler=None, device="cpu", s
     return state
 
 
-def build_extended_noam_scheduler(optimizer, steps_per_epoch, warmup_epochs, peak_epochs, decay_rate):
-    warmup_steps = max(1, warmup_epochs * steps_per_epoch)
-    peak_steps = max(0, peak_epochs * steps_per_epoch)
+def build_extended_noam_scheduler(
+    optimizer,
+    steps_per_epoch,
+    warmup_epochs,
+    peak_epochs,
+    decay_rate,
+    warmup_steps=None,
+    peak_steps=None,
+):
+    if warmup_steps is None:
+        warmup_steps = warmup_epochs * steps_per_epoch
+    if peak_steps is None:
+        peak_steps = peak_epochs * steps_per_epoch
+    warmup_steps = max(1, int(warmup_steps))
+    peak_steps = max(0, int(peak_steps))
 
     def lr_lambda(step):
         step = max(1, step)
@@ -190,4 +202,3 @@ def align_time(logits, targets, lengths=None):
     if lengths is not None:
         lengths = lengths.clamp(max=t)
     return logits, targets, lengths
-

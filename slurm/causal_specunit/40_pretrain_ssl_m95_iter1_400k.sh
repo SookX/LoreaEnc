@@ -45,8 +45,11 @@ TARGETS_DIR="outputs/causal_specunit/targets_960h_c8"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/ssl_m95_iter1_400k}"
 
 MAX_STEPS="${MAX_STEPS:-400000}"
-WARMUP_EPOCHS="${WARMUP_EPOCHS:-20}"
-PEAK_EPOCHS="${PEAK_EPOCHS:-100}"
+LR="${LR:-5e-4}"
+WARMUP_EPOCHS="${WARMUP_EPOCHS:-30}"
+PEAK_EPOCHS="${PEAK_EPOCHS:-20}"
+WARMUP_STEPS="${WARMUP_STEPS:-32000}"
+PEAK_STEPS="${PEAK_STEPS:-22000}"
 BATCH_SIZE="${BATCH_SIZE:-64}"
 GRAD_ACCUM_STEPS="${GRAD_ACCUM_STEPS:-2}"
 
@@ -90,7 +93,8 @@ echo ""
 echo "===================================================="
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] SqueezeFormer-M95 iter-1 SSL pretrain"
 echo "  variant=m95 (93M params, ~98% of wav2vec2-Base)"
-echo "  max_steps=${MAX_STEPS} batch=${BATCH_SIZE} grad_accum=${GRAD_ACCUM_STEPS}"
+echo "  max_steps=${MAX_STEPS} batch=${BATCH_SIZE} grad_accum=${GRAD_ACCUM_STEPS} lr=${LR}"
+echo "  schedule warmup_steps=${WARMUP_STEPS} peak_steps=${PEAK_STEPS}"
 echo "  effective batch = ${BATCH_SIZE} x ${NUM_PROCESSES} x ${GRAD_ACCUM_STEPS} = $((BATCH_SIZE * NUM_PROCESSES * GRAD_ACCUM_STEPS))"
 echo "  targets=${TARGETS_DIR}"
 echo "  output=${OUTPUT_DIR}"
@@ -146,9 +150,11 @@ torchrun \
     --mask-length 10 \
     --chunk-size 8 \
     --chunk-stride 4 \
-    --lr 1e-3 \
+    --lr "${LR}" \
     --warmup-epochs "${WARMUP_EPOCHS}" \
     --peak-epochs "${PEAK_EPOCHS}" \
+    --warmup-steps "${WARMUP_STEPS}" \
+    --peak-steps "${PEAK_STEPS}" \
     --noam-decay-rate 1.0 \
     --max-grad-norm 1.0 \
     --max-safe-grad-norm 200.0 \

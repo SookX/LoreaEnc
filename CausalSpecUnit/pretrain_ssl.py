@@ -54,6 +54,26 @@ def count_parameters(model):
     return {"total": total, "trainable": trainable, "encoder": encoder}
 
 
+def summarize_target_lengths(dataset):
+    lengths = [int(dataset.targets[item["uid"]]["z100"].numel()) for item in dataset.items]
+    if not lengths:
+        return {
+            "utterances": 0,
+            "target_tokens_total": 0,
+            "target_tokens_mean": 0.0,
+            "target_tokens_min": 0,
+            "target_tokens_max": 0,
+        }
+    total = sum(lengths)
+    return {
+        "utterances": len(lengths),
+        "target_tokens_total": total,
+        "target_tokens_mean": total / len(lengths),
+        "target_tokens_min": min(lengths),
+        "target_tokens_max": max(lengths),
+    }
+
+
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data-root", type=str, default="dataset/datasets/librispeech/LibriSpeech")
@@ -139,6 +159,10 @@ def parse_args():
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--warmup-epochs", type=int, default=20)
     p.add_argument("--peak-epochs", type=int, default=20)
+    p.add_argument("--warmup-steps", type=int, default=None,
+                   help="Override --warmup-epochs with an exact optimizer-step warmup count.")
+    p.add_argument("--peak-steps", type=int, default=None,
+                   help="Override --peak-epochs with an exact optimizer-step peak-LR hold count.")
     p.add_argument("--noam-decay-rate", type=float, default=1.0)
     p.add_argument("--weight-decay", type=float, default=5e-4)
     p.add_argument("--max-grad-norm", type=float, default=1.0)
@@ -420,6 +444,11 @@ def main():
         cmvn_path=os.path.join(args.targets_dir, "cmvn.pt"),
         mel_cache_dir=args.mel_cache_dir,
     )
+    target_length_stats = summarize_target_lengths(dataset)
+    effective_utterance_batch = args.batch_size * world_size * args.grad_accum_steps
+    estimated_target_tokens_per_step = (
+        target_length_stats["target_tokens_mean"] * effective_utterance_batch
+    )
     trace(args.trace_startup, rank, f"dataset built with {len(dataset)} items")
     if args.bucket_sampler:
         lengths = [dataset.targets[it["uid"]]["z100"].numel() for it in dataset.items]
@@ -518,6 +547,9 @@ def main():
             "device": str(device),
             "hostname": socket.gethostname(),
             "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "effective_utterance_batch": effective_utterance_batch,
+            "target_length_stats": target_length_stats,
+            "estimated_target_tokens_per_optimizer_step": estimated_target_tokens_per_step,
             "random_baseline_ce": {
                 "k100_ln": math.log(100),
                 "k500_ln": math.log(500),
@@ -536,6 +568,8 @@ def main():
         warmup_epochs=args.warmup_epochs,
         peak_epochs=args.peak_epochs,
         decay_rate=args.noam_decay_rate,
+        warmup_steps=args.warmup_steps,
+        peak_steps=args.peak_steps,
     )
     optimizer_steps = 0
     start_epoch = 1
@@ -550,10 +584,26 @@ def main():
     print0(
         rank,
         f"CausalSpecUnit SSL | train={len(dataset)} utt | world={world_size} | "
-        f"effective_batch={args.batch_size * world_size * args.grad_accum_steps} | "
+        f"effective_batch={effective_utterance_batch} utt "
+        f"(~{estimated_target_tokens_per_step:,.0f} target tokens/opt-step) | "
         f"chunk={metadata['chunk_size']} stride={metadata['chunk_stride']} | "
-        f"lr={args.lr:g} warmup={args.warmup_epochs} hold={args.peak_epochs}",
+        f"lr={args.lr:g} warmup={args.warmup_steps or str(args.warmup_epochs) + 'ep'} "
+        f"hold={args.peak_steps or str(args.peak_epochs) + 'ep'}",
     )
+    large_variants = {"m", "m95", "ml", "l"}
+    if args.variant in large_variants and args.lr > 5e-4:
+        print0(
+            rank,
+            f"[ssl warn] variant={args.variant} launched with lr={args.lr:g}; "
+            "large SSL runs are usually safer at <=5e-4.",
+        )
+    if args.variant in large_variants and estimated_target_tokens_per_step < 100_000:
+        print0(
+            rank,
+            f"[ssl warn] estimated target-token batch is only "
+            f"{estimated_target_tokens_per_step:,.0f}/optimizer-step. "
+            "This is far below wav2vec2/HuBERT-scale token batches and can stall convergence.",
+        )
     if args.max_steps is not None:
         print0(rank, f"[ssl] target={args.max_steps} steps | remaining={max(0, args.max_steps - optimizer_steps)}")
 

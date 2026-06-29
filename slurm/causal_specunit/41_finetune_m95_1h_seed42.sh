@@ -51,13 +51,14 @@ FT_EPOCHS="${FT_EPOCHS:-150}"
 
 # Hyperparameters that diagnostics need to override.
 # Defaults match the 9M recipe; tests can lower the LRs or freeze the encoder.
-ENCODER_LR="${ENCODER_LR:-3e-4}"
+ENCODER_LR="${ENCODER_LR:-1e-4}"
 HEAD_LR="${HEAD_LR:-1e-3}"
 BASE_LR="${BASE_LR:-1e-3}"
 WARMUP_EPOCHS="${WARMUP_EPOCHS:-10}"
 PEAK_EPOCHS="${PEAK_EPOCHS:-50}"
 FREEZE_EPOCHS="${FREEZE_EPOCHS:-0}"
 REWARMUP_EPOCHS="${REWARMUP_EPOCHS:-0}"
+ALLOW_INTERMEDIATE_CKPT="${ALLOW_INTERMEDIATE_CKPT:-0}"
 TAG="${TAG:-}"
 
 # Tag the output dir so diagnostic runs (frozen, lowlr, etc.) don't collide.
@@ -98,16 +99,21 @@ echo "Output dir:     ${FT_OUT_DIR}"
 [ -d "${VIRTUAL_ENV}" ]                 || { echo "Missing venv"; exit 1; }
 [ -d "${DATA_ROOT}" ]                   || { echo "Missing data root"; exit 1; }
 [ -f "${SOURCE_TARGETS_DIR}/cmvn.pt" ]  || { echo "Missing CMVN"; exit 1; }
-# If the default 400k checkpoint doesn't exist yet, auto-fall-back to the
-# most-recent existing checkpoint in the same dir. This way you can run
-# the validation against intermediate snapshots without manually editing
-# the path. Override SSL_CKPT explicitly to disable the fallback.
+# If the default 400k checkpoint doesn't exist yet, optionally fall back to the
+# most-recent existing checkpoint in the same dir. This is intentionally gated:
+# otherwise a nominal "400k" validation can silently use a 150k undertrained
+# encoder and produce misleading fine-tune results.
 if [ ! -f "${SSL_CKPT}" ]; then
     SSL_DIR=$(dirname "$(dirname "${SSL_CKPT}")")
     AUTO_CKPT=$(ls -t "${SSL_DIR}"/checkpoint_step*/checkpoint.pt 2>/dev/null | head -1)
-    if [ -n "${AUTO_CKPT}" ]; then
+    if [ "${ALLOW_INTERMEDIATE_CKPT}" = "1" ] && [ -n "${AUTO_CKPT}" ]; then
         echo "SSL_CKPT default not found; falling back to latest: ${AUTO_CKPT}"
         SSL_CKPT="${AUTO_CKPT}"
+    elif [ -n "${AUTO_CKPT}" ]; then
+        echo "Missing requested SSL checkpoint: ${SSL_CKPT}"
+        echo "Latest intermediate exists: ${AUTO_CKPT}"
+        echo "Set ALLOW_INTERMEDIATE_CKPT=1 or pass SSL_CKPT=${AUTO_CKPT} to use it intentionally."
+        exit 1
     fi
 fi
 [ -f "${SSL_CKPT}" ]                    || { echo "Missing SSL checkpoint: ${SSL_CKPT}"; exit 1; }
