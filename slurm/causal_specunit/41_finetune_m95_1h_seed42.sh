@@ -43,13 +43,29 @@ TOKENIZER_PATH="dataset/bpe128.model"
 NPROC_PER_NODE="2"
 
 SSL_CKPT="${SSL_CKPT:-outputs/causal_specunit/ssl_m95_iter1_400k/checkpoint_step400000/checkpoint.pt}"
-OUTPUT_ROOT="outputs/causal_specunit/m95_smoke/iter1"
+OUTPUT_ROOT="${OUTPUT_ROOT:-outputs/causal_specunit/m95_smoke/iter1}"
 SUBSET="${SUBSET:-librilight_1h}"
 SEED="${SEED:-42}"
 FT_BATCH_SIZE="${FT_BATCH_SIZE:-16}"   # 2 GPUs x 16 = 32 effective, matches 9M iter-2 1h recipe (script 10)
 FT_EPOCHS="${FT_EPOCHS:-150}"
 
-FT_OUT_DIR="${OUTPUT_ROOT}/${SUBSET}/seed${SEED}"
+# Hyperparameters that diagnostics need to override.
+# Defaults match the 9M recipe; tests can lower the LRs or freeze the encoder.
+ENCODER_LR="${ENCODER_LR:-3e-4}"
+HEAD_LR="${HEAD_LR:-1e-3}"
+BASE_LR="${BASE_LR:-1e-3}"
+WARMUP_EPOCHS="${WARMUP_EPOCHS:-10}"
+PEAK_EPOCHS="${PEAK_EPOCHS:-50}"
+FREEZE_EPOCHS="${FREEZE_EPOCHS:-0}"
+REWARMUP_EPOCHS="${REWARMUP_EPOCHS:-0}"
+TAG="${TAG:-}"
+
+# Tag the output dir so diagnostic runs (frozen, lowlr, etc.) don't collide.
+if [ -n "${TAG}" ]; then
+    FT_OUT_DIR="${OUTPUT_ROOT}/${SUBSET}/seed${SEED}_${TAG}"
+else
+    FT_OUT_DIR="${OUTPUT_ROOT}/${SUBSET}/seed${SEED}"
+fi
 
 export VIRTUAL_ENV
 export PATH="${VIRTUAL_ENV}/bin:${PATH}"
@@ -82,6 +98,18 @@ echo "Output dir:     ${FT_OUT_DIR}"
 [ -d "${VIRTUAL_ENV}" ]                 || { echo "Missing venv"; exit 1; }
 [ -d "${DATA_ROOT}" ]                   || { echo "Missing data root"; exit 1; }
 [ -f "${SOURCE_TARGETS_DIR}/cmvn.pt" ]  || { echo "Missing CMVN"; exit 1; }
+# If the default 400k checkpoint doesn't exist yet, auto-fall-back to the
+# most-recent existing checkpoint in the same dir. This way you can run
+# the validation against intermediate snapshots without manually editing
+# the path. Override SSL_CKPT explicitly to disable the fallback.
+if [ ! -f "${SSL_CKPT}" ]; then
+    SSL_DIR=$(dirname "$(dirname "${SSL_CKPT}")")
+    AUTO_CKPT=$(ls -t "${SSL_DIR}"/checkpoint_step*/checkpoint.pt 2>/dev/null | head -1)
+    if [ -n "${AUTO_CKPT}" ]; then
+        echo "SSL_CKPT default not found; falling back to latest: ${AUTO_CKPT}"
+        SSL_CKPT="${AUTO_CKPT}"
+    fi
+fi
 [ -f "${SSL_CKPT}" ]                    || { echo "Missing SSL checkpoint: ${SSL_CKPT}"; exit 1; }
 [ -f "${TOKENIZER_PATH}" ]              || { echo "Missing tokenizer"; exit 1; }
 
@@ -114,12 +142,14 @@ if [ ! -f "${FT_OUT_DIR}/checkpoint_best/checkpoint.pt" ]; then
         --eval-every 1 \
         --workers 8 \
         --dataloader-timeout 120 \
-        --lr 1e-3 \
-        --encoder-lr 3e-4 \
-        --head-lr 1e-3 \
-        --warmup-epochs 10 \
-        --peak-epochs 50 \
+        --lr "${BASE_LR}" \
+        --encoder-lr "${ENCODER_LR}" \
+        --head-lr "${HEAD_LR}" \
+        --warmup-epochs "${WARMUP_EPOCHS}" \
+        --peak-epochs "${PEAK_EPOCHS}" \
         --noam-decay-rate 0.5 \
+        --freeze-encoder-epochs "${FREEZE_EPOCHS}" \
+        --encoder-rewarmup-epochs "${REWARMUP_EPOCHS}" \
         --max-grad-norm 1.0 \
         --specaug \
         --specaug-time-mask-param 30 \
