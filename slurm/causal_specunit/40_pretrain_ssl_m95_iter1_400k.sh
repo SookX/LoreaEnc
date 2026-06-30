@@ -41,8 +41,11 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 DATA_ROOT="dataset/datasets/librispeech/LibriSpeech"
-TARGETS_DIR="outputs/causal_specunit/targets_960h_c8"
-OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/ssl_m95_iter1_400k}"
+# Parallel-VQ targets (K1=100, K2=500), the recipe that beat k-means at 9M.
+# k-means (targets_960h_c8) has a low information ceiling that caps the
+# encoder regardless of scale, so the 95M run uses the learned-VQ targets.
+TARGETS_DIR="${TARGETS_DIR:-outputs/causal_specunit/targets_960h_c8_parallel_100_500}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/ssl_m95_parallelvq_iter1_400k}"
 
 MAX_STEPS="${MAX_STEPS:-400000}"
 LR="${LR:-5e-4}"
@@ -52,6 +55,18 @@ WARMUP_STEPS="${WARMUP_STEPS:-32000}"
 PEAK_STEPS="${PEAK_STEPS:-22000}"
 BATCH_SIZE="${BATCH_SIZE:-64}"
 GRAD_ACCUM_STEPS="${GRAD_ACCUM_STEPS:-2}"
+# Codebook sizes — must match the targets' metadata.json. Parallel-VQ here is
+# 100+500. Do NOT scale these with model size for iter-1: the codebook is a
+# property of the PCA-64 chunk feature space, not the encoder (HuBERT keeps
+# K=500 from Base to X-Large). Scale the fine codebook at iter-2 instead,
+# where targets come from the richer 95M hidden states.
+K_COARSE="${K_COARSE:-100}"
+K_FINE="${K_FINE:-500}"
+# Masking strength. wav2vec2/HuBERT mask ~45-50% of frames; the formula
+# n_spans = mask_prob*T/mask_length with mask_prob=0.30 only masked ~19%.
+# 0.65 brings the masked fraction into the standard SSL range.
+MASK_PROB="${MASK_PROB:-0.65}"
+MASK_LENGTH="${MASK_LENGTH:-10}"
 
 # Sanity checks
 [ -d "${VIRTUAL_ENV}" ]                          || { echo "Missing venv: ${VIRTUAL_ENV}"; exit 1; }
@@ -59,6 +74,26 @@ GRAD_ACCUM_STEPS="${GRAD_ACCUM_STEPS:-2}"
 [ -f "${TARGETS_DIR}/targets.pt" ]               || { echo "Missing targets: ${TARGETS_DIR}/targets.pt"; exit 1; }
 [ -f "${TARGETS_DIR}/cmvn.pt" ]                  || { echo "Missing CMVN: ${TARGETS_DIR}/cmvn.pt"; exit 1; }
 [ -f "${TARGETS_DIR}/metadata.json" ]            || { echo "Missing metadata: ${TARGETS_DIR}/metadata.json"; exit 1; }
+
+# Fail fast if K_COARSE/K_FINE disagree with the targets' metadata. pretrain_ssl
+# validates this too, but catching it here avoids burning a slurm allocation
+# only to die on the first batch.
+python3 - "$TARGETS_DIR" "$K_COARSE" "$K_FINE" <<'PY'
+import json, sys
+targets_dir, k_coarse, k_fine = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+with open(f"{targets_dir}/metadata.json") as f:
+    md = json.load(f)
+errs = []
+if int(md.get("k_coarse", -1)) != k_coarse:
+    errs.append(f"k_coarse: targets={md.get('k_coarse')} script={k_coarse}")
+if int(md.get("k_fine", -1)) != k_fine:
+    errs.append(f"k_fine: targets={md.get('k_fine')} script={k_fine}")
+if errs:
+    print("Codebook size mismatch vs targets metadata:\n  " + "\n  ".join(errs))
+    sys.exit(1)
+print(f"Targets OK: k_coarse={md.get('k_coarse')} k_fine={md.get('k_fine')} "
+      f"type={md.get('quantizer_type', 'kmeans')} utts={md.get('num_target_utterances')}")
+PY
 
 if [ ! -f "${TARGETS_DIR}/target_index.json" ]; then
     echo "Target shards index missing; building 128 shards..."
@@ -94,6 +129,8 @@ echo "===================================================="
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] SqueezeFormer-M95 iter-1 SSL pretrain"
 echo "  variant=m95 (93M params, ~98% of wav2vec2-Base)"
 echo "  max_steps=${MAX_STEPS} batch=${BATCH_SIZE} grad_accum=${GRAD_ACCUM_STEPS} lr=${LR}"
+echo "  targets=${TARGETS_DIR}  (K_c=${K_COARSE} K_f=${K_FINE})"
+echo "  mask_prob=${MASK_PROB} mask_length=${MASK_LENGTH}"
 echo "  schedule warmup_steps=${WARMUP_STEPS} peak_steps=${PEAK_STEPS}"
 echo "  effective batch = ${BATCH_SIZE} x ${NUM_PROCESSES} x ${GRAD_ACCUM_STEPS} = $((BATCH_SIZE * NUM_PROCESSES * GRAD_ACCUM_STEPS))"
 echo "  targets=${TARGETS_DIR}"
@@ -144,10 +181,10 @@ torchrun \
     --batch-size "${BATCH_SIZE}" \
     --grad-accum-steps "${GRAD_ACCUM_STEPS}" \
     --codebook-mode both \
-    --k-coarse 100 \
-    --k-fine 500 \
-    --mask-prob 0.30 \
-    --mask-length 10 \
+    --k-coarse "${K_COARSE}" \
+    --k-fine "${K_FINE}" \
+    --mask-prob "${MASK_PROB}" \
+    --mask-length "${MASK_LENGTH}" \
     --chunk-size 8 \
     --chunk-stride 4 \
     --lr "${LR}" \
