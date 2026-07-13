@@ -344,6 +344,192 @@ def collate_eval(batch):
     return mel, lengths, labels, label_lengths, transcripts
 
 
+class DistillDataset(Dataset):
+    """Unlabeled dataset for DistilHuBERT-style feature distillation.
+
+    Yields, per utterance:
+      - ``mel``: CMVN log-mel [T, 80] for the student (uses LogMelExtractor,
+        including its pre-emphasis + CMVN — identical to the SSL front-end).
+      - ``waveform``: raw mono waveform [T_wav] at 16 kHz for the frozen
+        teacher. Loaded WITHOUT pre-emphasis or per-utterance normalization,
+        matching what the released HuBERT/wav2vec2 Base checkpoints expect.
+
+    No labels are used — distillation operates on the unlabeled 960h corpus,
+    mirroring the SSL pretraining stage it replaces.
+    """
+
+    def __init__(
+        self,
+        data_root,
+        splits,
+        cmvn_path,
+        mel_cache_dir=None,
+        max_items=None,
+        teacher_sample_rate=16000,
+        max_duration_sec=None,
+        compute_durations=False,
+        durations_cache=None,
+    ):
+        self.items = list(iter_librispeech_items(data_root, splits))
+        if max_items is not None:
+            self.items = self.items[:max_items]
+        self.extractor = LogMelExtractor()
+        self.mean, self.std = load_cmvn(cmvn_path)
+        self.mel_cache_dir = mel_cache_dir
+        self.teacher_sample_rate = teacher_sample_rate
+        if mel_cache_dir:
+            self.items = [
+                item for item in self.items
+                if os.path.isfile(os.path.join(mel_cache_dir, item["split"], item["uid"] + ".pt"))
+            ]
+        # Optional duration handling. Needed to (a) drop over-long utterances
+        # that would blow up the frozen teacher's activation memory, and/or
+        # (b) length-bucket batches to cut padding waste. Only scans durations
+        # when actually requested — keeps startup fast in the default path.
+        self.durations = None
+        if max_duration_sec is not None or compute_durations:
+            durs = self._compute_durations(self.items, durations_cache)
+            kept_items, kept_durs = [], []
+            for item, dur in zip(self.items, durs):
+                if dur is None:
+                    continue  # unreadable header — skip rather than crash mid-run
+                if max_duration_sec is not None and dur > max_duration_sec:
+                    continue
+                kept_items.append(item)
+                kept_durs.append(dur)
+            self.items = kept_items
+            self.durations = kept_durs
+
+    @staticmethod
+    def _compute_durations(items, cache_path=None):
+        """Return per-item audio durations (seconds), using a JSON uid->sec cache.
+
+        The cache makes repeat runs cheap: the first run computes any missing
+        durations (torchaudio.info is header-only, ~ms/file) and writes the
+        merged cache back atomically. Concurrent ranks may race the write, but
+        os.replace is atomic and the content is identical, so last-writer-wins
+        is harmless.
+        """
+        cache = {}
+        if cache_path and os.path.isfile(cache_path):
+            try:
+                with open(cache_path, encoding="utf-8") as f:
+                    cache = json.load(f)
+            except Exception:
+                cache = {}
+        durations = []
+        computed_any = False
+        for item in items:
+            dur = cache.get(item["uid"])
+            if dur is None:
+                try:
+                    dur = audio_duration_seconds(item["audio_path"])
+                except Exception:
+                    dur = None
+                computed_any = True
+            durations.append(dur)
+        if cache_path and computed_any:
+            merged = dict(cache)
+            for item, dur in zip(items, durations):
+                if dur is not None:
+                    merged[item["uid"]] = dur
+            try:
+                os.makedirs(os.path.dirname(os.path.abspath(cache_path)), exist_ok=True)
+                tmp = f"{cache_path}.tmp.{os.getpid()}"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(merged, f)
+                os.replace(tmp, cache_path)
+            except Exception:
+                pass
+        return durations
+
+    def __len__(self):
+        return len(self.items)
+
+    def _load_raw_waveform(self, path):
+        try:
+            wav, sr = torchaudio.load(path, normalize=True)
+        except Exception:
+            import soundfile as sf
+            wav_np, sr = sf.read(path, dtype="float32", always_2d=True)
+            wav = torch.from_numpy(wav_np.T)
+        if wav.size(0) > 1:
+            wav = wav.mean(dim=0, keepdim=True)
+        if sr != self.teacher_sample_rate:
+            wav = torchaudio.functional.resample(wav, sr, self.teacher_sample_rate)
+        return wav.squeeze(0)  # [T_wav]
+
+    def __getitem__(self, idx):
+        item = self.items[idx]
+        if self.mel_cache_dir:
+            mel = torch.load(
+                os.path.join(self.mel_cache_dir, item["split"], item["uid"] + ".pt"),
+                map_location="cpu",
+            ).float()
+        else:
+            mel = apply_cmvn(self.extractor(item["audio_path"]), self.mean, self.std)
+        waveform = self._load_raw_waveform(item["audio_path"])
+        return {"uid": item["uid"], "mel": mel, "waveform": waveform}
+
+
+def collate_distill(batch):
+    """Collate (mel, waveform) pairs for distillation.
+
+    Returns:
+        mel:         [B, T_mel, 80] padded student input
+        lengths:     [B] valid mel frame counts
+        waveforms:   [B, T_wav] padded teacher input
+        wav_lengths: [B] valid sample counts
+    """
+    mel = nn.utils.rnn.pad_sequence([b["mel"] for b in batch], batch_first=True)
+    lengths = torch.tensor([b["mel"].size(0) for b in batch], dtype=torch.long)
+    wavs = [b["waveform"] for b in batch]
+    wav_lengths = torch.tensor([w.size(0) for w in wavs], dtype=torch.long)
+    waveforms = nn.utils.rnn.pad_sequence(wavs, batch_first=True)
+    return mel, lengths, waveforms, wav_lengths
+
+
+class LengthBucketSampler(torch.utils.data.Sampler):
+    """Groups items of similar length into buckets, shuffles within/across
+    buckets, and shards across DDP ranks.
+
+    Reduces padding waste (and thus peak memory) on variable-length audio: a
+    batch of similarly-long utterances pads far less than a random batch that
+    mixes a 2 s clip with a 30 s clip. ``lengths`` may be any per-item size
+    proxy (audio seconds or frame counts) — only the ordering matters.
+    """
+
+    def __init__(self, lengths, batch_size, num_replicas=1, rank=0,
+                 bucket_size_multiplier=100, seed=0, epoch=0):
+        self.lengths = list(lengths)
+        self.batch_size = batch_size
+        self.num_replicas = max(1, num_replicas)
+        self.rank = rank
+        self.bucket_size = batch_size * bucket_size_multiplier
+        self.seed = seed
+        self.epoch = epoch
+
+    def set_epoch(self, epoch):
+        self.epoch = epoch
+
+    def __iter__(self):
+        g = torch.Generator()
+        g.manual_seed(self.seed + self.epoch)
+        indices = torch.argsort(torch.tensor(self.lengths, dtype=torch.float)).tolist()
+        buckets = [indices[i:i + self.bucket_size] for i in range(0, len(indices), self.bucket_size)]
+        for bucket in buckets:
+            perm = torch.randperm(len(bucket), generator=g).tolist()
+            bucket[:] = [bucket[p] for p in perm]
+        bucket_order = torch.randperm(len(buckets), generator=g).tolist()
+        flat = [idx for b in bucket_order for idx in buckets[b]]
+        total = (len(flat) // self.num_replicas) * self.num_replicas
+        flat = flat[self.rank:total:self.num_replicas]
+        return iter(flat)
+
+    def __len__(self):
+        return len(self.lengths) // self.num_replicas
+
+
 class BatchSpecAugment(nn.Module):
     """SpecAugment for padded [B, T, F] CMVN log-mel batches.
 
