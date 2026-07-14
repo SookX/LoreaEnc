@@ -9,7 +9,7 @@
 #SBATCH --gpus-per-node=8
 #SBATCH --cpus-per-task=8            # 4 DataLoader workers × 2 for headroom
 #SBATCH --mem=0                      # use all available node memory
-#SBATCH --time=08:00:00
+#SBATCH --time=04:00:00
 #SBATCH --output=/valhalla/projects/bg-eng-01/LoreaEnc/logs/wav2vec2_pretrain_%j.out
 #SBATCH --error=/valhalla/projects/bg-eng-01/LoreaEnc/logs/wav2vec2_pretrain_%j.err
 # Adjust partition / account to match your Discoverer allocation:

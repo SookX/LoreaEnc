@@ -1,10 +1,10 @@
 # shellcheck shell=bash
 # _autochain.sh — sourced by long pretraining scripts so a single run can
-# survive an 8-hour cluster wall-time cap and complete across a chain of jobs.
+# survive an 4-hour cluster wall-time cap and complete across a chain of jobs.
 #
-# The cluster now caps every job at 8h, but SSL / distillation pretraining needs
-# far more GPU-time than that. This helper, sourced right before the torchrun
-# launch, makes each 8h job:
+# The cluster now caps every job at 4h (QOS bg-eng-01 MaxWall), but SSL /
+# distillation pretraining needs far more GPU-time than that. This helper,
+# sourced right before the torchrun launch, makes each 4h job:
 #   1. resolve the latest checkpoint_step<N>/ already on disk in OUTPUT_DIR;
 #   2. exit 0 immediately if training has already reached MAX_STEPS
 #      (this is what terminates the chain);
@@ -21,8 +21,8 @@
 #   SELF_SCRIPT  repo-relative path of the caller, used to resubmit successors
 #
 # Optional env knobs:
-#   AUTO_CHAIN=0   disable self-resubmission (run a single standalone 8h job)
-#   CHAIN_MAX=80   hard cap on chain length; guards against a crash-loop
+#   AUTO_CHAIN=0    disable self-resubmission (run a single standalone 4h job)
+#   CHAIN_MAX=150   hard cap on chain length; guards against a crash-loop
 #   CHAIN_DEPTH    managed automatically (current link index; do not set by hand)
 
 : "${OUTPUT_DIR:?_autochain.sh requires OUTPUT_DIR}"
@@ -65,7 +65,9 @@ fi
 
 # --- 4. queue the successor (afterany) ----------------------------------------
 CHAIN_DEPTH="${CHAIN_DEPTH:-0}"
-CHAIN_MAX="${CHAIN_MAX:-80}"
+# Guard against crash-loops. Sized for the longest legit run: m95 400k steps at
+# a 4h QOS cap is ~35-45 links, so 150 leaves ample margin for timeouts/preemptions.
+CHAIN_MAX="${CHAIN_MAX:-150}"
 if [ "${AUTO_CHAIN:-1}" != "1" ]; then
     echo "[autochain] AUTO_CHAIN disabled; running a single standalone job (no successor queued)."
 elif [ -z "${SLURM_JOB_ID:-}" ]; then
@@ -86,6 +88,6 @@ else
     if [ -n "${_ac_nid}" ]; then
         echo "[autochain] queued successor job ${_ac_nid} (link ${_ac_next}/${CHAIN_MAX}, afterany:${SLURM_JOB_ID})"
     else
-        echo "[autochain] WARNING: failed to queue successor job — this 8h job will run but the chain will not continue automatically."
+        echo "[autochain] WARNING: failed to queue successor job — this job will run but the chain will not continue automatically."
     fi
 fi

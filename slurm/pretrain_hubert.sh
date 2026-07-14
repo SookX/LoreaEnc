@@ -9,7 +9,7 @@
 #SBATCH --gpus-per-node=8
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=0
-#SBATCH --time=08:00:00
+#SBATCH --time=04:00:00
 #SBATCH --output=logs/hubert_pretrain_%j.out
 #SBATCH --error=logs/hubert_pretrain_%j.err
 ##SBATCH --partition=gpu

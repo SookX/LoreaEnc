@@ -24,7 +24,7 @@
 #SBATCH --qos=bg-eng-01
 #SBATCH --account=bg-eng-01
 #SBATCH --job-name=csu_distill
-#SBATCH --time=08:00:00
+#SBATCH --time=04:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
@@ -132,8 +132,8 @@ PY
 
 T0=$(date +%s)
 
-# 8h wall-time cap: resume from the latest checkpoint and queue a successor so
-# the full run completes across a chain of 8h jobs. Exits here if MAX_STEPS is
+# 4h wall-time cap: resume from the latest checkpoint and queue a successor so
+# the full run completes across a chain of 4h jobs. Exits here if MAX_STEPS is
 # already reached. Sets RESUME_CKPT, consumed by the block just below.
 SELF_SCRIPT="slurm/causal_specunit/50_distill_pretrain.sh"
 source slurm/causal_specunit/_autochain.sh
