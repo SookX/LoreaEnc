@@ -23,7 +23,7 @@
 #SBATCH --qos=bg-eng-01
 #SBATCH --account=bg-eng-01
 #SBATCH --job-name=m95_i1_400k
-#SBATCH --time=144:00:00
+#SBATCH --time=08:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
@@ -156,6 +156,12 @@ PY
 
 T0=$(date +%s)
 
+# 8h wall-time cap: resume from the latest checkpoint and queue a successor so
+# the full 400k-step run completes across a chain of 8h jobs. Exits here if
+# MAX_STEPS is already reached. Sets RESUME_CKPT, consumed by the block below.
+SELF_SCRIPT="slurm/causal_specunit/40_pretrain_ssl_m95_iter1_400k.sh"
+source slurm/causal_specunit/_autochain.sh
+
 RESUME_CKPT="${RESUME_CKPT:-}"
 RESUME_ARGS=()
 if [ -n "${RESUME_CKPT}" ]; then
@@ -199,7 +205,7 @@ torchrun \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --prefetch-factor 4 \
     --log-every 50 \
-    --save-every 10 \
+    --save-every 1 \
     --save-at-steps 150000 300000 \
     --keep-checkpoints 5 \
     --trace-startup \

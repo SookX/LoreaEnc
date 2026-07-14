@@ -91,7 +91,13 @@ def save_checkpoint(path, model, optimizer, scheduler, epoch, extra=None):
     }
     if extra:
         state.update(extra)
-    torch.save(state, os.path.join(path, "checkpoint.pt"))
+    # Write atomically so a job killed mid-save (e.g. at an 8h wall-time cap)
+    # cannot leave a half-written checkpoint.pt that would break the resume
+    # chain. os.replace is atomic within the same directory/filesystem.
+    final_path = os.path.join(path, "checkpoint.pt")
+    tmp_path = final_path + ".tmp"
+    torch.save(state, tmp_path)
+    os.replace(tmp_path, final_path)
 
 
 def load_checkpoint(path, model, optimizer=None, scheduler=None, device="cpu", strict=True):

@@ -16,7 +16,7 @@
 #SBATCH --qos=bg-eng-01
 #SBATCH --account=bg-eng-01
 #SBATCH --job-name=csu_ssl200k_c8
-#SBATCH --time=36:00:00
+#SBATCH --time=08:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
@@ -109,6 +109,12 @@ print("Target metadata:", {k: metadata.get(k) for k in
       ["chunk_size","chunk_stride","pca_dim","k_coarse","k_fine","target_features","num_target_utterances"]})
 PY
 
+# 8h wall-time cap: resume from the latest checkpoint and queue a successor so
+# the run completes across a chain of 8h jobs. Exits here if MAX_STEPS is
+# already reached. Sets RESUME_CKPT, consumed by the block just below.
+SELF_SCRIPT="slurm/causal_specunit/02_pretrain_ssl_200k_c8.sh"
+source slurm/causal_specunit/_autochain.sh
+
 RESUME_CKPT="${RESUME_CKPT:-}"
 if [ -n "${RESUME_CKPT}" ]; then
     if [ ! -f "${RESUME_CKPT}/checkpoint.pt" ]; then
@@ -145,7 +151,7 @@ torchrun \
     --dataloader-timeout "${DATALOADER_TIMEOUT}" \
     --prefetch-factor 4 \
     --log-every 10 \
-    --save-every 10 \
+    --save-every 1 \
     --trace-startup \
     --progress on \
     $( [ -n "${RESUME_CKPT}" ] && echo "--resume ${RESUME_CKPT}" || true )

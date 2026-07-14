@@ -8,7 +8,7 @@
 #SBATCH --qos=bg-eng-01
 #SBATCH --account=bg-eng-01
 #SBATCH --job-name=csu_ssl_iter1_960h_fair
-#SBATCH --time=96:00:00
+#SBATCH --time=08:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=40
@@ -53,7 +53,9 @@ CHUNK_SIZE="${CHUNK_SIZE:-8}"
 CHUNK_STRIDE="${CHUNK_STRIDE:-4}"
 
 LOG_EVERY="${LOG_EVERY:-10}"
-SAVE_EVERY="${SAVE_EVERY:-10}"
+# Save every epoch: with an 8h wall-time cap and auto-chaining, this bounds the
+# work lost on a mid-run kill to a single epoch.
+SAVE_EVERY="${SAVE_EVERY:-1}"
 KEEP_CHECKPOINTS="${KEEP_CHECKPOINTS:-5}"
 PROGRESS="${PROGRESS:-on}"
 TRACE_STARTUP="${TRACE_STARTUP:-1}"
@@ -157,6 +159,12 @@ print("Target metadata:", {
     "num_encoder_frames": metadata.get("num_encoder_frames"),
 })
 PY
+
+# 8h wall-time cap: resume from the latest checkpoint and queue a successor so
+# the run completes across a chain of 8h jobs. Exits here if MAX_STEPS is
+# already reached. Sets RESUME_CKPT, consumed by the block just below.
+SELF_SCRIPT="slurm/causal_specunit/02_pretrain_ssl_iter1_960h_fair.sh"
+source slurm/causal_specunit/_autochain.sh
 
 RESUME_CKPT="${RESUME_CKPT:-}"
 if [ -n "${RESUME_CKPT}" ]; then
