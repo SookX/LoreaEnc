@@ -6,7 +6,10 @@
 #   librilight_1h, librilight_10h, train-clean-100
 #
 # Models:
-#   scratch, iter1, iter2
+#   scratch, iter1, iter2, distill_hubert, distill_wav2vec2
+#     (distill_* = reviewer-requested KD baseline: HuBERT/wav2vec2 Base distilled
+#      into the SAME 9M SqueezeFormer-XS. Same fine-tune recipe as iter1/iter2,
+#      only --ssl-checkpoint differs, so the rows are apples-to-apples.)
 #
 # Seeds:
 #   42, 43, 44
@@ -14,11 +17,17 @@
 # Submit:
 #   sbatch slurm/causal_specunit/10_benchmark_1h_10h_100h_3seeds.sh
 #
+# Fine-tune ONLY the distilled models at 1h (matches the recipe/seeds/output tree
+# already used for scratch/iter1/iter2, so the numbers drop straight into the table):
+#   SUBSETS=librilight_1h CONDITIONS="distill_hubert distill_wav2vec2" \
+#       sbatch slurm/causal_specunit/10_benchmark_1h_10h_100h_3seeds.sh
+#
 # Optional filters:
 #   SUBSETS="librilight_1h librilight_10h" sbatch ...
-#   CONDITIONS="scratch iter1 iter2" sbatch ...
+#   CONDITIONS="scratch iter1 iter2 distill_hubert distill_wav2vec2" sbatch ...
 #   SEED_LIST="42" sbatch ...
 #   CLEAN_FIRST=1 sbatch ...
+#   DISTILL_HUBERT_CKPT=... DISTILL_W2V2_CKPT=... sbatch ...   # override ckpt paths
 #
 # Shared recipe across all cells. Only per-GPU batch size changes by split.
 
@@ -118,10 +127,15 @@ batch_size_for_split() {
 
 resolve_ssl_ckpt() {
     case "$1" in
-        scratch) echo "" ;;
-        iter1)   echo "outputs/causal_specunit/pretrain_ssl_v2_150k_c8/checkpoint_step150000/checkpoint.pt" ;;
-        iter2)   echo "outputs/causal_specunit/pretrain_ssl_iter2_from_v2_c8/checkpoint_step100000/checkpoint.pt" ;;
-        *)       echo "ERROR"; return 1 ;;
+        scratch)          echo "" ;;
+        iter1)            echo "outputs/causal_specunit/pretrain_ssl_v2_150k_c8/checkpoint_step150000/checkpoint.pt" ;;
+        iter2)            echo "outputs/causal_specunit/pretrain_ssl_iter2_from_v2_c8/checkpoint_step100000/checkpoint.pt" ;;
+        # KD baseline: distilled 9M SqueezeFormer-XS students (250k steps). The
+        # distilled encoder saves under encoder.* so train_ctc loads it exactly
+        # like any SSL checkpoint. Override paths via DISTILL_HUBERT_CKPT / DISTILL_W2V2_CKPT.
+        distill_hubert)   echo "${DISTILL_HUBERT_CKPT:-outputs/causal_specunit/distill_hubert_base_960h/checkpoint_step250000/checkpoint.pt}" ;;
+        distill_wav2vec2) echo "${DISTILL_W2V2_CKPT:-outputs/causal_specunit/distill_wav2vec2_base_960h/checkpoint_step250000/checkpoint.pt}" ;;
+        *)                echo "ERROR"; return 1 ;;
     esac
 }
 
@@ -142,7 +156,7 @@ done
 for CONDITION in "${MODEL_CONDITIONS[@]}"; do
     SSL_CHECKPOINT=$(resolve_ssl_ckpt "${CONDITION}")
     if [ "${SSL_CHECKPOINT}" = "ERROR" ]; then
-        echo "Invalid condition ${CONDITION}; expected scratch, iter1, or iter2"
+        echo "Invalid condition ${CONDITION}; expected scratch, iter1, iter2, distill_hubert, or distill_wav2vec2"
         exit 1
     fi
     if [ -n "${SSL_CHECKPOINT}" ] && [ ! -f "${SSL_CHECKPOINT}" ]; then
