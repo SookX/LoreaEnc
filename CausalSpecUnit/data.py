@@ -49,6 +49,47 @@ def iter_librispeech_items(data_root, splits):
                         }
 
 
+def iter_mls_items(lang_root, splits):
+    """Yield item dicts for Multilingual LibriSpeech, matching iter_librispeech_items.
+
+    lang_root: a single-language MLS root, e.g. ``dataset/mls/mls_polish``.
+    splits:    subset of {"train", "dev", "test"}.
+
+    MLS layout::
+
+        <lang_root>/<split>/transcripts.txt      # "<uid>\\t<transcript>" per line
+        <lang_root>/<split>/audio/<spk>/<book>/<uid>.flac   # uid = "<spk>_<book>_<utt>"
+
+    Audio is already 16 kHz mono flac, so no resampling is needed downstream.
+    """
+    for split in splits:
+        split_dir = os.path.join(lang_root, split)
+        trans_path = os.path.join(split_dir, "transcripts.txt")
+        if not os.path.isfile(trans_path):
+            raise FileNotFoundError(f"MLS transcripts not found: {trans_path}")
+        with open(trans_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.rstrip("\n")
+                if not line:
+                    continue
+                parts = line.split("\t")
+                if len(parts) != 2:
+                    continue
+                uid, transcript = parts[0], parts[1].strip()
+                if not transcript:
+                    continue
+                uid_parts = uid.split("_")
+                if len(uid_parts) < 3:
+                    continue
+                spk, book = uid_parts[0], uid_parts[1]
+                yield {
+                    "uid": uid,
+                    "audio_path": os.path.join(split_dir, "audio", spk, book, uid + ".flac"),
+                    "transcript": transcript,
+                    "split": split,
+                }
+
+
 def audio_duration_seconds(path):
     info = torchaudio.info(path)
     return float(info.num_frames) / float(info.sample_rate)
