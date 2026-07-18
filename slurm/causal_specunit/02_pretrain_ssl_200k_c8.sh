@@ -38,6 +38,12 @@ TARGETS_DIR="outputs/causal_specunit/targets_960h_c8"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/pretrain_ssl_200k_c8}"
 
 MAX_STEPS="${MAX_STEPS:-200000}"
+# Codebook mode: "both" (dual K=100+500, our recipe) is the default and leaves
+# every existing run byte-identical. "fine" trains only the K=500 head — the
+# single-codebook ablation that holds the SqueezeFormer backbone fixed, so the
+# dual-vs-single contribution can be read against mh9m without an architecture
+# confound. Propagates across the autochain via --export=ALL.
+CODEBOOK_MODE="${CODEBOOK_MODE:-both}"
 PEAK_EPOCHS="${PEAK_EPOCHS:-40}"
 
 if [ ! -d "${VIRTUAL_ENV}" ]; then
@@ -133,6 +139,7 @@ torchrun \
     --targets-dir "${TARGETS_DIR}" \
     --output-dir "${OUTPUT_DIR}" \
     --variant xs \
+    --codebook-mode "${CODEBOOK_MODE}" \
     --epochs 1000 \
     --max-steps "${MAX_STEPS}" \
     --batch-size 128 \

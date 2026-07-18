@@ -86,6 +86,12 @@ BASE_LR="${BASE_LR:-1e-3}"
 ENCODER_LR="${ENCODER_LR:-3e-4}"
 HEAD_LR="${HEAD_LR:-1e-3}"
 WARMUP_EPOCHS="${WARMUP_EPOCHS:-10}"
+# LP-FT knobs. Default 0/0 == byte-identical to the recipe that produced the
+# scratch/iter1/iter2 rows. Set FREEZE_ENCODER_EPOCHS>0 to linear-probe the CTC
+# head first, then unfreeze — the standard remedy for a pretrained/distilled
+# init that otherwise sinks into CTC all-blank collapse in the low-label regime.
+FREEZE_ENCODER_EPOCHS="${FREEZE_ENCODER_EPOCHS:-0}"
+ENCODER_REWARMUP_EPOCHS="${ENCODER_REWARMUP_EPOCHS:-0}"
 PEAK_EPOCHS="${PEAK_EPOCHS:-50}"
 NOAM_DECAY_RATE="${NOAM_DECAY_RATE:-0.5}"
 MAX_GRAD_NORM="${MAX_GRAD_NORM:-1.0}"
@@ -227,6 +233,8 @@ for SUBSET in "${DATASETS[@]}"; do
                     --encoder-lr "${ENCODER_LR}" \
                     --head-lr "${HEAD_LR}" \
                     --warmup-epochs "${WARMUP_EPOCHS}" \
+                    --freeze-encoder-epochs "${FREEZE_ENCODER_EPOCHS}" \
+                    --encoder-rewarmup-epochs "${ENCODER_REWARMUP_EPOCHS}" \
                     --peak-epochs "${PEAK_EPOCHS}" \
                     --noam-decay-rate "${NOAM_DECAY_RATE}" \
                     --max-grad-norm "${MAX_GRAD_NORM}" \

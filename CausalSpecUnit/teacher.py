@@ -43,7 +43,7 @@ class TeacherEncoder(nn.Module):
             teacher output rate matches the student's 4x-subsampled rate.
     """
 
-    def __init__(self, name="hubert_base", layers=(3, 7, 11), downsample=True):
+    def __init__(self, name="hubert_base", layers=(3, 7, 11), downsample=True, pretrained=True):
         super().__init__()
         if name not in SUPPORTED_TEACHERS:
             raise ValueError(f"Unknown teacher '{name}'. Choose from: {SUPPORTED_TEACHERS}")
@@ -51,10 +51,22 @@ class TeacherEncoder(nn.Module):
         self.layers = tuple(int(l) for l in layers)
         self.downsample = downsample
         self.output_dim = TEACHER_DIMS[name]
+        self.pretrained = bool(pretrained)
 
         pipeline = getattr(torchaudio.pipelines, _PIPELINES[name])
         self.sample_rate = pipeline.sample_rate
         model = pipeline.get_model()
+        if not self.pretrained:
+            # Random-teacher ablation: identical architecture, weights re-drawn
+            # from each module's default init so the teacher carries NONE of its
+            # pretraining. Distilling into this isolates how much of KD's benefit
+            # comes from the teacher's pretraining vs the distillation mechanism.
+            n_reset = 0
+            for m in model.modules():
+                if m is not model and hasattr(m, "reset_parameters"):
+                    m.reset_parameters()
+                    n_reset += 1
+            print(f"[teacher] RANDOM-INIT {name}: re-initialized {n_reset} submodules (no pretrained weights)")
         for p in model.parameters():
             p.requires_grad_(False)
         model.eval()
@@ -108,5 +120,5 @@ class TeacherEncoder(nn.Module):
         return feats, feat_lengths
 
 
-def build_teacher(name="hubert_base", layers=(3, 7, 11), downsample=True) -> TeacherEncoder:
-    return TeacherEncoder(name=name, layers=layers, downsample=downsample)
+def build_teacher(name="hubert_base", layers=(3, 7, 11), downsample=True, pretrained=True) -> TeacherEncoder:
+    return TeacherEncoder(name=name, layers=layers, downsample=downsample, pretrained=pretrained)

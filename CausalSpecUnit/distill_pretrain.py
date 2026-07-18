@@ -147,6 +147,10 @@ def parse_args():
                         "duration scan runs only once across runs.")
     # ---- teacher ----
     p.add_argument("--teacher", type=str, default="hubert_base", choices=list(SUPPORTED_TEACHERS))
+    p.add_argument("--random-teacher", action="store_true",
+                   help="Ablation: use a randomly-initialized (untrained) teacher of the SAME "
+                        "architecture. Isolates how much of KD's benefit is the teacher's "
+                        "pretraining vs. the distillation mechanism/architecture.")
     p.add_argument("--teacher-layers", type=int, nargs="+", default=[3, 7, 11],
                    help="0-indexed teacher transformer layers to distill. Default 3 7 11 "
                         "(= HuBERT layers 4/8/12, DistilHuBERT's choice).")
@@ -255,6 +259,7 @@ def main():
         name=args.teacher,
         layers=tuple(args.teacher_layers),
         downsample=args.teacher_downsample,
+        pretrained=not args.random_teacher,
     ).to(device)
     teacher.eval()
 

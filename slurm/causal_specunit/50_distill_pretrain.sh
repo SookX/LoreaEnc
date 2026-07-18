@@ -51,7 +51,17 @@ SOURCE_TARGETS_DIR="${SOURCE_TARGETS_DIR:-outputs/causal_specunit/targets_960h_c
 TEACHER="${TEACHER:-hubert_base}"
 TEACHER_LAYERS="${TEACHER_LAYERS:-3 7 11}"
 
-OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/distill_${TEACHER}_960h}"
+# RANDOM_TEACHER=1 runs the random-init-teacher ablation: same architecture,
+# same recipe, teacher weights carry NO pretraining. Distinct output dir so it
+# never clobbers the real KD run. Propagates across the autochain via --export=ALL.
+RANDOM_TEACHER="${RANDOM_TEACHER:-0}"
+if [ "${RANDOM_TEACHER}" = "1" ]; then
+    OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/distill_${TEACHER}_random_960h}"
+    RANDOM_TEACHER_ARG="--random-teacher"
+else
+    OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/distill_${TEACHER}_960h}"
+    RANDOM_TEACHER_ARG=""
+fi
 DURATIONS_CACHE="${DURATIONS_CACHE:-outputs/causal_specunit/librispeech_durations.json}"
 
 # Cache the teacher checkpoint inside the project so it persists across jobs.
@@ -161,6 +171,7 @@ torchrun \
     --output-dir "${OUTPUT_DIR}" \
     --teacher "${TEACHER}" \
     --teacher-layers ${TEACHER_LAYERS} \
+    ${RANDOM_TEACHER_ARG} \
     --variant xs \
     --epochs 1000 \
     --max-steps "${MAX_STEPS}" \

@@ -35,6 +35,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
 from SqueezeFormer.train import build_tokenizer
+from CausalSpecUnit.common import build_lpft_scheduler
 from CausalSpecUnit.data import CTCSpecDataset, collate_eval
 from CausalSpecUnit.model import (
     MELHUBERT_TRANSFORMER_CONFIGS,
@@ -291,6 +292,10 @@ def main():
     p.add_argument("--peak-epochs", type=int, default=50)
     p.add_argument("--noam-decay-rate", type=float, default=0.5)
     p.add_argument("--max-grad-norm", type=float, default=1.0)
+    # LP-FT: keep the encoder update-frozen (LR=0) for N epochs so the CTC head
+    # adapts first, then linearly re-warmup. Default 0/0 == the original recipe.
+    p.add_argument("--freeze-encoder-epochs", type=int, default=0)
+    p.add_argument("--encoder-rewarmup-epochs", type=int, default=0)
     p.add_argument("--specaug-time-mask-param", type=int, default=30)
     p.add_argument("--specaug-freq-mask-param", type=int, default=20)
     p.add_argument("--specaug-time-masks", type=int, default=2)
@@ -362,7 +367,20 @@ def main():
     steps_per_epoch = max(1, len(train_loader))
     warmup_steps = args.warmup_epochs * steps_per_epoch
     peak_steps = args.peak_epochs * steps_per_epoch
-    scheduler = make_noam_scheduler(optimizer, warmup_steps, peak_steps, args.noam_decay_rate)
+    if args.freeze_encoder_epochs > 0 or args.encoder_rewarmup_epochs > 0:
+        # Encoder group (name "encoder") stays at LR 0 during freeze, then
+        # re-warms; head group is unaffected. DDP-safe: params keep requires_grad
+        # (grads still all-reduce), only the LR is driven to 0.
+        scheduler = build_lpft_scheduler(
+            optimizer, steps_per_epoch,
+            warmup_epochs=args.warmup_epochs, peak_epochs=args.peak_epochs,
+            decay_rate=args.noam_decay_rate,
+            encoder_freeze_epochs=args.freeze_encoder_epochs,
+            encoder_rewarmup_epochs=args.encoder_rewarmup_epochs,
+        )
+        log(rank, f"LP-FT: encoder freeze={args.freeze_encoder_epochs}ep rewarmup={args.encoder_rewarmup_epochs}ep")
+    else:
+        scheduler = make_noam_scheduler(optimizer, warmup_steps, peak_steps, args.noam_decay_rate)
 
     specaug = SpecAug(args.specaug_time_mask_param, args.specaug_freq_mask_param,
                       args.specaug_time_masks, args.specaug_freq_masks)

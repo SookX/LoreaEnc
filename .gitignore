@@ -4,6 +4,9 @@ CausalSpecUnit/librispeech_alignments/
 # Datasets and audio data
 data_local/
 dataset/datasets/
+dataset/mls/
+dataset/manifests/
+.torch_cache/
 dataset/dev-clean/
 dataset/test-clean/
 dataset/test-other/

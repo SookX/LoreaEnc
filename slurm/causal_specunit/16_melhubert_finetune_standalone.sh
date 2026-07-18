@@ -134,6 +134,8 @@ torchrun \
     --peak-epochs 50 \
     --noam-decay-rate 0.5 \
     --max-grad-norm 1.0 \
+    --freeze-encoder-epochs "${FREEZE_ENCODER_EPOCHS:-0}" \
+    --encoder-rewarmup-epochs "${ENCODER_REWARMUP_EPOCHS:-0}" \
     --specaug-time-mask-param 30 \
     --specaug-freq-mask-param 20 \
     --specaug-time-masks 2 \
