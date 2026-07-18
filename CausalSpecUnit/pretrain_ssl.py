@@ -77,6 +77,9 @@ def summarize_target_lengths(dataset):
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data-root", type=str, default="dataset/datasets/librispeech/LibriSpeech")
+    p.add_argument("--mls-lang-root", type=str, default=None,
+                   help="Pretrain on a single-language MLS root (e.g. dataset/mls/mls_polish) "
+                        "instead of LibriSpeech. Targets must have been generated from the same root.")
     p.add_argument("--targets-dir", type=str, default="outputs/causal_specunit/targets")
     p.add_argument("--output-dir", type=str, default="outputs/causal_specunit/pretrain")
     p.add_argument("--mel-cache-dir", type=str, default=None,
@@ -437,12 +440,14 @@ def main():
     trace(args.trace_startup, rank, "target metadata validated")
 
     trace(args.trace_startup, rank, "building dataset; loading targets on each rank")
+    default_splits = ["train"] if args.mls_lang_root else TRAIN_SPLITS
     dataset = SpecUnitDataset(
         data_root=args.data_root,
-        splits=args.splits if args.splits else TRAIN_SPLITS,
+        splits=args.splits if args.splits else default_splits,
         targets_path=os.path.join(args.targets_dir, "targets.pt"),
         cmvn_path=os.path.join(args.targets_dir, "cmvn.pt"),
         mel_cache_dir=args.mel_cache_dir,
+        mls_lang_root=args.mls_lang_root,
     )
     target_length_stats = summarize_target_lengths(dataset)
     effective_utterance_batch = args.batch_size * world_size * args.grad_accum_steps

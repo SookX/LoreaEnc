@@ -11,12 +11,16 @@ from sklearn.decomposition import PCA
 from tqdm import tqdm
 
 from CausalSpecUnit.common import TRAIN_SPLITS
-from CausalSpecUnit.data import LogMelExtractor, apply_cmvn, iter_librispeech_items
+from CausalSpecUnit.data import LogMelExtractor, apply_cmvn, iter_librispeech_items, iter_mls_items
 
 
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data-root", type=str, default="dataset/datasets/librispeech/LibriSpeech")
+    p.add_argument("--mls-lang-root", type=str, default=None,
+                   help="If set, enumerate a single-language MLS root (e.g. "
+                        "dataset/mls/mls_polish) via iter_mls_items instead of LibriSpeech. "
+                        "Use --splits train for the MLS pretraining pool.")
     p.add_argument("--splits", nargs="+", default=TRAIN_SPLITS)
     p.add_argument("--output-dir", type=str, default="outputs/causal_specunit/targets")
     p.add_argument("--chunk-size", type=int, default=4)
@@ -64,7 +68,11 @@ def main():
     np.random.seed(args.seed)
     os.makedirs(args.output_dir, exist_ok=True)
 
-    items = list(iter_librispeech_items(args.data_root, args.splits))
+    if args.mls_lang_root:
+        splits = args.splits if args.splits != TRAIN_SPLITS else ["train"]
+        items = list(iter_mls_items(args.mls_lang_root, splits))
+    else:
+        items = list(iter_librispeech_items(args.data_root, args.splits))
     if args.max_utterances is not None:
         items = items[:args.max_utterances]
 

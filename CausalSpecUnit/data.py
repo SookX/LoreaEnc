@@ -90,6 +90,14 @@ def iter_mls_items(lang_root, splits):
                 }
 
 
+def enumerate_items(data_root, splits, mls_lang_root=None):
+    """Enumerate utterances: LibriSpeech by default, or a single-language MLS
+    root when ``mls_lang_root`` is set (e.g. ``dataset/mls/mls_polish``)."""
+    if mls_lang_root:
+        return list(iter_mls_items(mls_lang_root, splits))
+    return list(iter_librispeech_items(data_root, splits))
+
+
 def audio_duration_seconds(path):
     info = torchaudio.info(path)
     return float(info.num_frames) / float(info.sample_rate)
@@ -205,10 +213,11 @@ def load_targets(targets_path):
 
 
 class SpecUnitDataset(Dataset):
-    def __init__(self, data_root, splits, targets_path, cmvn_path, max_items=None, mel_cache_dir=None):
+    def __init__(self, data_root, splits, targets_path, cmvn_path, max_items=None, mel_cache_dir=None,
+                 mls_lang_root=None):
         start = time.time()
-        dataset_trace(f"scan start data_root={data_root} splits={splits}")
-        self.items = list(iter_librispeech_items(data_root, splits))
+        dataset_trace(f"scan start data_root={data_root} splits={splits} mls_lang_root={mls_lang_root}")
+        self.items = enumerate_items(data_root, splits, mls_lang_root)
         dataset_trace(f"scan done items={len(self.items)} seconds={time.time() - start:.1f}")
         if max_items is not None:
             self.items = self.items[:max_items]
@@ -274,8 +283,9 @@ class CTCSpecDataset(Dataset):
         subset_seed=42,
         ssl_targets_path=None,
         validate_audio=False,
+        mls_lang_root=None,
     ):
-        self.items = list(iter_librispeech_items(data_root, splits))
+        self.items = enumerate_items(data_root, splits, mls_lang_root)
         if max_items is not None:
             self.items = self.items[:max_items]
         self.audio_hours = None

@@ -167,6 +167,9 @@ def reduce_train_average(total_loss, n_batches, device):
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data-root", type=str, default="dataset/datasets/librispeech/LibriSpeech")
+    p.add_argument("--mls-lang-root", type=str, default=None,
+                   help="Fine-tune on a single-language MLS root (e.g. dataset/mls/mls_polish) "
+                        "instead of LibriSpeech. Use with the matching per-language tokenizer.")
     p.add_argument("--cmvn-path", type=str, default="outputs/causal_specunit/targets/cmvn.pt")
     p.add_argument("--ssl-checkpoint", type=str, default=None)
     p.add_argument("--output-dir", type=str, default="outputs/causal_specunit/ctc")
@@ -436,8 +439,10 @@ def main():
         max_hours=args.train_subset_hours,
         subset_seed=args.train_subset_seed,
         ssl_targets_path=ssl_targets_path,
+        mls_lang_root=args.mls_lang_root,
     )
-    dev_dataset = CTCSpecDataset(args.data_root, [args.eval_split], tokenizer, cmvn_path=cmvn_path, train_split=False)
+    dev_dataset = CTCSpecDataset(args.data_root, [args.eval_split], tokenizer, cmvn_path=cmvn_path,
+                                 train_split=False, mls_lang_root=args.mls_lang_root)
     train_sampler = (
         DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True, seed=args.seed)
         if world_size > 1 else None
