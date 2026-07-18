@@ -5,10 +5,10 @@
 # default -- enough to establish the scratch < iter-1 ordering in a new language
 # on the calendar. Auto-chains across the 4h wall cap.
 #
-# Prereq: LANG=<lang> sbatch slurm/causal_specunit/61_mls_targets.sh  (targets first)
+# Prereq: MLS_LANG=<lang> sbatch slurm/causal_specunit/61_mls_targets.sh  (targets first)
 # Submit:
-#   LANG=polish sbatch slurm/causal_specunit/62_mls_pretrain.sh
-#   LANG=polish MAX_STEPS=150000 sbatch ...   # full iter-1 budget if time allows
+#   MLS_LANG=polish sbatch slurm/causal_specunit/62_mls_pretrain.sh
+#   MLS_LANG=polish MAX_STEPS=150000 sbatch ...   # full iter-1 budget if time allows
 
 #SBATCH --partition=common
 #SBATCH --qos=bg-eng-01
@@ -32,10 +32,10 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 
-LANG="${LANG:-polish}"
-MLS_LANG_ROOT="${MLS_LANG_ROOT:-dataset/mls/mls_${LANG}}"
-TARGETS_DIR="${TARGETS_DIR:-outputs/causal_specunit/mls_targets_${LANG}_c8}"
-OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/mls_ssl_${LANG}_iter1_50k}"
+MLS_LANG="${MLS_LANG:-polish}"
+MLS_LANG_ROOT="${MLS_LANG_ROOT:-dataset/mls/mls_${MLS_LANG}}"
+TARGETS_DIR="${TARGETS_DIR:-outputs/causal_specunit/mls_targets_${MLS_LANG}_c8}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/mls_ssl_${MLS_LANG}_iter1_50k}"
 MAX_STEPS="${MAX_STEPS:-50000}"
 CODEBOOK_MODE="${CODEBOOK_MODE:-both}"
 PEAK_EPOCHS="${PEAK_EPOCHS:-40}"
@@ -76,7 +76,7 @@ WORKERS=12
 DATALOADER_TIMEOUT=300
 
 echo "===================================================="
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] MLS SSL iter-1: ${LANG}"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] MLS SSL iter-1: ${MLS_LANG}"
 echo "  mls_lang_root=${MLS_LANG_ROOT}  targets=${TARGETS_DIR}"
 echo "  output=${OUTPUT_DIR}  max_steps=${MAX_STEPS}  codebook=${CODEBOOK_MODE}"
 echo "===================================================="

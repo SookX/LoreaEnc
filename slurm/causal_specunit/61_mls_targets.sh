@@ -8,8 +8,8 @@
 # skips straight to chunk collection / assignment.
 #
 # Submit:
-#   LANG=polish     sbatch slurm/causal_specunit/61_mls_targets.sh
-#   LANG=portuguese sbatch slurm/causal_specunit/61_mls_targets.sh
+#   MLS_LANG=polish     sbatch slurm/causal_specunit/61_mls_targets.sh
+#   MLS_LANG=portuguese sbatch slurm/causal_specunit/61_mls_targets.sh
 
 #SBATCH --partition=common
 #SBATCH --qos=bg-eng-01
@@ -33,9 +33,9 @@ module load nvidia/cuda/12
 PROJECT_DIR="/valhalla/projects/${SLURM_JOB_ACCOUNT}/LoreaEnc"
 VIRTUAL_ENV="/valhalla/projects/${SLURM_JOB_ACCOUNT}/conda_envs/torch"
 
-LANG="${LANG:-polish}"
-MLS_LANG_ROOT="${MLS_LANG_ROOT:-dataset/mls/mls_${LANG}}"
-OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/mls_targets_${LANG}_c8}"
+MLS_LANG="${MLS_LANG:-polish}"
+MLS_LANG_ROOT="${MLS_LANG_ROOT:-dataset/mls/mls_${MLS_LANG}}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/causal_specunit/mls_targets_${MLS_LANG}_c8}"
 TARGET_SHARDS="${TARGET_SHARDS:-128}"
 
 [ -d "${VIRTUAL_ENV}" ]                     || { echo "Missing venv: ${VIRTUAL_ENV}"; exit 1; }
@@ -54,7 +54,7 @@ mkdir -p logs "${OUTPUT_DIR}"
 [ -f "${MLS_LANG_ROOT}/train/transcripts.txt" ] || { echo "Missing transcripts: ${MLS_LANG_ROOT}/train/transcripts.txt"; exit 1; }
 
 echo "===================================================="
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] MLS targets: ${LANG}"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] MLS targets: ${MLS_LANG}"
 echo "  mls_lang_root=${MLS_LANG_ROOT}"
 echo "  output=${OUTPUT_DIR}  shards=${TARGET_SHARDS}  OMP=${OMP_NUM_THREADS}"
 echo "===================================================="
@@ -76,4 +76,4 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] DONE. Targets in ${OUTPUT_DIR}"
 ls -1 "${OUTPUT_DIR}"
 echo ""
 echo "Next: SSL pretrain ->"
-echo "  LANG=${LANG} sbatch slurm/causal_specunit/62_mls_pretrain.sh"
+echo "  MLS_LANG=${MLS_LANG} sbatch slurm/causal_specunit/62_mls_pretrain.sh"
